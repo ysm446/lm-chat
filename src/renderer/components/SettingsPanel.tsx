@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchMemoryStats, getConfig, getSessionTokenCount, killLlama, updateConfig } from "../api";
+import { fetchMemoryStats, getConfig, getSessionTokenCount, updateConfig } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -18,8 +18,6 @@ export function SettingsPanel() {
   const [ctxInput, setCtxInput] = useState<string>("32768");
   const [ctxSaving, setCtxSaving] = useState(false);
   const [ctxSaved, setCtxSaved] = useState(false);
-  const [killing, setKilling] = useState(false);
-  const [killDone, setKillDone] = useState(false);
   const [tokenCount, setTokenCount] = useState<number | null>(null);
   const [tokenCtxSize, setTokenCtxSize] = useState<number>(32768);
 
@@ -70,19 +68,6 @@ export function SettingsPanel() {
       // ignore
     } finally {
       setCtxSaving(false);
-    }
-  };
-
-  const handleKillLlama = async () => {
-    setKilling(true);
-    try {
-      await killLlama();
-      setKillDone(true);
-      setTimeout(() => setKillDone(false), 3000);
-    } catch {
-      // ignore
-    } finally {
-      setKilling(false);
     }
   };
 
@@ -163,26 +148,6 @@ export function SettingsPanel() {
             <code>{ctxSize.toLocaleString()} トークン</code>
           </div>
         </div>
-      </section>
-
-      {/* VRAM release */}
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">GPU</p>
-            <h2>VRAM解放</h2>
-          </div>
-        </div>
-        <p className="muted" style={{ fontSize: "11px", marginBottom: 8 }}>
-          llama-server を停止して GPU メモリを解放します。再度使用するにはモデルを選択し直してください。
-        </p>
-        <button
-          className="danger-button"
-          onClick={() => void handleKillLlama()}
-          disabled={killing || killDone}
-        >
-          {killDone ? "✓ 停止しました" : killing ? "停止中…" : "llama-server を停止"}
-        </button>
       </section>
 
       {/* System info */}

@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
-from .llama_manager import _kill_running, get_llama_paths, is_ready, switch_model
+from .llama_manager import get_llama_paths, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, list_models, stream_chat_completion
 from .memory.engine import MemoryEngine
 from .models import (
@@ -317,10 +317,3 @@ def llama_switch_model(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info("Model switch initiated successfully")
     return {"status": "restarting", "model_path": model_path}
-
-
-@app.post("/llama/kill")
-def llama_kill() -> dict:
-    logger.info("Killing llama-server to free VRAM...")
-    _kill_running()
-    return {"status": "killed"}

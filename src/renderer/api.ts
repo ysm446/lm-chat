@@ -26,10 +26,6 @@ export type ApiWorkspace = {
   updated_at: string;
 };
 
-export type ChatSendResponse = {
-  session: ApiSession;
-  assistant_message: ApiMessage;
-};
 
 export type ChatStreamEvent =
   | { type: "token"; content: string }
@@ -124,15 +120,6 @@ export function switchLlamaModel(modelPath: string) {
   });
 }
 
-export function killLlama() {
-  return request<{ status: string }>("/llama/kill", { method: "POST" });
-}
-
-export function searchMemory(query: string, workspaceId: string, topK = 5) {
-  return request<{ query: string; workspace_id: string; items: { id: string; content: string; created_at: string }[] }>(
-    `/memory/search?query=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(workspaceId)}&top_k=${topK}`
-  );
-}
 
 export function createSession(workspaceId: string, title: string, modelName?: string) {
   return request<ApiSession>("/history/sessions", {
