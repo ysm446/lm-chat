@@ -195,9 +195,11 @@ a { color: var(--accent); }
   color: var(--text-dim);
   transition: background 0.1s, color 0.1s;
   font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.workspace-item span { font-weight: 500; }
+.workspace-item span { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .workspace-item small { font-size: 11px; color: var(--text-faint); }
 
 .workspace-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
@@ -263,6 +265,8 @@ a { color: var(--accent); }
   color: var(--text-dim);
   font-size: 13px;
   transition: background 0.1s, color 0.1s;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .session-item span { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -272,7 +276,7 @@ a { color: var(--accent); }
 .session-row.active .session-item { color: var(--text); }
 
 /* ── Row actions (⋯ button) ───────────────────────────── */
-.row-actions { display: flex; align-items: center; padding: 0 4px; }
+.row-actions { display: flex; align-items: center; padding: 0 4px; flex-shrink: 0; }
 
 .row-menu-button {
   width: 28px;
@@ -555,6 +559,19 @@ a { color: var(--accent); }
 .primary-button:hover:not(:disabled) { background: var(--accent-hover); }
 
 .primary-button.small { padding: 6px 12px; }
+
+.danger-button {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--r-sm);
+  padding: 8px 16px;
+  font-size: 13px;
+  transition: background 0.15s;
+  width: 100%;
+}
+.danger-button:hover:not(:disabled) { background: rgba(239, 68, 68, 0.22); }
+.danger-button:disabled { opacity: 0.5; cursor: default; }
 
 .ghost-button {
   background: rgba(255,255,255,0.04);

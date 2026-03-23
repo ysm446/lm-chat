@@ -123,6 +123,10 @@ export function switchLlamaModel(modelPath: string) {
   });
 }
 
+export function killLlama() {
+  return request<{ status: string }>("/llama/kill", { method: "POST" });
+}
+
 export function searchMemory(query: string, workspaceId: string, topK = 5) {
   return request<{ query: string; workspace_id: string; items: { id: string; content: string; created_at: string }[] }>(
     `/memory/search?query=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(workspaceId)}&top_k=${topK}`
