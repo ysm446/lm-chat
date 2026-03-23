@@ -1,0 +1,209 @@
+import { create } from "zustand";
+import {
+  ApiMessage,
+  ApiSession,
+  ApiWorkspace,
+  createSession as createSessionRequest,
+  createWorkspace as createWorkspaceRequest,
+  getSession,
+  listSessions,
+  listWorkspaces,
+  streamChatMessage
+} from "../api";
+
+type ChatState = {
+  workspaces: ApiWorkspace[];
+  sessions: ApiSession[];
+  currentWorkspaceId: string | null;
+  currentSessionId: string | null;
+  isBootstrapping: boolean;
+  isSubmitting: boolean;
+  error: string | null;
+  streamingText: string;
+  bootstrap: () => Promise<void>;
+  createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
+  selectWorkspace: (workspaceId: string) => Promise<void>;
+  createSession: (workspaceId: string, title: string) => Promise<ApiSession>;
+  selectSession: (sessionId: string) => Promise<void>;
+  sendMessage: (sessionId: string, content: string) => Promise<void>;
+  currentWorkspace: () => ApiWorkspace | undefined;
+  currentSession: () => ApiSession | undefined;
+  sessionsForCurrentWorkspace: () => ApiSession[];
+};
+
+const optimisticMessage = (role: ApiMessage["role"], content: string): ApiMessage => ({
+  id: `tmp-${crypto.randomUUID()}`,
+  role,
+  content,
+  created_at: new Date().toISOString()
+});
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  workspaces: [],
+  sessions: [],
+  currentWorkspaceId: null,
+  currentSessionId: null,
+  isBootstrapping: false,
+  isSubmitting: false,
+  error: null,
+  streamingText: "",
+
+  bootstrap: async () => {
+    set({ isBootstrapping: true, error: null });
+    try {
+      const workspaces = await listWorkspaces();
+      const firstWorkspace = workspaces[0];
+      const sessions = firstWorkspace ? await listSessions(firstWorkspace.id) : [];
+      set({
+        workspaces,
+        sessions,
+        currentWorkspaceId: firstWorkspace?.id ?? null,
+        currentSessionId: sessions[0]?.id ?? null,
+        isBootstrapping: false
+      });
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : "Failed to load data",
+        isBootstrapping: false
+      });
+    }
+  },
+
+  createWorkspace: async (name, description) => {
+    const workspace = await createWorkspaceRequest(name, description);
+    set((state) => ({
+      workspaces: [...state.workspaces, workspace],
+      currentWorkspaceId: workspace.id,
+      sessions: [],
+      currentSessionId: null,
+      error: null
+    }));
+    return workspace;
+  },
+
+  selectWorkspace: async (workspaceId) => {
+    set({ currentWorkspaceId: workspaceId, currentSessionId: null, error: null, streamingText: "" });
+    try {
+      const sessions = await listSessions(workspaceId);
+      set({
+        sessions,
+        currentSessionId: sessions[0]?.id ?? null
+      });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to load sessions" });
+    }
+  },
+
+  createSession: async (workspaceId, title) => {
+    const session = await createSessionRequest(workspaceId, title);
+    set((state) => ({
+      sessions: [session, ...state.sessions],
+      currentWorkspaceId: workspaceId,
+      currentSessionId: session.id,
+      error: null,
+      streamingText: ""
+    }));
+    return session;
+  },
+
+  selectSession: async (sessionId) => {
+    set({ currentSessionId: sessionId, error: null, streamingText: "" });
+    try {
+      const session = await getSession(sessionId);
+      set((state) => ({
+        sessions: state.sessions.map((item) => (item.id === session.id ? session : item))
+      }));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : "Failed to load session" });
+    }
+  },
+
+  sendMessage: async (sessionId, content) => {
+    const current = get().sessions.find((session) => session.id === sessionId);
+    if (!current) return;
+
+    const user = optimisticMessage("user", content);
+    const assistant = optimisticMessage("assistant", "");
+
+    set((state) => ({
+      isSubmitting: true,
+      error: null,
+      streamingText: "",
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId
+          ? { ...session, messages: [...session.messages, user, assistant] }
+          : session
+      )
+    }));
+
+    try {
+      await streamChatMessage(sessionId, content, {
+        onToken: (chunk) => {
+          set((state) => ({
+            streamingText: state.streamingText + chunk,
+            sessions: state.sessions.map((session) =>
+              session.id === sessionId
+                ? {
+                    ...session,
+                    messages: session.messages.map((message) =>
+                      message.id === assistant.id
+                        ? { ...message, content: message.content + chunk }
+                        : message
+                    )
+                  }
+                : session
+            )
+          }));
+        },
+        onDone: (session) => {
+          set((state) => ({
+            sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
+            currentSessionId: session.id,
+            isSubmitting: false,
+            streamingText: ""
+          }));
+        },
+        onError: (detail) => {
+          set((state) => ({
+            error: detail,
+            isSubmitting: false,
+            streamingText: "",
+            sessions: state.sessions.map((session) =>
+              session.id === sessionId
+                ? {
+                    ...session,
+                    messages: session.messages.filter((message) => message.id !== assistant.id)
+                  }
+                : session
+            )
+          }));
+        }
+      });
+    } catch (error) {
+      set((state) => ({
+        error: error instanceof Error ? error.message : "Failed to send message",
+        isSubmitting: false,
+        streamingText: "",
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                messages: session.messages.filter(
+                  (message) => message.id !== user.id && message.id !== assistant.id
+                )
+              }
+            : session
+        )
+      }));
+    }
+  },
+
+  currentWorkspace: () => get().workspaces.find((workspace) => workspace.id === get().currentWorkspaceId),
+
+  currentSession: () => get().sessions.find((session) => session.id === get().currentSessionId),
+
+  sessionsForCurrentWorkspace: () =>
+    get().sessions.filter((session) => session.workspace_id === get().currentWorkspaceId)
+}));
+
+export type { ApiMessage, ApiSession, ApiWorkspace };
