@@ -81,13 +81,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isBootstrapping: true, error: null });
     try {
       const workspaces = await listWorkspaces();
+      const sessionsArrays = await Promise.all(workspaces.map((w) => listSessions(w.id)));
+      const allSessions = sessionsArrays.flat();
       const firstWorkspace = workspaces[0];
-      const sessions = firstWorkspace ? await listSessions(firstWorkspace.id) : [];
+      const firstSessions = sessionsArrays[0] ?? [];
       set({
         workspaces,
-        sessions,
+        sessions: allSessions,
         currentWorkspaceId: firstWorkspace?.id ?? null,
-        currentSessionId: sessions[0]?.id ?? null,
+        currentSessionId: firstSessions[0]?.id ?? null,
         isBootstrapping: false
       });
     } catch (error) {
@@ -183,11 +185,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removeWorkspace: async (workspaceId) => {
     await deleteWorkspaceRequest(workspaceId);
     const workspaces = get().workspaces.filter((item) => item.id !== workspaceId);
+    const sessions = get().sessions.filter((s) => s.workspace_id !== workspaceId);
     const nextWorkspace = workspaces[0];
-    const nextSessions = nextWorkspace ? await listSessions(nextWorkspace.id) : [];
+    const nextSessions = sessions.filter((s) => s.workspace_id === nextWorkspace?.id);
     set({
       workspaces,
-      sessions: nextSessions,
+      sessions,
       currentWorkspaceId: nextWorkspace?.id ?? null,
       currentSessionId: nextSessions[0]?.id ?? null,
       error: null,
@@ -196,16 +199,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   selectWorkspace: async (workspaceId) => {
-    set({ currentWorkspaceId: workspaceId, currentSessionId: null, error: null, streamingText: "" });
-    try {
-      const sessions = await listSessions(workspaceId);
-      set({
-        sessions,
-        currentSessionId: sessions[0]?.id ?? null
-      });
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Failed to load sessions" });
-    }
+    const sessions = get().sessions.filter((s) => s.workspace_id === workspaceId);
+    set({
+      currentWorkspaceId: workspaceId,
+      currentSessionId: sessions[0]?.id ?? null,
+      error: null,
+      streamingText: ""
+    });
   },
 
   createSession: async (workspaceId, title) => {

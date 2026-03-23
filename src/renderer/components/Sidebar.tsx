@@ -1,0 +1,317 @@
+import { useEffect, useRef, useState } from "react";
+import { useChatStore } from "../stores/chatStore";
+
+type WsMenu = { id: string; name: string; description: string; x: number; y: number };
+type SessionMenu = { id: string; title: string; x: number; y: number };
+
+export function Sidebar() {
+  const workspaces = useChatStore((s) => s.workspaces);
+  const sessions = useChatStore((s) => s.sessions);
+  const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const selectWorkspace = useChatStore((s) => s.selectWorkspace);
+  const selectSession = useChatStore((s) => s.selectSession);
+  const createWorkspace = useChatStore((s) => s.createWorkspace);
+  const createSession = useChatStore((s) => s.createSession);
+  const renameWorkspace = useChatStore((s) => s.renameWorkspace);
+  const renameSession = useChatStore((s) => s.renameSession);
+  const removeWorkspace = useChatStore((s) => s.removeWorkspace);
+  const removeSession = useChatStore((s) => s.removeSession);
+
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(currentWorkspaceId ? [currentWorkspaceId] : [])
+  );
+  const [showNewWs, setShowNewWs] = useState(false);
+  const [newWsName, setNewWsName] = useState("");
+  const newWsInputRef = useRef<HTMLInputElement>(null);
+
+  const [editingWsId, setEditingWsId] = useState<string | null>(null);
+  const [editingWsName, setEditingWsName] = useState("");
+  const [editingWsDesc, setEditingWsDesc] = useState("");
+  const editWsNameRef = useRef<HTMLInputElement>(null);
+  const editWsDescRef = useRef<HTMLInputElement>(null);
+
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionTitle, setEditingSessionTitle] = useState("");
+  const editSessionRef = useRef<HTMLInputElement>(null);
+
+  const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
+  const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
+  const wsMenuRef = useRef<HTMLDivElement>(null);
+  const sessionMenuRef = useRef<HTMLDivElement>(null);
+
+  // 現在のワークスペースが切り替わったら自動展開
+  useEffect(() => {
+    if (currentWorkspaceId) {
+      setExpanded((prev) => new Set([...prev, currentWorkspaceId]));
+    }
+  }, [currentWorkspaceId]);
+
+  useEffect(() => { if (showNewWs) newWsInputRef.current?.focus(); }, [showNewWs]);
+  useEffect(() => { if (editingWsId) { editWsNameRef.current?.focus(); editWsNameRef.current?.select(); } }, [editingWsId]);
+  useEffect(() => { if (editingSessionId) { editSessionRef.current?.focus(); editSessionRef.current?.select(); } }, [editingSessionId]);
+
+  useEffect(() => {
+    if (!wsMenu && !sessionMenu) return undefined;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (wsMenuRef.current && !wsMenuRef.current.contains(t)) setWsMenu(null);
+      if (sessionMenuRef.current && !sessionMenuRef.current.contains(t)) setSessionMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setWsMenu(null); setSessionMenu(null); }
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+  }, [wsMenu, sessionMenu]);
+
+  const toggleExpand = (wsId: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(wsId)) next.delete(wsId);
+      else next.add(wsId);
+      return next;
+    });
+  };
+
+  const handleSelectWs = async (wsId: string) => {
+    setExpanded((prev) => new Set([...prev, wsId]));
+    await selectWorkspace(wsId);
+  };
+
+  const handleAddChat = async (wsId: string) => {
+    setExpanded((prev) => new Set([...prev, wsId]));
+    await createSession(wsId, "新規チャット");
+  };
+
+  const handleAddWorkspace = async () => {
+    const name = newWsName.trim();
+    if (!name) return;
+    const ws = await createWorkspace(name, "");
+    await createSession(ws.id, "新規チャット");
+    setNewWsName("");
+    setShowNewWs(false);
+    setExpanded((prev) => new Set([...prev, ws.id]));
+  };
+
+  const startEditWs = (ws: WsMenu) => {
+    setWsMenu(null);
+    setEditingWsId(ws.id);
+    setEditingWsName(ws.name);
+    setEditingWsDesc(ws.description);
+  };
+
+  const commitEditWs = async (wsId: string) => {
+    const name = editingWsName.trim();
+    if (name) await renameWorkspace(wsId, name, editingWsDesc.trim());
+    setEditingWsId(null);
+  };
+
+  const startEditSession = (sessionId: string, title: string) => {
+    setSessionMenu(null);
+    setEditingSessionId(sessionId);
+    setEditingSessionTitle(title);
+  };
+
+  const commitEditSession = async (sessionId: string) => {
+    const title = editingSessionTitle.trim();
+    if (title) await renameSession(sessionId, title);
+    setEditingSessionId(null);
+  };
+
+  const handleDeleteWs = async (wsId: string, name: string) => {
+    const ok = window.confirm(`ワークスペース「${name}」を削除しますか？\nチャット履歴と記憶もすべて削除されます。`);
+    if (!ok) return;
+    await removeWorkspace(wsId);
+    setWsMenu(null);
+  };
+
+  const handleDeleteSession = async (sessionId: string, title: string) => {
+    const ok = window.confirm(`チャット「${title}」を削除しますか？`);
+    if (!ok) return;
+    await removeSession(sessionId);
+    setSessionMenu(null);
+  };
+
+  return (
+    <div className="sidebar">
+      <div className="sidebar-tree">
+        {workspaces.map((ws) => {
+          const wsSessions = sessions.filter((s) => s.workspace_id === ws.id);
+          const isExpanded = expanded.has(ws.id);
+          const isActiveWs = ws.id === currentWorkspaceId;
+
+          return (
+            <div key={ws.id} className="sidebar-ws-group">
+              {editingWsId === ws.id ? (
+                <div className="sidebar-ws-edit">
+                  <input
+                    ref={editWsNameRef}
+                    className="inline-edit-input"
+                    placeholder="名前"
+                    value={editingWsName}
+                    onChange={(e) => setEditingWsName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") editWsDescRef.current?.focus();
+                      if (e.key === "Escape") setEditingWsId(null);
+                    }}
+                  />
+                  <div className="inline-edit-row">
+                    <input
+                      ref={editWsDescRef}
+                      className="inline-edit-input"
+                      placeholder="副題（任意）"
+                      value={editingWsDesc}
+                      onChange={(e) => setEditingWsDesc(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void commitEditWs(ws.id);
+                        if (e.key === "Escape") setEditingWsId(null);
+                      }}
+                    />
+                    <button className="inline-edit-confirm" onClick={() => void commitEditWs(ws.id)}>✓</button>
+                    <button className="inline-edit-cancel" onClick={() => setEditingWsId(null)}>✕</button>
+                  </div>
+                </div>
+              ) : (
+                <div className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}>
+                  <button
+                    className="sidebar-ws-toggle"
+                    onClick={() => toggleExpand(ws.id)}
+                    title={isExpanded ? "折りたたむ" : "展開する"}
+                  >
+                    {isExpanded ? "▾" : "▸"}
+                  </button>
+                  <button
+                    className="sidebar-ws-label"
+                    onClick={() => void handleSelectWs(ws.id)}
+                  >
+                    <span className="sidebar-ws-name">{ws.name}</span>
+                    {ws.description && <span className="sidebar-ws-desc">{ws.description}</span>}
+                  </button>
+                  <div className="sidebar-ws-actions">
+                    <button
+                      className="sidebar-icon-btn"
+                      title="新規チャット"
+                      onClick={() => void handleAddChat(ws.id)}
+                    >
+                      +
+                    </button>
+                    <button
+                      className="sidebar-icon-btn"
+                      title="メニュー"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setWsMenu({ id: ws.id, name: ws.name, description: ws.description, x: rect.right - 8, y: rect.bottom + 6 });
+                      }}
+                    >
+                      •••
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isExpanded && (
+                <div className="sidebar-sessions">
+                  {wsSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}`}
+                    >
+                      {editingSessionId === session.id ? (
+                        <div className="inline-edit-row" style={{ flex: 1, padding: "2px 0" }}>
+                          <input
+                            ref={editSessionRef}
+                            className="inline-edit-input"
+                            value={editingSessionTitle}
+                            onChange={(e) => setEditingSessionTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void commitEditSession(session.id);
+                              if (e.key === "Escape") setEditingSessionId(null);
+                            }}
+                          />
+                          <button className="inline-edit-confirm" onClick={() => void commitEditSession(session.id)}>✓</button>
+                          <button className="inline-edit-cancel" onClick={() => setEditingSessionId(null)}>✕</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            className="sidebar-session-btn"
+                            onClick={() => void selectSession(session.id)}
+                          >
+                            <span>{session.title}</span>
+                          </button>
+                          <div className="sidebar-session-actions">
+                            <button
+                              className="sidebar-icon-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setSessionMenu({ id: session.id, title: session.title, x: rect.right - 8, y: rect.bottom + 6 });
+                              }}
+                            >
+                              •••
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="sidebar-footer">
+        {showNewWs ? (
+          <div className="inline-edit-row">
+            <input
+              ref={newWsInputRef}
+              className="inline-edit-input"
+              placeholder="ワークスペース名"
+              value={newWsName}
+              onChange={(e) => setNewWsName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleAddWorkspace();
+                if (e.key === "Escape") { setShowNewWs(false); setNewWsName(""); }
+              }}
+            />
+            <button className="inline-edit-confirm" onClick={() => void handleAddWorkspace()}>✓</button>
+            <button className="inline-edit-cancel" onClick={() => { setShowNewWs(false); setNewWsName(""); }}>✕</button>
+          </div>
+        ) : (
+          <button className="sidebar-add-ws-btn" onClick={() => setShowNewWs(true)}>
+            + 新しいワークスペース
+          </button>
+        )}
+      </div>
+
+      {wsMenu && (
+        <div
+          ref={wsMenuRef}
+          className="context-menu"
+          style={{ left: `${wsMenu.x}px`, top: `${wsMenu.y}px` }}
+          role="menu"
+        >
+          <button className="context-menu-item" onClick={() => startEditWs(wsMenu)}>名前を変更</button>
+          <button className="context-menu-item danger" onClick={() => void handleDeleteWs(wsMenu.id, wsMenu.name)}>削除</button>
+        </div>
+      )}
+
+      {sessionMenu && (
+        <div
+          ref={sessionMenuRef}
+          className="context-menu"
+          style={{ left: `${sessionMenu.x}px`, top: `${sessionMenu.y}px` }}
+          role="menu"
+        >
+          <button className="context-menu-item" onClick={() => startEditSession(sessionMenu.id, sessionMenu.title)}>名前を変更</button>
+          <button className="context-menu-item danger" onClick={() => void handleDeleteSession(sessionMenu.id, sessionMenu.title)}>削除</button>
+        </div>
+      )}
+    </div>
+  );
+}

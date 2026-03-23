@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { ChatView } from "./components/ChatView";
-import { HistorySidebar } from "./components/HistorySidebar";
 import { MessageInput } from "./components/MessageInput";
 import { ModelSelector } from "./components/ModelSelector";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { Sidebar } from "./components/Sidebar";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
-import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { useChatStore } from "./stores/chatStore";
 
 export function App() {
@@ -40,8 +39,7 @@ export function App() {
   return (
     <div className="app-shell">
       <aside className="left-pane">
-        <WorkspaceSwitcher />
-        <HistorySidebar />
+        <Sidebar />
       </aside>
 
       <main className="center-pane">
