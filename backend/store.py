@@ -84,6 +84,13 @@ class SQLiteStore:
                 );
                 """
             )
+            # image_data カラムのマイグレーション（既存 DB 対応）
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN image_data TEXT")
+                conn.commit()
+            except Exception:
+                pass  # already exists
+
             # sqlite-vec テーブルは CREATE IF NOT EXISTS が使えないため個別に確認
             tables = {
                 row[0]
@@ -129,7 +136,9 @@ class SQLiteStore:
         return Workspace(**dict(row))
 
     def _message_from_row(self, row: sqlite3.Row) -> Message:
-        return Message(**dict(row))
+        data = dict(row)
+        data.setdefault("image_data", None)
+        return Message(**data)
 
     def _memory_from_row(self, row: sqlite3.Row) -> MemoryChunk:
         return MemoryChunk(**dict(row))
@@ -139,7 +148,7 @@ class SQLiteStore:
             self._message_from_row(message_row)
             for message_row in conn.execute(
                 """
-                SELECT id, role, content, created_at
+                SELECT id, role, content, image_data, created_at
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY created_at ASC
@@ -304,10 +313,10 @@ class SQLiteStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (message.id, session_id, message.role, message.content, message.created_at),
+                (message.id, session_id, message.role, message.content, message.image_data, message.created_at),
             )
             conn.execute(
                 "UPDATE sessions SET updated_at = ? WHERE id = ?",

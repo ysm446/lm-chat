@@ -32,12 +32,14 @@ class Message(BaseModel):
     id: str
     role: Literal["user", "assistant", "system"]
     content: str
+    image_data: str | None = None
     created_at: str = Field(default_factory=now_iso)
 
 
 class MessageCreate(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
+    image_data: str | None = None
 
 
 class Session(BaseModel):
@@ -64,6 +66,7 @@ class SessionUpdate(BaseModel):
 class ChatSendRequest(BaseModel):
     session_id: str
     content: str
+    image_data: str | None = None
     memory_enabled: bool = True
     thinking_enabled: bool = False
 

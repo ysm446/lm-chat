@@ -47,16 +47,17 @@ type ChatState = {
   renameSession: (sessionId: string, title: string) => Promise<void>;
   removeSession: (sessionId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
-  sendMessage: (sessionId: string, content: string) => Promise<void>;
+  sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
   sessionsForCurrentWorkspace: () => ApiSession[];
 };
 
-const optimisticMessage = (role: ApiMessage["role"], content: string): ApiMessage => ({
+const optimisticMessage = (role: ApiMessage["role"], content: string, imageData?: string | null): ApiMessage => ({
   id: `tmp-${crypto.randomUUID()}`,
   role,
   content,
+  image_data: imageData ?? null,
   created_at: new Date().toISOString()
 });
 
@@ -254,11 +255,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (sessionId, content) => {
+  sendMessage: async (sessionId, content, imageData) => {
     const current = get().sessions.find((session) => session.id === sessionId);
     if (!current) return;
 
-    const user = optimisticMessage("user", content);
+    const user = optimisticMessage("user", content, imageData);
     const assistant = optimisticMessage("assistant", "");
 
     set((state) => ({
@@ -273,7 +274,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamChatMessage(sessionId, content, get().memoryEnabled, get().thinkingEnabled, {
+      await streamChatMessage(sessionId, content, imageData ?? null, get().memoryEnabled, get().thinkingEnabled, {
         onToken: (chunk) => {
           set((state) => ({
             streamingText: state.streamingText + chunk,

@@ -95,7 +95,8 @@ def switch_model(model_path: str, ctx_size: int = 32768) -> None:
 
     subprocess.Popen(cmd, **kwargs)
 
-    # アクティブモデルを保存
+    # アクティブモデルと mmproj を保存
     paths["active_model_path"] = model_path
+    paths["mmproj_path"] = effective_mmproj
     _PATHS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PATHS_FILE.write_text(json.dumps(paths, indent=2, ensure_ascii=False), "utf-8")

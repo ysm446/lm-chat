@@ -45,19 +45,21 @@ def list_models() -> dict[str, list[dict[str, str]]]:
     }
 
 
-def _build_messages(session: Session, memory_context: str = "") -> list[dict[str, str]]:
+def _build_messages(session: Session, memory_context: str = "") -> list[dict]:
     system_prompt = SYSTEM_PROMPT
     if memory_context:
         system_prompt = f"{SYSTEM_PROMPT}\n\n{memory_context}"
 
-    messages: list[dict[str, str]] = [
-        {
-            "role": "system",
-            "content": system_prompt,
-        }
-    ]
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for message in session.messages:
-        messages.append({"role": message.role, "content": message.content})
+        if message.image_data:
+            content: list[dict] = []
+            if message.content:
+                content.append({"type": "text", "text": message.content})
+            content.append({"type": "image_url", "image_url": {"url": message.image_data}})
+            messages.append({"role": message.role, "content": content})
+        else:
+            messages.append({"role": message.role, "content": message.content})
     return messages
 
 

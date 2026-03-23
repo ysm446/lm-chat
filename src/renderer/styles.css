@@ -320,6 +320,13 @@ a { color: var(--accent); }
 .context-menu-item.danger:hover { background: var(--danger-soft); }
 
 /* ── Inline edit row ──────────────────────────────────── */
+.inline-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
 .inline-edit-row {
   display: flex;
   align-items: center;
@@ -443,8 +450,8 @@ a { color: var(--accent); }
 
 /* Markdown body */
 .message-body { line-height: 1.65; }
-.message-body p { margin: 0 0 0.6em; padding: 0; background: none; border: none; border-radius: 0; font-size: inherit; color: inherit; }
-.message-body p:last-child { margin-bottom: 0; }
+.message-card .message-body p { margin: 0 0 0.6em; padding: 0; background: none; border: none; border-radius: 0; font-size: inherit; color: inherit; }
+.message-card .message-body p:last-child { margin-bottom: 0; }
 .message-body pre { background: #0d0f14; border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
 .message-body code { font-family: "Cascadia Code", "Fira Code", "Consolas", monospace; font-size: 13px; }
 .message-body :not(pre) > code { background: rgba(255,255,255,0.07); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
@@ -559,6 +566,58 @@ a { color: var(--accent); }
 .primary-button:hover:not(:disabled) { background: var(--accent-hover); }
 
 .primary-button.small { padding: 6px 12px; }
+
+/* ── Image attachment ─────────────────────────────────── */
+.attach-button {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 16px;
+  opacity: 0.7;
+}
+.attach-button:hover:not(:disabled) { opacity: 1; }
+
+.image-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  margin-bottom: 6px;
+}
+.image-preview-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.image-preview-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-preview-remove {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.image-preview-remove:hover { color: var(--danger); background: var(--danger-soft); }
+
+.message-image {
+  max-width: min(480px, 100%);
+  max-height: 360px;
+  border-radius: var(--r-sm);
+  object-fit: contain;
+  display: block;
+  margin-bottom: 6px;
+}
 
 .danger-button {
   background: var(--danger-soft);

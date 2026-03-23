@@ -30,6 +30,13 @@ export function ChatView() {
               </time>
             </div>
             <div className="message-body">
+              {message.image_data && (
+                <img
+                  src={message.image_data}
+                  alt="添付画像"
+                  className="message-image"
+                />
+              )}
               {message.content ? (
                 message.role === "user" ? (
                   <p>{message.content}</p>

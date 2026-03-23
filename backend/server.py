@@ -156,7 +156,7 @@ def append_session_message(session_id: str, payload: MessageCreate) -> Message:
 
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content))
+    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=payload.image_data))
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -184,7 +184,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
 
 @app.post("/chat/send/stream")
 def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content))
+    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=payload.image_data))
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 

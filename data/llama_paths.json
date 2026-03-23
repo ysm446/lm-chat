@@ -1,6 +1,6 @@
 {
-  "llama_exe": "D:\\GitHub\\lm-chat\\bin\\llama-server\\llama-b8466-bin-win-cuda-13.1-x64\\llama-server.exe",
-  "active_model_path": "D:\\GitHub\\lm-chat\\models\\Huihui-Qwen3.5-35B-A3B-abliterated-GGUF\\Huihui-Qwen3.5-35B-A3B-abliterated.Q4_K_M.gguf",
-  "mmproj_path": "D:\\GitHub\\lm-chat\\models\\Huihui-Qwen3.5-27B-abliterated-GGUF\\Huihui-Qwen3.5-27B-abliterated.mmproj-f16.gguf",
-  "n_gpu_layers": -1
+    "llama_exe":  "D:\\GitHub\\lm-chat\\bin\\llama-server\\llama-b8466-bin-win-cuda-13.1-x64\\llama-server.exe",
+    "active_model_path":  "D:\\GitHub\\lm-chat\\models\\Huihui-Qwen3.5-27B-abliterated-GGUF\\Huihui-Qwen3.5-27B-abliterated.Q4_K_M.gguf",
+    "mmproj_path":  "D:\\GitHub\\lm-chat\\models\\Huihui-Qwen3.5-27B-abliterated-GGUF\\Huihui-Qwen3.5-27B-abliterated.mmproj-f16.gguf",
+    "n_gpu_layers":  -1
 }

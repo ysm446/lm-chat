@@ -23,7 +23,9 @@ export function WorkspaceSwitcher() {
   const [menu, setMenu] = useState<WorkspaceMenuState | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  const [editingDesc, setEditingDesc] = useState("");
   const editInputRef = useRef<HTMLInputElement | null>(null);
+  const editDescRef = useRef<HTMLInputElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -59,15 +61,16 @@ export function WorkspaceSwitcher() {
     setDraftName("");
   };
 
-  const startRename = (workspaceId: string, currentName: string) => {
+  const startRename = (workspaceId: string, currentName: string, currentDesc: string) => {
     setMenu(null);
     setEditingId(workspaceId);
     setEditingValue(currentName);
+    setEditingDesc(currentDesc);
   };
 
-  const commitRename = async (workspaceId: string, description: string) => {
+  const commitRename = async (workspaceId: string) => {
     const name = editingValue.trim();
-    if (name) await renameWorkspace(workspaceId, name, description);
+    if (name) await renameWorkspace(workspaceId, name, editingDesc.trim());
     setEditingId(null);
   };
 
@@ -96,31 +99,47 @@ export function WorkspaceSwitcher() {
             className={workspace.id === currentWorkspaceId ? "workspace-row active" : "workspace-row"}
           >
             {editingId === workspace.id ? (
-              <div className="inline-edit-row">
-                <input
-                  ref={editInputRef}
-                  className="inline-edit-input"
-                  value={editingValue}
-                  onChange={(e) => setEditingValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void commitRename(workspace.id, workspace.description);
-                    if (e.key === "Escape") cancelRename();
-                  }}
-                />
-                <button
-                  className="inline-edit-confirm"
-                  onClick={() => void commitRename(workspace.id, workspace.description)}
-                  title="確定"
-                >
-                  ✓
-                </button>
-                <button
-                  className="inline-edit-cancel"
-                  onClick={cancelRename}
-                  title="キャンセル"
-                >
-                  ✕
-                </button>
+              <div className="inline-edit-block">
+                <div className="inline-edit-row">
+                  <input
+                    ref={editInputRef}
+                    className="inline-edit-input"
+                    placeholder="名前"
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") editDescRef.current?.focus();
+                      if (e.key === "Escape") cancelRename();
+                    }}
+                  />
+                </div>
+                <div className="inline-edit-row">
+                  <input
+                    ref={editDescRef}
+                    className="inline-edit-input"
+                    placeholder="副題（任意）"
+                    value={editingDesc}
+                    onChange={(e) => setEditingDesc(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void commitRename(workspace.id);
+                      if (e.key === "Escape") cancelRename();
+                    }}
+                  />
+                  <button
+                    className="inline-edit-confirm"
+                    onClick={() => void commitRename(workspace.id)}
+                    title="確定"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    className="inline-edit-cancel"
+                    onClick={cancelRename}
+                    title="キャンセル"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -167,7 +186,7 @@ export function WorkspaceSwitcher() {
           style={{ left: `${menu.x}px`, top: `${menu.y}px` }}
           role="menu"
         >
-          <button className="context-menu-item" onClick={() => startRename(menu.workspaceId, menu.name)}>
+          <button className="context-menu-item" onClick={() => startRename(menu.workspaceId, menu.name, menu.description)}>
             名前を変更
           </button>
           <button className="context-menu-item danger" onClick={() => void handleDelete(menu.workspaceId, menu.name)}>

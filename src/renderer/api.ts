@@ -4,6 +4,7 @@ export type ApiMessage = {
   id: string;
   role: MessageRole;
   content: string;
+  image_data: string | null;
   created_at: string;
 };
 
@@ -163,6 +164,7 @@ export function deleteSession(sessionId: string, deleteMemory = true) {
 export async function streamChatMessage(
   sessionId: string,
   content: string,
+  imageData: string | null,
   memoryEnabled: boolean,
   thinkingEnabled: boolean,
   handlers: {
@@ -176,7 +178,7 @@ export async function streamChatMessage(
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ session_id: sessionId, content, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled })
+    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled })
   });
 
   if (!response.ok || !response.body) {
