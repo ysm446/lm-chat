@@ -64,6 +64,7 @@ class ChatSendRequest(BaseModel):
     session_id: str
     content: str
     memory_enabled: bool = True
+    thinking_enabled: bool = False
 
 
 class ChatSendResponse(BaseModel):

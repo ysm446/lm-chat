@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,8 +46,11 @@ memory_engine = MemoryEngine(store)
 
 def build_memory_context(session: Session, query: str) -> str:
     try:
-        return memory_engine.build_prompt_context(session.workspace_id, query, top_k=5)
-    except Exception:
+        context = memory_engine.build_prompt_context(session.workspace_id, query, top_k=5)
+        logger.debug("Memory context built (%d chars): %s", len(context), context[:120])
+        return context
+    except Exception as e:
+        logger.warning("Memory context build failed: %s", e)
         return ""
 
 
@@ -154,7 +161,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
-    assistant_text = generate_chat_completion(session, memory_context)
+    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled)
     assistant_message = store.append_message(
         payload.session_id,
         MessageCreate(role="assistant", content=assistant_text),
@@ -182,11 +189,12 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
+    thinking_enabled = payload.thinking_enabled
 
     def event_stream():
         collected: list[str] = []
         try:
-            for chunk in stream_chat_completion(session, memory_context):
+            for chunk in stream_chat_completion(session, memory_context, thinking_enabled):
                 collected.append(chunk)
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
         except HTTPException as exc:
@@ -205,8 +213,9 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
 
         try:
             save_turn_memory(payload.session_id, payload.content, assistant_text)
-        except Exception:
-            pass  # 記憶保存の失敗は会話には影響させない
+            logger.debug("Memory saved for session %s", payload.session_id)
+        except Exception as e:
+            logger.warning("Memory save failed: %s", e)
         yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -93,7 +93,7 @@ class SQLiteStore:
             }
             if "memory_vec" not in tables:
                 conn.execute(
-                    "CREATE VIRTUAL TABLE memory_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[1024])"
+                    "CREATE VIRTUAL TABLE memory_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[768])"
                 )
                 conn.commit()
 
@@ -378,7 +378,9 @@ class SQLiteStore:
     def search_memory(self, workspace_id: str, query: str, top_k: int) -> list[MemoryChunk]:
         from .memory.embedder import embed
         import math
+        import logging
 
+        logger = logging.getLogger(__name__)
         query_vec = embed(query)
         rrf_k = 60
         half_life_days = 30
@@ -386,19 +388,25 @@ class SQLiteStore:
 
         with self._connect() as conn:
             # --- FTS5 キーワード検索 ---
-            fts_rows = conn.execute(
-                """
-                SELECT mc.id
-                FROM memory_fts fts
-                JOIN memory_chunks mc ON mc.id = fts.id
-                WHERE fts.content MATCH ? AND mc.workspace_id = ?
-                ORDER BY rank
-                LIMIT ?
-                """,
-                (query, workspace_id, top_k * 4),
-            ).fetchall()
-            for rank, row in enumerate(fts_rows):
-                scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+            # 特殊文字をエスケープしてフレーズ検索クエリに変換
+            safe_query = '"' + query.replace('"', ' ') + '"'
+            try:
+                fts_ids_raw = conn.execute(
+                    "SELECT id FROM memory_fts WHERE content MATCH ? LIMIT ?",
+                    (safe_query, top_k * 4),
+                ).fetchall()
+                fts_ids = [row["id"] for row in fts_ids_raw]
+                if fts_ids:
+                    placeholders_fts = ",".join("?" * len(fts_ids))
+                    fts_rows = conn.execute(
+                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_fts}) AND workspace_id = ?",
+                        (*fts_ids, workspace_id),
+                    ).fetchall()
+                    for rank, row in enumerate(fts_rows):
+                        scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+                    logger.debug("FTS5 hits: %d", len(fts_rows))
+            except Exception as e:
+                logger.warning("FTS5 search failed: %s", e)
 
             # --- ベクトル検索 ---
             import struct

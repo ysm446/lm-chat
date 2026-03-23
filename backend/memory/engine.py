@@ -21,7 +21,14 @@ class MemoryEngine:
         if not items:
             return ""
 
-        lines = ["Relevant memory from the current workspace:"]
-        for item in items:
-            lines.append(f"- {item.content}")
+        lines = [
+            "## 過去の会話から検索された関連記憶",
+            "以下はこのワークスペース内の過去の会話から自動検索された情報です。",
+            "ユーザーの質問に答える際、自然に参照してください。",
+            "",
+        ]
+        for i, item in enumerate(items, 1):
+            lines.append(f"[記憶 {i}]")
+            lines.append(item.content)
+            lines.append("")
         return "\n".join(lines)

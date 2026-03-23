@@ -38,7 +38,7 @@ echo Starting llama-server...
 start "LM Chat llama-server" /min cmd /c ""%LLAMA_SERVER_EXE%" --model "%LLAMA_MODEL%" --mmproj "%LLAMA_MMPROJ%" --host 127.0.0.1 --port 8080 --ctx-size 32768 --n-gpu-layers -1 --flash-attn on --parallel 1"
 
 echo Starting backend...
-start "LM Chat Backend" /min cmd /c "set LLAMA_SERVER_BASE_URL=http://127.0.0.1:8080 && set LLAMA_MODEL=Huihui-Qwen3.5-27B-abliterated && "%CONDA_EXE%" run -n main python -m uvicorn backend.server:app --reload"
+start "LM Chat Backend" /min cmd /c "set LLAMA_SERVER_BASE_URL=http://127.0.0.1:8080 && set LLAMA_MODEL=Huihui-Qwen3.5-27B-abliterated && "%CONDA_EXE%" run --no-capture-output -n main python -m uvicorn backend.server:app --reload"
 
 echo Starting frontend...
 start "LM Chat Frontend" /min cmd /c "npm run dev"
@@ -61,3 +61,4 @@ taskkill /fi "WINDOWTITLE eq LM Chat Frontend" /f /t >nul 2>nul
 taskkill /fi "WINDOWTITLE eq LM Chat llama-server" /f /t >nul 2>nul
 
 endlocal
+exit

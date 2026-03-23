@@ -12,10 +12,9 @@ from .models import Session
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")
 LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "Qwen3.5-27B")
 SYSTEM_PROMPT = (
-    "You are a helpful local assistant. "
-    "Answer clearly and concisely. "
-    "Do not output hidden chain-of-thought or internal reasoning. "
-    "Give the final answer directly."
+    "あなたは親切なローカルアシスタントです。"
+    "ユーザーの質問に明確かつ簡潔に答えてください。"
+    "内部の推論過程は出力せず、最終的な回答を直接述べてください。"
 )
 
 
@@ -46,13 +45,15 @@ def _build_messages(session: Session, memory_context: str = "") -> list[dict[str
     return messages
 
 
-def generate_chat_completion(session: Session, memory_context: str = "") -> str:
+def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context),
         "stream": False,
-        "chat_template_kwargs": {"enable_thinking": False},
+        "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
+    if not thinking_enabled:
+        payload["thinking"] = {"type": "disabled"}
     req = request.Request(
         f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
@@ -74,13 +75,15 @@ def generate_chat_completion(session: Session, memory_context: str = "") -> str:
         raise HTTPException(status_code=502, detail="Invalid response from llama-server") from exc
 
 
-def stream_chat_completion(session: Session, memory_context: str = "") -> Iterator[str]:
+def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> Iterator[str]:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context),
         "stream": True,
-        "chat_template_kwargs": {"enable_thinking": False},
+        "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
+    if not thinking_enabled:
+        payload["thinking"] = {"type": "disabled"}
     req = request.Request(
         f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),

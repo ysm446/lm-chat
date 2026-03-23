@@ -132,6 +132,7 @@ export async function streamChatMessage(
   sessionId: string,
   content: string,
   memoryEnabled: boolean,
+  thinkingEnabled: boolean,
   handlers: {
     onToken: (chunk: string) => void;
     onDone: (session: ApiSession) => void;
@@ -143,7 +144,7 @@ export async function streamChatMessage(
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ session_id: sessionId, content, memory_enabled: memoryEnabled })
+    body: JSON.stringify({ session_id: sessionId, content, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled })
   });
 
   if (!response.ok || !response.body) {

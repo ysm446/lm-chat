@@ -8,6 +8,8 @@ export function MessageInput() {
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const memoryEnabled = useChatStore((state) => state.memoryEnabled);
   const toggleMemory = useChatStore((state) => state.toggleMemory);
+  const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
+  const toggleThinking = useChatStore((state) => state.toggleThinking);
 
   const handleSend = async () => {
     if (!currentSessionId || !value.trim()) return;
@@ -46,7 +48,13 @@ export function MessageInput() {
         >
           記憶: {memoryEnabled ? "オン" : "オフ"}
         </button>
-        <span className="pill">思考モード: オフ</span>
+        <button
+          className={`pill pill-toggle ${thinkingEnabled ? "active" : ""}`}
+          onClick={toggleThinking}
+          title={thinkingEnabled ? "思考モードをオフにする" : "思考モードをオンにする"}
+        >
+          思考モード: {thinkingEnabled ? "オン" : "オフ"}
+        </button>
       </div>
     </section>
   );

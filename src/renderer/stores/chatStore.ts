@@ -29,9 +29,11 @@ type ChatState = {
   availableModels: LocalModel[];
   selectedModel: string | null;
   memoryEnabled: boolean;
+  thinkingEnabled: boolean;
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
   toggleMemory: () => void;
+  toggleThinking: () => void;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
   renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
@@ -65,6 +67,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   availableModels: [],
   selectedModel: null,
   memoryEnabled: true,
+  thinkingEnabled: false,
 
   bootstrap: async () => {
     set({ isBootstrapping: true, error: null });
@@ -96,6 +99,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSelectedModel: (modelId) => set({ selectedModel: modelId }),
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
+  toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
 
   createWorkspace: async (name, description) => {
     const workspace = await createWorkspaceRequest(name, description);
@@ -211,7 +215,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamChatMessage(sessionId, content, get().memoryEnabled, {
+      await streamChatMessage(sessionId, content, get().memoryEnabled, get().thinkingEnabled, {
         onToken: (chunk) => {
           set((state) => ({
             streamingText: state.streamingText + chunk,
