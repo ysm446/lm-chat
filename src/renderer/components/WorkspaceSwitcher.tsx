@@ -55,15 +55,15 @@ export function WorkspaceSwitcher() {
   };
 
   const handleRename = async (workspaceId: string, currentName: string, currentDescription: string) => {
-    const name = window.prompt("Rename workspace", currentName);
+    const name = window.prompt("ワークスペース名を変更", currentName);
     if (!name) return;
-    const description = window.prompt("Workspace description", currentDescription) ?? currentDescription;
+    const description = window.prompt("説明", currentDescription) ?? currentDescription;
     await renameWorkspace(workspaceId, name.trim(), description.trim());
     setMenu(null);
   };
 
   const handleDelete = async (workspaceId: string, currentName: string) => {
-    const ok = window.confirm(`Delete workspace \"${currentName}\"? This will also remove its chats and memory.`);
+    const ok = window.confirm(`ワークスペース「${currentName}」を削除しますか？チャット履歴と記憶もすべて削除されます。`);
     if (!ok) return;
     await removeWorkspace(workspaceId);
     setMenu(null);
@@ -77,8 +77,8 @@ export function WorkspaceSwitcher() {
     <section className="panel workspace-panel">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">Workspace</p>
-          <h2>Switch context</h2>
+          <p className="eyebrow">ワークスペース</p>
+          <h2>切り替え</h2>
         </div>
       </div>
 
@@ -87,7 +87,7 @@ export function WorkspaceSwitcher() {
           <div key={workspace.id} className={workspace.id === currentWorkspaceId ? "workspace-row active" : "workspace-row"}>
             <button className={workspace.id === currentWorkspaceId ? "workspace-item active" : "workspace-item"} onClick={() => void selectWorkspace(workspace.id)}>
               <span>{workspace.name}</span>
-              <small>{workspace.description || "No description"}</small>
+              <small>{workspace.description || "説明なし"}</small>
             </button>
             <div className="row-actions">
               <button
@@ -107,7 +107,7 @@ export function WorkspaceSwitcher() {
       </div>
 
       <div className="inline-form">
-        <input placeholder="New workspace" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+        <input placeholder="新しいワークスペース" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
         <button className="primary-button small" onClick={() => void handleAdd()}>
           +
         </button>
@@ -116,10 +116,10 @@ export function WorkspaceSwitcher() {
       {menu ? (
         <div ref={menuRef} className="context-menu" style={{ left: `${menu.x}px`, top: `${menu.y}px` }} role="menu">
           <button className="context-menu-item" onClick={() => void handleRename(menu.workspaceId, menu.name, menu.description)}>
-            Rename
+            名前を変更
           </button>
           <button className="context-menu-item danger" onClick={() => void handleDelete(menu.workspaceId, menu.name)}>
-            Delete
+            削除
           </button>
         </div>
       ) : null}

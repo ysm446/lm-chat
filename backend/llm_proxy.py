@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from .models import Session
 
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")
-LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "Qwen3.5-32B")
+LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "Qwen3.5-27B")
 SYSTEM_PROMPT = (
     "You are a helpful local assistant. "
     "Answer clearly and concisely. "
@@ -51,6 +51,7 @@ def generate_chat_completion(session: Session, memory_context: str = "") -> str:
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context),
         "stream": False,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     req = request.Request(
         f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
@@ -78,6 +79,7 @@ def stream_chat_completion(session: Session, memory_context: str = "") -> Iterat
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context),
         "stream": True,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     req = request.Request(
         f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",

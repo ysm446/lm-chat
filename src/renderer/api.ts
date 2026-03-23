@@ -35,6 +35,11 @@ export type ChatStreamEvent =
   | { type: "done"; session: ApiSession }
   | { type: "error"; detail: string };
 
+export type LocalModel = {
+  id: string;
+  path: string;
+};
+
 const API_BASE = "http://127.0.0.1:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -82,10 +87,14 @@ export function listSessions(workspaceId: string) {
   return request<ApiSession[]>(`/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}`);
 }
 
-export function createSession(workspaceId: string, title: string) {
+export function listLocalModels() {
+  return request<LocalModel[]>("/models/local");
+}
+
+export function createSession(workspaceId: string, title: string, modelName?: string) {
   return request<ApiSession>("/history/sessions", {
     method: "POST",
-    body: JSON.stringify({ workspace_id: workspaceId, title })
+    body: JSON.stringify({ workspace_id: workspaceId, title, model_name: modelName })
   });
 }
 

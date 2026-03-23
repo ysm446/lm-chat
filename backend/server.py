@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,7 +41,10 @@ memory_engine = MemoryEngine(store)
 
 
 def build_memory_context(session: Session, query: str) -> str:
-    return memory_engine.build_prompt_context(session.workspace_id, query, top_k=5)
+    try:
+        return memory_engine.build_prompt_context(session.workspace_id, query, top_k=5)
+    except Exception:
+        return ""
 
 
 def save_turn_memory(session_id: str, user_content: str, assistant_content: str) -> None:
@@ -61,6 +65,20 @@ def health() -> dict[str, str]:
 @app.get("/v1/models")
 def get_models() -> dict[str, list[dict[str, str]]]:
     return list_models()
+
+
+_MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+
+
+@app.get("/models/local")
+def list_local_models() -> list[dict[str, str]]:
+    if not _MODELS_DIR.exists():
+        return []
+    return [
+        {"id": p.stem, "path": str(p)}
+        for p in sorted(_MODELS_DIR.rglob("*.gguf"))
+        if "mmproj" not in p.stem.lower()
+    ]
 
 
 @app.get("/workspaces", response_model=list[Workspace])
@@ -185,7 +203,10 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
             return
 
-        save_turn_memory(payload.session_id, payload.content, assistant_text)
+        try:
+            save_turn_memory(payload.session_id, payload.content, assistant_text)
+        except Exception:
+            pass  # 記憶保存の失敗は会話には影響させない
         yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

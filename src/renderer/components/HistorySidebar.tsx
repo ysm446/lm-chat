@@ -45,14 +45,14 @@ export function HistorySidebar() {
   }, [menu]);
 
   const handleRename = async (sessionId: string, currentTitle: string) => {
-    const title = window.prompt("Rename chat", currentTitle);
+    const title = window.prompt("チャット名を変更", currentTitle);
     if (!title) return;
     await renameSession(sessionId, title.trim());
     setMenu(null);
   };
 
   const handleDelete = async (sessionId: string, currentTitle: string) => {
-    const ok = window.confirm(`Delete chat \"${currentTitle}\"?`);
+    const ok = window.confirm(`チャット「${currentTitle}」を削除しますか？`);
     if (!ok) return;
     await removeSession(sessionId);
     setMenu(null);
@@ -66,8 +66,8 @@ export function HistorySidebar() {
     <section className="panel history-panel">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">History</p>
-          <h2>Chats in this workspace</h2>
+          <p className="eyebrow">履歴</p>
+          <h2>このワークスペースのチャット</h2>
         </div>
         <button
           className="ghost-button"
@@ -77,7 +77,7 @@ export function HistorySidebar() {
             }
           }}
         >
-          + New Chat
+          + 新規チャット
         </button>
       </div>
 
@@ -113,10 +113,10 @@ export function HistorySidebar() {
           role="menu"
         >
           <button className="context-menu-item" onClick={() => void handleRename(menu.sessionId, menu.title)}>
-            Rename
+            名前を変更
           </button>
           <button className="context-menu-item danger" onClick={() => void handleDelete(menu.sessionId, menu.title)}>
-            Delete
+            削除
           </button>
         </div>
       ) : null}

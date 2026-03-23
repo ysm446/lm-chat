@@ -10,10 +10,10 @@ export function ChatView() {
         {session?.messages.map((message) => (
           <article key={message.id} className={`message-card ${message.role}`}>
             <div className="message-meta">
-              <span>{message.role === "assistant" ? "Assistant" : message.role === "user" ? "User" : "System"}</span>
-              <small>{message.created_at}</small>
+              <span>{message.role === "assistant" ? "アシスタント" : message.role === "user" ? "ユーザー" : "システム"}</span>
+              <time>{new Date(message.created_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}</time>
             </div>
-            <p>{message.content || (isSubmitting && message.role === "assistant" ? "..." : "")}</p>
+            <p>{message.content || (isSubmitting && message.role === "assistant" ? "▍" : "")}</p>
           </article>
         ))}
       </div>

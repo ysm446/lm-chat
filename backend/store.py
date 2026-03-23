@@ -4,6 +4,8 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
+import sqlite_vec
+
 from .models import (
     MemoryChunk,
     Message,
@@ -28,6 +30,9 @@ class SQLiteStore:
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
@@ -71,8 +76,26 @@ class SQLiteStore:
                     content TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                    id UNINDEXED,
+                    content,
+                    tokenize='trigram'
+                );
                 """
             )
+            # sqlite-vec テーブルは CREATE IF NOT EXISTS が使えないため個別に確認
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
+            if "memory_vec" not in tables:
+                conn.execute(
+                    "CREATE VIRTUAL TABLE memory_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[1024])"
+                )
+                conn.commit()
 
     def _seed_if_empty(self) -> None:
         if self.workspace_count() > 0:
@@ -295,11 +318,24 @@ class SQLiteStore:
     def delete_session(self, session_id: str, delete_memory: bool) -> bool:
         with self._connect() as conn:
             if delete_memory:
+                chunk_ids = [
+                    row["id"]
+                    for row in conn.execute(
+                        "SELECT id FROM memory_chunks WHERE session_id = ?", (session_id,)
+                    ).fetchall()
+                ]
+                if chunk_ids:
+                    placeholders = ",".join("?" * len(chunk_ids))
+                    conn.execute(f"DELETE FROM memory_fts WHERE id IN ({placeholders})", chunk_ids)
+                    conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
                 conn.execute("DELETE FROM memory_chunks WHERE session_id = ?", (session_id,))
             cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         return cursor.rowcount > 0
 
     def save_memory(self, session_id: str, messages: list[MessageCreate]) -> list[MemoryChunk] | None:
+        import struct
+        from .memory.embedder import embed
+
         session = self.get_session(session_id)
         if session is None:
             return None
@@ -326,30 +362,127 @@ class SQLiteStore:
                         chunk.created_at,
                     ),
                 )
+                conn.execute(
+                    "INSERT INTO memory_fts (id, content) VALUES (?, ?)",
+                    (chunk.id, chunk.content),
+                )
+                vector = embed(chunk.content)
+                vec_bytes = struct.pack(f"{len(vector)}f", *vector)
+                conn.execute(
+                    "INSERT INTO memory_vec (chunk_id, embedding) VALUES (?, ?)",
+                    (chunk.id, vec_bytes),
+                )
                 chunks.append(chunk)
         return chunks
 
     def search_memory(self, workspace_id: str, query: str, top_k: int) -> list[MemoryChunk]:
-        like_query = f"%{query.lower()}%"
+        from .memory.embedder import embed
+        import math
+
+        query_vec = embed(query)
+        rrf_k = 60
+        half_life_days = 30
+        scores: dict[str, float] = {}
+
         with self._connect() as conn:
-            rows = conn.execute(
+            # --- FTS5 キーワード検索 ---
+            fts_rows = conn.execute(
                 """
-                SELECT id, workspace_id, session_id, chunk_type, content, created_at
-                FROM memory_chunks
-                WHERE workspace_id = ? AND LOWER(content) LIKE ?
-                ORDER BY created_at DESC
+                SELECT mc.id
+                FROM memory_fts fts
+                JOIN memory_chunks mc ON mc.id = fts.id
+                WHERE fts.content MATCH ? AND mc.workspace_id = ?
+                ORDER BY rank
                 LIMIT ?
                 """,
-                (workspace_id, like_query, top_k),
+                (query, workspace_id, top_k * 4),
             ).fetchall()
-        return [self._memory_from_row(row) for row in rows]
+            for rank, row in enumerate(fts_rows):
+                scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+
+            # --- ベクトル検索 ---
+            import struct
+            vec_bytes = struct.pack(f"{len(query_vec)}f", *query_vec)
+            # KNN クエリは memory_vec 単体で実行し、workspace フィルタは後処理で行う
+            vec_rows = conn.execute(
+                "SELECT chunk_id, distance FROM memory_vec WHERE embedding MATCH ? AND k = ?",
+                (vec_bytes, top_k * 4),
+            ).fetchall()
+            # workspace_id で絞り込む
+            if vec_rows:
+                vec_chunk_ids = [row["chunk_id"] for row in vec_rows]
+                placeholders_vec = ",".join("?" * len(vec_chunk_ids))
+                ws_set = {
+                    row["id"]
+                    for row in conn.execute(
+                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_vec}) AND workspace_id = ?",
+                        (*vec_chunk_ids, workspace_id),
+                    ).fetchall()
+                }
+                for rank, row in enumerate(vec_rows):
+                    if row["chunk_id"] in ws_set:
+                        scores[row["chunk_id"]] = scores.get(row["chunk_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+
+            if not scores:
+                return []
+
+            # --- 時間減衰 ---
+            ids = list(scores.keys())
+            placeholders = ",".join("?" * len(ids))
+            chunk_rows = conn.execute(
+                f"""
+                SELECT id, workspace_id, session_id, chunk_type, content, created_at
+                FROM memory_chunks
+                WHERE id IN ({placeholders})
+                """,
+                ids,
+            ).fetchall()
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        chunks_by_id = {row["id"]: row for row in chunk_rows}
+
+        def _decayed_score(chunk_id: str) -> float:
+            row = chunks_by_id[chunk_id]
+            try:
+                created = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+                days_elapsed = (now - created).total_seconds() / 86400
+                decay = math.pow(0.5, days_elapsed / half_life_days)
+            except Exception:
+                decay = 1.0
+            return scores[chunk_id] * decay
+
+        ranked = sorted(scores.keys(), key=_decayed_score, reverse=True)[:top_k]
+        return [self._memory_from_row(chunks_by_id[cid]) for cid in ranked if cid in chunks_by_id]
 
     def delete_workspace_memory(self, workspace_id: str) -> int:
         with self._connect() as conn:
+            chunk_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM memory_chunks WHERE workspace_id = ?", (workspace_id,)
+                ).fetchall()
+            ]
+            if chunk_ids:
+                placeholders = ",".join("?" * len(chunk_ids))
+                conn.execute(f"DELETE FROM memory_fts WHERE id IN ({placeholders})", chunk_ids)
+                conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
             cursor = conn.execute("DELETE FROM memory_chunks WHERE workspace_id = ?", (workspace_id,))
         return cursor.rowcount
 
     def delete_session_memory(self, session_id: str) -> int:
         with self._connect() as conn:
+            chunk_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM memory_chunks WHERE session_id = ?", (session_id,)
+                ).fetchall()
+            ]
+            if chunk_ids:
+                placeholders = ",".join("?" * len(chunk_ids))
+                conn.execute(f"DELETE FROM memory_fts WHERE id IN ({placeholders})", chunk_ids)
+                conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
             cursor = conn.execute("DELETE FROM memory_chunks WHERE session_id = ?", (session_id,))
         return cursor.rowcount

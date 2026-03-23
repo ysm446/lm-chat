@@ -3,11 +3,13 @@ import {
   ApiMessage,
   ApiSession,
   ApiWorkspace,
+  LocalModel,
   createSession as createSessionRequest,
   createWorkspace as createWorkspaceRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
   getSession,
+  listLocalModels,
   listSessions,
   listWorkspaces,
   streamChatMessage,
@@ -24,7 +26,10 @@ type ChatState = {
   isSubmitting: boolean;
   error: string | null;
   streamingText: string;
+  availableModels: LocalModel[];
+  selectedModel: string | null;
   bootstrap: () => Promise<void>;
+  setSelectedModel: (modelId: string) => void;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
   renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
@@ -55,6 +60,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSubmitting: false,
   error: null,
   streamingText: "",
+  availableModels: [],
+  selectedModel: null,
 
   bootstrap: async () => {
     set({ isBootstrapping: true, error: null });
@@ -75,7 +82,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isBootstrapping: false
       });
     }
+    // モデル一覧はワークスペース読み込みと独立して取得（失敗しても影響しない）
+    try {
+      const models = await listLocalModels();
+      set({ availableModels: models, selectedModel: models[0]?.id ?? null });
+    } catch {
+      // モデル一覧が取れなくてもアプリは動作する
+    }
   },
+
+  setSelectedModel: (modelId) => set({ selectedModel: modelId }),
 
   createWorkspace: async (name, description) => {
     const workspace = await createWorkspaceRequest(name, description);
@@ -126,7 +142,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   createSession: async (workspaceId, title) => {
-    const session = await createSessionRequest(workspaceId, title);
+    const session = await createSessionRequest(workspaceId, title, get().selectedModel ?? undefined);
     set((state) => ({
       sessions: [session, ...state.sessions],
       currentWorkspaceId: workspaceId,
@@ -260,4 +276,4 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().sessions.filter((session) => session.workspace_id === get().currentWorkspaceId)
 }));
 
-export type { ApiMessage, ApiSession, ApiWorkspace };
+export type { ApiMessage, ApiSession, ApiWorkspace, LocalModel };

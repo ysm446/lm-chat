@@ -17,23 +17,28 @@ export function MessageInput() {
   return (
     <section className="input-shell">
       <div className="composer">
-        <button className="ghost-button">Attach</button>
         <textarea
-          placeholder="Type your message..."
+          placeholder="メッセージを入力..."
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          rows={3}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleSend();
+            }
+          }}
+          rows={2}
           disabled={isSubmitting}
         />
         <button className="primary-button" onClick={() => void handleSend()} disabled={isSubmitting}>
-          {isSubmitting ? "Streaming" : "Send"}
+          {isSubmitting ? "受信中" : "送信"}
         </button>
       </div>
 
       <div className="status-row">
-        <span className="pill">Web Search: Off</span>
-        <span className="pill">Memory: On</span>
-        <span className="pill">Reasoning: Off</span>
+        <span className="pill">Web検索: オフ</span>
+        <span className="pill">記憶: オン</span>
+        <span className="pill">思考モード: オフ</span>
       </div>
     </section>
   );

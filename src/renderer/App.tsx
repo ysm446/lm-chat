@@ -24,8 +24,8 @@ export function App() {
       <div className="empty-shell">
         <div className="empty-card">
           <p className="eyebrow">LM Chat</p>
-          <h1>Loading workspaces</h1>
-          <p className="muted">Fetching data from the FastAPI backend.</p>
+          <h1>読み込み中</h1>
+          <p className="muted">バックエンドからデータを取得しています。</p>
         </div>
       </div>
     );
@@ -45,14 +45,14 @@ export function App() {
       <main className="center-pane">
         <header className="center-header">
           <div>
-            <p className="eyebrow">Workspace</p>
+            <p className="eyebrow">ワークスペース</p>
             <h1>{currentWorkspace.name}</h1>
-            <p className="muted">{currentWorkspace.description || "Scoped memory and chat context"}</p>
+            <p className="muted">{currentWorkspace.description || "記憶とチャット履歴をワークスペース単位で管理"}</p>
             {error ? <p className="error-text">{error}</p> : null}
           </div>
           <div className="header-actions">
             <ModelSelector />
-            <button className="ghost-button">Settings</button>
+            <button className="ghost-button">設定</button>
           </div>
         </header>
 
