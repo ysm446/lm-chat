@@ -13,6 +13,8 @@ export function App() {
   const workspaces = useChatStore((state) => state.workspaces);
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
+  const isSubmitting = useChatStore((state) => state.isSubmitting);
+  const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
   const error = useChatStore((state) => state.error);
 
   useEffect(() => {
@@ -43,6 +45,9 @@ export function App() {
       </aside>
 
       <main className="center-pane">
+        {/* チャット送信中プログレスバー */}
+        <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
+
         <header className="center-header">
           <div>
             <p className="eyebrow">ワークスペース</p>
@@ -52,7 +57,6 @@ export function App() {
           </div>
           <div className="header-actions">
             <ModelSelector />
-            <button className="ghost-button">設定</button>
           </div>
         </header>
 
@@ -63,6 +67,18 @@ export function App() {
       <aside className="right-pane">
         <SettingsPanel />
       </aside>
+
+      {/* モデル切り替え中オーバーレイ */}
+      {isSwitchingModel ? (
+        <div className="model-switch-overlay">
+          <div className="model-switch-card">
+            <div className="model-switch-spinner" />
+            <p className="eyebrow">モデル切り替え中</p>
+            <h2>llama-server を再起動しています</h2>
+            <p className="muted">新しいモデルの読み込みが完了するまでしばらくお待ちください…</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

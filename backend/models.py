@@ -58,6 +58,7 @@ class SessionCreate(BaseModel):
 
 class SessionUpdate(BaseModel):
     title: str | None = None
+    model_name: str | None = None
 
 
 class ChatSendRequest(BaseModel):
@@ -70,6 +71,10 @@ class ChatSendRequest(BaseModel):
 class ChatSendResponse(BaseModel):
     session: Session
     assistant_message: Message
+
+
+class ConfigUpdate(BaseModel):
+    ctx_size: int | None = None
 
 
 class MemoryChunk(BaseModel):

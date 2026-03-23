@@ -11,11 +11,15 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from .llm_proxy import generate_chat_completion, list_models, stream_chat_completion
+from .config_store import get as get_config_data
+from .config_store import update as update_config_data
+from .llama_manager import get_llama_paths, is_ready, switch_model
+from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, list_models, stream_chat_completion
 from .memory.engine import MemoryEngine
 from .models import (
     ChatSendRequest,
     ChatSendResponse,
+    ConfigUpdate,
     MemorySaveRequest,
     MemorySearchResult,
     Message,
@@ -265,3 +269,51 @@ def memory_stats() -> dict[str, int]:
 @app.post("/search/web")
 def web_search(payload: WebSearchRequest) -> dict:
     return search_web(payload.query, payload.max_results).model_dump()
+
+
+@app.get("/config")
+def get_config() -> dict:
+    return get_config_data()
+
+
+@app.patch("/config")
+def patch_config(payload: ConfigUpdate) -> dict:
+    return update_config_data(payload.model_dump(exclude_none=True))
+
+
+@app.get("/history/sessions/{session_id}/token_count")
+def get_session_token_count(session_id: str) -> dict[str, int]:
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    text = SYSTEM_PROMPT + "\n"
+    for msg in session.messages:
+        text += f"{msg.role}: {msg.content}\n"
+    count = count_tokens(text)
+    config = get_config_data()
+    return {"token_count": count, "ctx_size": config["ctx_size"]}
+
+
+@app.get("/llama/status")
+def llama_status() -> dict:
+    paths = get_llama_paths()
+    return {
+        "ready": is_ready(),
+        "active_model_path": paths.get("active_model_path", ""),
+    }
+
+
+@app.post("/llama/switch-model")
+def llama_switch_model(payload: dict) -> dict:
+    model_path = payload.get("model_path", "")
+    if not model_path:
+        raise HTTPException(status_code=400, detail="model_path is required")
+    config = get_config_data()
+    logger.info("Switching model to: %s", model_path)
+    try:
+        switch_model(model_path, ctx_size=config.get("ctx_size", 32768))
+    except ValueError as exc:
+        logger.error("Model switch failed: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("Model switch initiated successfully")
+    return {"status": "restarting", "model_path": model_path}

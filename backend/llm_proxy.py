@@ -18,6 +18,22 @@ SYSTEM_PROMPT = (
 )
 
 
+def count_tokens(text: str) -> int:
+    payload = {"content": text}
+    req = request.Request(
+        f"{LLAMA_SERVER_BASE_URL}/tokenize",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=10) as response:
+            body = json.loads(response.read().decode("utf-8"))
+            return len(body.get("tokens", []))
+    except Exception:
+        return len(text) // 2  # rough fallback
+
+
 def list_models() -> dict[str, list[dict[str, str]]]:
     return {
         "data": [

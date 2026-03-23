@@ -95,6 +95,34 @@ export function fetchMemoryStats() {
   return request<{ workspace_count: number; session_count: number; memory_chunk_count: number }>("/memory/stats");
 }
 
+export function getConfig() {
+  return request<{ ctx_size: number }>("/config");
+}
+
+export function updateConfig(patch: { ctx_size: number }) {
+  return request<{ ctx_size: number }>("/config", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function getSessionTokenCount(sessionId: string) {
+  return request<{ token_count: number; ctx_size: number }>(
+    `/history/sessions/${encodeURIComponent(sessionId)}/token_count`
+  );
+}
+
+export function getLlamaStatus() {
+  return request<{ ready: boolean; active_model_path: string }>("/llama/status");
+}
+
+export function switchLlamaModel(modelPath: string) {
+  return request<{ status: string; model_path: string }>("/llama/switch-model", {
+    method: "POST",
+    body: JSON.stringify({ model_path: modelPath }),
+  });
+}
+
 export function searchMemory(query: string, workspaceId: string, topK = 5) {
   return request<{ query: string; workspace_id: string; items: { id: string; content: string; created_at: string }[] }>(
     `/memory/search?query=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(workspaceId)}&top_k=${topK}`
@@ -112,7 +140,7 @@ export function getSession(sessionId: string) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`);
 }
 
-export function updateSession(sessionId: string, payload: { title?: string }) {
+export function updateSession(sessionId: string, payload: { title?: string; model_name?: string }) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",
     body: JSON.stringify(payload)

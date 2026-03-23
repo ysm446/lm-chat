@@ -34,8 +34,18 @@ if errorlevel 1 (
   exit /b 1
 )
 
+:: Read ctx_size from config.json (fallback: 32768)
+set CTX_SIZE=32768
+if exist "%~dp0data\config.json" (
+  for /f "tokens=*" %%i in ('powershell -NoLogo -NoProfile -Command "try { (Get-Content '%~dp0data\config.json' | ConvertFrom-Json).ctx_size } catch { 32768 }"') do set CTX_SIZE=%%i
+)
+echo Context size: %CTX_SIZE%
+
+:: Save llama-server paths for in-app model switching
+powershell -NoLogo -NoProfile -Command "New-Item -ItemType Directory -Force -Path '%~dp0data' | Out-Null; $json = [ordered]@{ llama_exe='%LLAMA_SERVER_EXE%'; active_model_path='%LLAMA_MODEL%'; mmproj_path='%LLAMA_MMPROJ%'; n_gpu_layers=-1 } | ConvertTo-Json; [System.IO.File]::WriteAllText('%~dp0data\llama_paths.json', $json, [System.Text.UTF8Encoding]::new($false))"
+
 echo Starting llama-server...
-start "LM Chat llama-server" /min cmd /c ""%LLAMA_SERVER_EXE%" --model "%LLAMA_MODEL%" --mmproj "%LLAMA_MMPROJ%" --host 127.0.0.1 --port 8080 --ctx-size 32768 --n-gpu-layers -1 --flash-attn on --parallel 1"
+start "LM Chat llama-server" /min cmd /c ""%LLAMA_SERVER_EXE%" --model "%LLAMA_MODEL%" --mmproj "%LLAMA_MMPROJ%" --host 127.0.0.1 --port 8080 --ctx-size %CTX_SIZE% --n-gpu-layers -1 --flash-attn on --parallel 1"
 
 echo Starting backend...
 start "LM Chat Backend" /min cmd /c "set LLAMA_SERVER_BASE_URL=http://127.0.0.1:8080 && set LLAMA_MODEL=Huihui-Qwen3.5-27B-abliterated && "%CONDA_EXE%" run --no-capture-output -n main python -m uvicorn backend.server:app --reload"
@@ -57,8 +67,10 @@ call npm run electron:dev
 
 echo Electron closed. Stopping backend, frontend, and llama-server...
 taskkill /fi "WINDOWTITLE eq LM Chat Backend" /f /t >nul 2>nul
-taskkill /fi "WINDOWTITLE eq LM Chat Frontend" /f /t >nul 2>nul
 taskkill /fi "WINDOWTITLE eq LM Chat llama-server" /f /t >nul 2>nul
+
+:: フロントエンド: タイトル一致に失敗することがあるためポート 5173 を使うプロセスを終了
+powershell -NoLogo -NoProfile -Command "try { $pid = (Get-NetTCPConnection -LocalPort 5173 -ErrorAction Stop).OwningProcess | Select-Object -First 1; if ($pid) { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue } } catch {}"
 
 endlocal
 exit

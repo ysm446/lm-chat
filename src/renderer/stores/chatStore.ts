@@ -8,11 +8,13 @@ import {
   createWorkspace as createWorkspaceRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
+  getLlamaStatus,
   getSession,
   listLocalModels,
   listSessions,
   listWorkspaces,
   streamChatMessage,
+  switchLlamaModel,
   updateSession as updateSessionRequest,
   updateWorkspace as updateWorkspaceRequest
 } from "../api";
@@ -28,10 +30,13 @@ type ChatState = {
   streamingText: string;
   availableModels: LocalModel[];
   selectedModel: string | null;
+  activeModelPath: string | null;
+  isSwitchingModel: boolean;
   memoryEnabled: boolean;
   thinkingEnabled: boolean;
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
+  applyModelSwitch: () => Promise<void>;
   toggleMemory: () => void;
   toggleThinking: () => void;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
@@ -66,6 +71,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingText: "",
   availableModels: [],
   selectedModel: null,
+  activeModelPath: null,
+  isSwitchingModel: false,
   memoryEnabled: true,
   thinkingEnabled: false,
 
@@ -88,16 +95,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
         isBootstrapping: false
       });
     }
-    // モデル一覧はワークスペース読み込みと独立して取得（失敗しても影響しない）
+    // モデル一覧とアクティブモデルはワークスペース読み込みと独立して取得
     try {
-      const models = await listLocalModels();
-      set({ availableModels: models, selectedModel: models[0]?.id ?? null });
+      const [models, status] = await Promise.all([listLocalModels(), getLlamaStatus()]);
+      const activeModel = models.find((m) => status.active_model_path.includes(m.id));
+      set({
+        availableModels: models,
+        selectedModel: activeModel?.id ?? models[0]?.id ?? null,
+        activeModelPath: status.active_model_path,
+      });
     } catch {
-      // モデル一覧が取れなくてもアプリは動作する
+      try {
+        const models = await listLocalModels();
+        set({ availableModels: models, selectedModel: models[0]?.id ?? null });
+      } catch { /* ignore */ }
     }
   },
 
   setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+
+  applyModelSwitch: async () => {
+    const { selectedModel, availableModels } = get();
+    const model = availableModels.find((m) => m.id === selectedModel);
+    if (!model) return;
+    set({ isSwitchingModel: true, error: null });
+    try {
+      await switchLlamaModel(model.path);
+
+      // ① まず古いサーバーが停止するのを待つ (最大15秒)
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const status = await getLlamaStatus().catch(() => ({ ready: false, active_model_path: "" }));
+        if (!status.ready) break;
+      }
+
+      // ② 新しいサーバーが起動するのを待つ (最大180秒: 大型モデルは時間がかかる)
+      for (let i = 0; i < 180; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        const status = await getLlamaStatus().catch(() => ({ ready: false, active_model_path: "" }));
+        if (status.ready) {
+          set({ isSwitchingModel: false, activeModelPath: status.active_model_path });
+          // 現在のセッションのモデル名を更新
+          const sessionId = get().currentSessionId;
+          const newModel = get().selectedModel;
+          if (sessionId && newModel) {
+            updateSessionRequest(sessionId, { model_name: newModel })
+              .then((updated) => {
+                set((state) => ({
+                  sessions: state.sessions.map((s) => (s.id === updated.id ? updated : s)),
+                }));
+              })
+              .catch(() => {});
+          }
+          return;
+        }
+      }
+      set({ isSwitchingModel: false, error: "モデルの起動がタイムアウトしました" });
+    } catch (e) {
+      set({ isSwitchingModel: false, error: e instanceof Error ? e.message : "モデル切り替えに失敗しました" });
+    }
+  },
+
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
 

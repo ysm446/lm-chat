@@ -290,10 +290,10 @@ class SQLiteStore:
             conn.execute(
                 """
                 UPDATE sessions
-                SET title = ?, updated_at = ?
+                SET title = ?, model_name = ?, updated_at = ?
                 WHERE id = ?
                 """,
-                (updated.title, updated.updated_at, session_id),
+                (updated.title, updated.model_name, updated.updated_at, session_id),
             )
         return updated
 

@@ -6,6 +6,8 @@ import { useChatStore } from "../stores/chatStore";
 export function ChatView() {
   const session = useChatStore((state) => state.currentSession());
   const isSubmitting = useChatStore((state) => state.isSubmitting);
+  const selectedModel = useChatStore((state) => state.selectedModel);
+  const modelName = selectedModel ?? session?.model_name ?? "";
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -19,7 +21,9 @@ export function ChatView() {
           <article key={message.id} className={`message-card ${message.role}`}>
             <div className="message-meta">
               <span>
-                {message.role === "assistant" ? "アシスタント" : message.role === "user" ? "ユーザー" : "システム"}
+                {message.role === "assistant"
+                  ? modelName ? `アシスタント (${modelName})` : "アシスタント"
+                  : message.role === "user" ? "ユーザー" : "システム"}
               </span>
               <time>
                 {new Date(message.created_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
