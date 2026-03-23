@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ..models import MemoryChunk, MessageCreate
 from ..store import SQLiteStore
+from .chunker import chunk_messages
 
 
 class MemoryEngine:
@@ -9,7 +10,8 @@ class MemoryEngine:
         self.store = store
 
     def save_session_messages(self, session_id: str, messages: list[MessageCreate]) -> list[MemoryChunk] | None:
-        return self.store.save_memory(session_id, messages)
+        chunks = chunk_messages(messages)
+        return self.store.save_memory(session_id, chunks)
 
     def search(self, workspace_id: str, query: str, top_k: int) -> list[MemoryChunk]:
         return self.store.search_memory(workspace_id, query, top_k)

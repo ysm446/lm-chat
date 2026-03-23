@@ -153,7 +153,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    memory_context = build_memory_context(session, payload.content)
+    memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
     assistant_text = generate_chat_completion(session, memory_context)
     assistant_message = store.append_message(
         payload.session_id,
@@ -181,7 +181,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    memory_context = build_memory_context(session, payload.content)
+    memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
 
     def event_stream():
         collected: list[str] = []

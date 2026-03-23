@@ -73,7 +73,7 @@ export function HistorySidebar() {
           className="ghost-button"
           onClick={() => {
             if (currentWorkspaceId) {
-              void createSession(currentWorkspaceId, "New chat");
+              void createSession(currentWorkspaceId, "新規チャット");
             }
           }}
         >

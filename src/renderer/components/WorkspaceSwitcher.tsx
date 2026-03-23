@@ -50,7 +50,7 @@ export function WorkspaceSwitcher() {
     const name = draftName.trim();
     if (!name) return;
     const workspace = await createWorkspace(name, "");
-    await createSession(workspace.id, `${workspace.name} new chat`);
+    await createSession(workspace.id, "新規チャット");
     setDraftName("");
   };
 

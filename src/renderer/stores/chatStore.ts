@@ -28,8 +28,10 @@ type ChatState = {
   streamingText: string;
   availableModels: LocalModel[];
   selectedModel: string | null;
+  memoryEnabled: boolean;
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
+  toggleMemory: () => void;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
   renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
@@ -62,6 +64,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingText: "",
   availableModels: [],
   selectedModel: null,
+  memoryEnabled: true,
 
   bootstrap: async () => {
     set({ isBootstrapping: true, error: null });
@@ -92,6 +95,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   setSelectedModel: (modelId) => set({ selectedModel: modelId }),
+  toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
 
   createWorkspace: async (name, description) => {
     const workspace = await createWorkspaceRequest(name, description);
@@ -207,7 +211,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamChatMessage(sessionId, content, {
+      await streamChatMessage(sessionId, content, get().memoryEnabled, {
         onToken: (chunk) => {
           set((state) => ({
             streamingText: state.streamingText + chunk,
@@ -232,6 +236,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
             isSubmitting: false,
             streamingText: ""
           }));
+          // 初回メッセージ（user+assistant の2件）のときタイトルを自動生成
+          const currentTitle = get().sessions.find((s) => s.id === session.id)?.title ?? "";
+          if (session.messages.length === 2 && (currentTitle === "New chat" || currentTitle === "新規チャット")) {
+            const firstUser = session.messages.find((m) => m.role === "user");
+            if (firstUser) {
+              const autoTitle = firstUser.content.slice(0, 40).replace(/\n/g, " ");
+              void updateSessionRequest(session.id, { title: autoTitle }).then((updated) => {
+                set((state) => ({
+                  sessions: state.sessions.map((item) => (item.id === updated.id ? updated : item))
+                }));
+              });
+            }
+          }
         },
         onError: (detail) => {
           set((state) => ({

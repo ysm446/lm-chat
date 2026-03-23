@@ -91,6 +91,16 @@ export function listLocalModels() {
   return request<LocalModel[]>("/models/local");
 }
 
+export function fetchMemoryStats() {
+  return request<{ workspace_count: number; session_count: number; memory_chunk_count: number }>("/memory/stats");
+}
+
+export function searchMemory(query: string, workspaceId: string, topK = 5) {
+  return request<{ query: string; workspace_id: string; items: { id: string; content: string; created_at: string }[] }>(
+    `/memory/search?query=${encodeURIComponent(query)}&workspace_id=${encodeURIComponent(workspaceId)}&top_k=${topK}`
+  );
+}
+
 export function createSession(workspaceId: string, title: string, modelName?: string) {
   return request<ApiSession>("/history/sessions", {
     method: "POST",
@@ -121,6 +131,7 @@ export function deleteSession(sessionId: string, deleteMemory = true) {
 export async function streamChatMessage(
   sessionId: string,
   content: string,
+  memoryEnabled: boolean,
   handlers: {
     onToken: (chunk: string) => void;
     onDone: (session: ApiSession) => void;
@@ -132,7 +143,7 @@ export async function streamChatMessage(
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ session_id: sessionId, content })
+    body: JSON.stringify({ session_id: sessionId, content, memory_enabled: memoryEnabled })
   });
 
   if (!response.ok || !response.body) {
