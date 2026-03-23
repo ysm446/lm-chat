@@ -65,6 +65,19 @@ export function createWorkspace(name: string, description: string) {
   });
 }
 
+export function updateWorkspace(workspaceId: string, payload: { name?: string; description?: string }) {
+  return request<ApiWorkspace>(`/workspaces/${encodeURIComponent(workspaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteWorkspace(workspaceId: string) {
+  return request<{ deleted: boolean; workspace_count: number }>(`/workspaces/${encodeURIComponent(workspaceId)}`, {
+    method: "DELETE"
+  });
+}
+
 export function listSessions(workspaceId: string) {
   return request<ApiSession[]>(`/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}`);
 }
@@ -78,6 +91,22 @@ export function createSession(workspaceId: string, title: string) {
 
 export function getSession(sessionId: string) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export function updateSession(sessionId: string, payload: { title?: string }) {
+  return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteSession(sessionId: string, deleteMemory = true) {
+  return request<{ deleted: boolean; session_count: number }>(
+    `/history/sessions/${encodeURIComponent(sessionId)}?delete_memory=${deleteMemory ? "true" : "false"}`,
+    {
+      method: "DELETE"
+    }
+  );
 }
 
 export async function streamChatMessage(

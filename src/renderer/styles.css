@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: dark;
   --bg: #181818;
   --bg-elevated: #1f1f1f;
@@ -11,6 +11,7 @@
   --muted: #9da1a6;
   --accent: #0e639c;
   --accent-soft: rgba(14, 99, 156, 0.22);
+  --danger: #a1260d;
   font-family: "Segoe UI", "Noto Sans JP", sans-serif;
 }
 
@@ -169,11 +170,90 @@ h2 {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+.workspace-row,
+.session-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.workspace-row.active,
+.session-row.active {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.workspace-row .workspace-item,
+.session-row .session-item {
+  border-bottom: 0;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+}
+
+.row-menu-button {
+  min-width: 34px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.row-menu-button:hover,
+.row-menu-button:focus-visible {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+  outline: none;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  padding: 6px;
+  background: #252526;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.38);
+}
+
+.context-menu-item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--text);
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.context-menu-item.danger {
+  color: #f48771;
+}
+
 .inline-form,
 .composer,
 .status-row,
 .header-actions,
-.stat-row {
+.stat-row,
+.compact-actions {
   display: flex;
   gap: 10px;
 }
@@ -222,6 +302,11 @@ h2 {
 .ghost-button {
   background: var(--panel);
   color: var(--text);
+}
+
+.danger-button {
+  border-color: var(--danger);
+  color: #f48771;
 }
 
 .model-chip,

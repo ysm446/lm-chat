@@ -5,10 +5,14 @@ import {
   ApiWorkspace,
   createSession as createSessionRequest,
   createWorkspace as createWorkspaceRequest,
+  deleteSession as deleteSessionRequest,
+  deleteWorkspace as deleteWorkspaceRequest,
   getSession,
   listSessions,
   listWorkspaces,
-  streamChatMessage
+  streamChatMessage,
+  updateSession as updateSessionRequest,
+  updateWorkspace as updateWorkspaceRequest
 } from "../api";
 
 type ChatState = {
@@ -22,8 +26,12 @@ type ChatState = {
   streamingText: string;
   bootstrap: () => Promise<void>;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
+  renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
+  removeWorkspace: (workspaceId: string) => Promise<void>;
   selectWorkspace: (workspaceId: string) => Promise<void>;
   createSession: (workspaceId: string, title: string) => Promise<ApiSession>;
+  renameSession: (sessionId: string, title: string) => Promise<void>;
+  removeSession: (sessionId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
@@ -81,6 +89,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return workspace;
   },
 
+  renameWorkspace: async (workspaceId, name, description) => {
+    const workspace = await updateWorkspaceRequest(workspaceId, { name, description });
+    set((state) => ({
+      workspaces: state.workspaces.map((item) => (item.id === workspace.id ? workspace : item)),
+      error: null
+    }));
+  },
+
+  removeWorkspace: async (workspaceId) => {
+    await deleteWorkspaceRequest(workspaceId);
+    const workspaces = get().workspaces.filter((item) => item.id !== workspaceId);
+    const nextWorkspace = workspaces[0];
+    const nextSessions = nextWorkspace ? await listSessions(nextWorkspace.id) : [];
+    set({
+      workspaces,
+      sessions: nextSessions,
+      currentWorkspaceId: nextWorkspace?.id ?? null,
+      currentSessionId: nextSessions[0]?.id ?? null,
+      error: null,
+      streamingText: ""
+    });
+  },
+
   selectWorkspace: async (workspaceId) => {
     set({ currentWorkspaceId: workspaceId, currentSessionId: null, error: null, streamingText: "" });
     try {
@@ -104,6 +135,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingText: ""
     }));
     return session;
+  },
+
+  renameSession: async (sessionId, title) => {
+    const session = await updateSessionRequest(sessionId, { title });
+    set((state) => ({
+      sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
+      error: null
+    }));
+  },
+
+  removeSession: async (sessionId) => {
+    await deleteSessionRequest(sessionId, true);
+    const remaining = get().sessions.filter((item) => item.id !== sessionId);
+    const nextSessionId = get().currentSessionId === sessionId ? remaining[0]?.id ?? null : get().currentSessionId;
+    set({
+      sessions: remaining,
+      currentSessionId: nextSessionId,
+      error: null,
+      streamingText: ""
+    });
+    if (nextSessionId) {
+      await get().selectSession(nextSessionId);
+    }
   },
 
   selectSession: async (sessionId) => {
