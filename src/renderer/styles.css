@@ -292,7 +292,22 @@ a { color: var(--accent); }
 
 .sidebar-ws-group {
   margin-bottom: 2px;
+  border-radius: var(--r-sm);
+  transition: opacity 0.15s;
 }
+.sidebar-ws-group.drag-over { outline: 1px solid var(--accent); background: var(--accent-soft); }
+.sidebar-ws-group.dragging { opacity: 0.4; }
+.ws-drag-handle {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.sidebar-ws-row:hover .ws-drag-handle { opacity: 1; }
 
 .sidebar-ws-row {
   display: flex;

@@ -14,6 +14,7 @@ class Workspace(BaseModel):
     id: str
     name: str
     description: str = ""
+    sort_order: int = 0
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -26,6 +27,10 @@ class WorkspaceCreate(BaseModel):
 class WorkspaceUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+
+
+class WorkspaceReorderRequest(BaseModel):
+    ids: list[str]
 
 
 class Message(BaseModel):

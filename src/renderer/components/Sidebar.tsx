@@ -17,6 +17,7 @@ export function Sidebar() {
   const renameSession = useChatStore((s) => s.renameSession);
   const removeWorkspace = useChatStore((s) => s.removeWorkspace);
   const removeSession = useChatStore((s) => s.removeSession);
+  const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
 
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(currentWorkspaceId ? [currentWorkspaceId] : [])
@@ -34,6 +35,9 @@ export function Sidebar() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionTitle, setEditingSessionTitle] = useState("");
   const editSessionRef = useRef<HTMLInputElement>(null);
+
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
@@ -171,7 +175,28 @@ export function Sidebar() {
           const isActiveWs = ws.id === currentWorkspaceId;
 
           return (
-            <div key={ws.id} className="sidebar-ws-group">
+            <div
+            key={ws.id}
+            className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}`}
+            draggable
+            onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; }}
+            onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== ws.id) setDragOverId(ws.id); }}
+            onDragLeave={() => setDragOverId(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (!dragId || dragId === ws.id) { setDragId(null); setDragOverId(null); return; }
+              const from = workspaces.findIndex((w) => w.id === dragId);
+              const to = workspaces.findIndex((w) => w.id === ws.id);
+              if (from < 0 || to < 0) return;
+              const next = [...workspaces];
+              const [moved] = next.splice(from, 1);
+              next.splice(to, 0, moved);
+              void reorderWorkspaces(next.map((w) => w.id));
+              setDragId(null);
+              setDragOverId(null);
+            }}
+            onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+          >
               {editingWsId === ws.id ? (
                 <div className="sidebar-ws-edit">
                   <input
@@ -203,6 +228,13 @@ export function Sidebar() {
                 </div>
               ) : (
                 <div className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}>
+                  <span className="ws-drag-handle" title="ドラッグして並べ替え">
+                    <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                      <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                      <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
+                      <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
+                    </svg>
+                  </span>
                   <button
                     className="sidebar-ws-toggle"
                     onClick={() => toggleExpand(ws.id)}

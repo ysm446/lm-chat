@@ -85,6 +85,13 @@ export function deleteWorkspace(workspaceId: string) {
   });
 }
 
+export function reorderWorkspaces(ids: string[]) {
+  return request<{ ok: boolean }>("/workspaces/reorder", {
+    method: "POST",
+    body: JSON.stringify({ ids })
+  });
+}
+
 export function listSessions(workspaceId: string) {
   return request<ApiSession[]>(`/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}`);
 }

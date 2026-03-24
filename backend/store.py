@@ -20,6 +20,7 @@ from .models import (
 )
 
 
+
 class SQLiteStore:
     def __init__(self, db_path: str | Path | None = None) -> None:
         base_dir = Path(__file__).resolve().parent.parent / "data"
@@ -84,6 +85,12 @@ class SQLiteStore:
                 );
                 """
             )
+            # workspaces sort_order カラムのマイグレーション
+            try:
+                conn.execute("ALTER TABLE workspaces ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass  # already exists
             # image_data カラムのマイグレーション（既存 DB 対応）
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN image_data TEXT")
@@ -146,7 +153,9 @@ class SQLiteStore:
         return f"{prefix}_{uuid4().hex[:10]}"
 
     def _workspace_from_row(self, row: sqlite3.Row) -> Workspace:
-        return Workspace(**dict(row))
+        data = dict(row)
+        data.setdefault("sort_order", 0)
+        return Workspace(**data)
 
     def _message_from_row(self, row: sqlite3.Row) -> Message:
         data = dict(row)
@@ -202,25 +211,29 @@ class SQLiteStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, name, description, created_at, updated_at
+                SELECT id, name, description, sort_order, created_at, updated_at
                 FROM workspaces
-                ORDER BY created_at ASC
+                ORDER BY sort_order ASC, created_at ASC
                 """
             ).fetchall()
         return [self._workspace_from_row(row) for row in rows]
 
     def create_workspace(self, payload: WorkspaceCreate) -> Workspace:
-        workspace = Workspace(id=self._new_id("ws"), **payload.model_dump())
+        with self._connect() as conn:
+            row = conn.execute("SELECT MAX(sort_order) AS max_order FROM workspaces").fetchone()
+            next_order = (row["max_order"] + 1) if row and row["max_order"] is not None else 0
+        workspace = Workspace(id=self._new_id("ws"), sort_order=next_order, **payload.model_dump())
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO workspaces (id, name, description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO workspaces (id, name, description, sort_order, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     workspace.id,
                     workspace.name,
                     workspace.description,
+                    workspace.sort_order,
                     workspace.created_at,
                     workspace.updated_at,
                 ),
@@ -231,7 +244,7 @@ class SQLiteStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, name, description, created_at, updated_at
+                SELECT id, name, description, sort_order, created_at, updated_at
                 FROM workspaces
                 WHERE id = ?
                 """,
@@ -257,6 +270,11 @@ class SQLiteStore:
         with self._connect() as conn:
             cursor = conn.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
         return cursor.rowcount > 0
+
+    def reorder_workspaces(self, ids: list[str]) -> None:
+        with self._connect() as conn:
+            for order, ws_id in enumerate(ids):
+                conn.execute("UPDATE workspaces SET sort_order = ? WHERE id = ?", (order, ws_id))
 
     def list_sessions(self, workspace_id: str) -> list[Session]:
         with self._connect() as conn:

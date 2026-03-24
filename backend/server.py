@@ -31,6 +31,7 @@ from .models import (
     WebSearchRequest,
     Workspace,
     WorkspaceCreate,
+    WorkspaceReorderRequest,
     WorkspaceUpdate,
 )
 from .search.web_search import search_web
@@ -117,6 +118,12 @@ def delete_workspace(workspace_id: str) -> dict[str, int | bool]:
     if not deleted:
         raise HTTPException(status_code=404, detail="Workspace not found")
     return {"deleted": True, "workspace_count": store.workspace_count()}
+
+
+@app.post("/workspaces/reorder")
+def reorder_workspaces(payload: WorkspaceReorderRequest) -> dict:
+    store.reorder_workspaces(payload.ids)
+    return {"ok": True}
 
 
 @app.get("/history/sessions", response_model=list[Session])
