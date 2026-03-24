@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, list_models, stream_chat_completion
+from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion
 from .memory.engine import MemoryEngine
 from .models import (
     ChatSendRequest,
@@ -152,6 +152,21 @@ def update_session(session_id: str, payload: SessionUpdate) -> Session:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+@app.post("/history/sessions/{session_id}/generate-title", response_model=Session)
+def generate_session_title(session_id: str) -> Session:
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    first_user = next((m for m in session.messages if m.role == "user"), None)
+    if first_user is None:
+        raise HTTPException(status_code=400, detail="No user message found")
+    title = generate_title(first_user.content)
+    updated = store.update_session(session_id, SessionUpdate(title=title))
+    if updated is None:
+        raise HTTPException(status_code=500, detail="Failed to update session title")
+    return updated
 
 
 @app.delete("/history/messages/{message_id}")

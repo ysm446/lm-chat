@@ -152,6 +152,12 @@ export function getSession(sessionId: string) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`);
 }
 
+export function generateSessionTitle(sessionId: string) {
+  return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/generate-title`, {
+    method: "POST"
+  });
+}
+
 export function updateSession(sessionId: string, payload: { title?: string; model_name?: string }) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}`, {
     method: "PATCH",

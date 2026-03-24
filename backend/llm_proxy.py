@@ -71,6 +71,42 @@ def _build_messages(session: Session, memory_context: str = "") -> list[dict]:
     return messages
 
 
+def generate_title(text: str) -> str:
+    """最初のユーザーメッセージからセッションタイトルを生成する"""
+    import logging
+    import re
+    logger = logging.getLogger(__name__)
+    title_payload = {
+        "model": LLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": "あなたはタイトル生成専門のアシスタントです。与えられたテキストに対し、内容を端的に表す15〜25文字程度の日本語タイトルを1行だけ返してください。説明・引用符・記号は不要です。"},
+            {"role": "user", "content": text[:500]},
+        ],
+        "stream": False,
+        "max_tokens": 50,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "thinking": {"type": "disabled"},
+    }
+    req = request.Request(
+        f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
+        data=json.dumps(title_payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        raw = body["choices"][0]["message"]["content"].strip()
+        # <think>...</think> ブロックを除去
+        raw = re.sub(r"<think>[\s\S]*?</think>", "", raw).strip()
+        title = raw.splitlines()[0].strip()
+        logger.debug("generate_title result: %r", title)
+        return title[:60] if title else text[:40]
+    except Exception as e:
+        logger.error("generate_title failed: %s", e)
+        return text[:40]
+
+
 def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,

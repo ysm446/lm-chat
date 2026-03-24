@@ -20,6 +20,7 @@ import {
   streamChatMessage,
   switchLlamaModel,
   updateMessage as updateMessageRequest,
+  generateSessionTitle as generateSessionTitleRequest,
   updateSession as updateSessionRequest,
   updateWorkspace as updateWorkspaceRequest
 } from "../api";
@@ -367,15 +368,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // 初回メッセージ（user+assistant の2件）のときタイトルを自動生成
           const currentTitle = get().sessions.find((s) => s.id === session.id)?.title ?? "";
           if (session.messages.length === 2 && (currentTitle === "New chat" || currentTitle === "新規チャット")) {
-            const firstUser = session.messages.find((m) => m.role === "user");
-            if (firstUser) {
-              const autoTitle = firstUser.content.slice(0, 40).replace(/\n/g, " ");
-              void updateSessionRequest(session.id, { title: autoTitle }).then((updated) => {
-                set((state) => ({
-                  sessions: state.sessions.map((item) => (item.id === updated.id ? updated : item))
-                }));
-              });
-            }
+            void generateSessionTitleRequest(session.id).then((updated) => {
+              set((state) => ({
+                sessions: state.sessions.map((item) => (item.id === updated.id ? updated : item))
+              }));
+            }).catch(() => {});
           }
         },
         onError: (detail) => {
