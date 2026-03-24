@@ -38,6 +38,7 @@ class Message(BaseModel):
     tokens_per_second: float | None = None
     elapsed_seconds: float | None = None
     finish_reason: str | None = None
+    model_name: str | None = None
 
 
 class MessageCreate(BaseModel):
@@ -48,6 +49,7 @@ class MessageCreate(BaseModel):
     tokens_per_second: float | None = None
     elapsed_seconds: float | None = None
     finish_reason: str | None = None
+    model_name: str | None = None
 
 
 class Session(BaseModel):

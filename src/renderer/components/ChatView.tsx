@@ -59,7 +59,7 @@ export function ChatView() {
             <div className="message-meta">
               <span>
                 {message.role === "assistant"
-                  ? modelName ? `アシスタント (${modelName})` : "アシスタント"
+                  ? (() => { const n = message.model_name ?? (isSubmitting ? modelName : null) ?? ""; return n ? `アシスタント (${n})` : "アシスタント"; })()
                   : message.role === "user" ? "ユーザー" : "システム"}
               </span>
               <time>
@@ -133,7 +133,7 @@ export function ChatView() {
                 {message.finish_reason && (
                   <>
                     <span className="message-stats-sep">·</span>
-                    <span>Stop: {message.finish_reason}</span>
+                    <span>Finish reason: {message.finish_reason}</span>
                   </>
                 )}
               </div>

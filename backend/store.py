@@ -96,6 +96,7 @@ class SQLiteStore:
                 ("tokens_per_second", "REAL"),
                 ("elapsed_seconds", "REAL"),
                 ("finish_reason", "TEXT"),
+                ("model_name", "TEXT"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {typedef}")
@@ -154,6 +155,7 @@ class SQLiteStore:
         data.setdefault("tokens_per_second", None)
         data.setdefault("elapsed_seconds", None)
         data.setdefault("finish_reason", None)
+        data.setdefault("model_name", None)
         return Message(**data)
 
     def _memory_from_row(self, row: sqlite3.Row) -> MemoryChunk:
@@ -164,7 +166,7 @@ class SQLiteStore:
             self._message_from_row(message_row)
             for message_row in conn.execute(
                 """
-                SELECT id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason
+                SELECT id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY created_at ASC
@@ -329,11 +331,12 @@ class SQLiteStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (message.id, session_id, message.role, message.content, message.image_data, message.created_at,
-                 message.completion_tokens, message.tokens_per_second, message.elapsed_seconds, message.finish_reason),
+                 message.completion_tokens, message.tokens_per_second, message.elapsed_seconds, message.finish_reason,
+                 message.model_name),
             )
             conn.execute(
                 "UPDATE sessions SET updated_at = ? WHERE id = ?",

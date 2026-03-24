@@ -247,6 +247,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
                 finish_reason=final_stats.get("finish_reason") if final_stats else None,
+                model_name=session.model_name or None,
             ),
         )
         updated_session = store.get_session(payload.session_id)

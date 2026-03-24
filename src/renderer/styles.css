@@ -1547,7 +1547,7 @@ details.thinking-block[open] .thinking-chevron {
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: 11px;
   text-align: right;
 }
 .settings-number-input:focus { outline: none; border-color: var(--accent); }
@@ -1575,8 +1575,8 @@ details.thinking-block[open] .thinking-chevron {
 .settings-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--text-dim);
   cursor: pointer;
@@ -1584,7 +1584,7 @@ details.thinking-block[open] .thinking-chevron {
 }
 .settings-slider::-webkit-slider-thumb:hover {
   background: var(--text);
-  transform: scale(1.15);
+  transform: scale(1.2);
 }
 .settings-slider:focus::-webkit-slider-thumb { background: var(--accent); }
 

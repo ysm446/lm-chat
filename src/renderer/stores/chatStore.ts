@@ -71,6 +71,7 @@ const optimisticMessage = (role: ApiMessage["role"], content: string, imageData?
   tokens_per_second: null,
   elapsed_seconds: null,
   finish_reason: null,
+  model_name: null,
 });
 
 export const useChatStore = create<ChatState>((set, get) => ({
