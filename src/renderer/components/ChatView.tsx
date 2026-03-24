@@ -91,6 +91,34 @@ export function ChatView() {
               )}
             </div>
 
+            {message.role === "assistant" && message.elapsed_seconds != null && (
+              <div className="message-stats">
+                {/* tok/sec */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                <span>{message.tokens_per_second?.toFixed(1)} tok/sec</span>
+                <span className="message-stats-sep">·</span>
+                {/* tokens */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span>{(message.completion_tokens ?? 0).toLocaleString()} tokens</span>
+                <span className="message-stats-sep">·</span>
+                {/* elapsed */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>{message.elapsed_seconds.toFixed(2)}s</span>
+                {message.finish_reason && (
+                  <>
+                    <span className="message-stats-sep">·</span>
+                    <span>Stop: {message.finish_reason}</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {editingId !== message.id && (
               <div className="message-actions">
                 {/* Branch */}

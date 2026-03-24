@@ -90,6 +90,18 @@ class SQLiteStore:
                 conn.commit()
             except Exception:
                 pass  # already exists
+            # 生成統計カラムのマイグレーション
+            for col, typedef in [
+                ("completion_tokens", "INTEGER"),
+                ("tokens_per_second", "REAL"),
+                ("elapsed_seconds", "REAL"),
+                ("finish_reason", "TEXT"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {typedef}")
+                    conn.commit()
+                except Exception:
+                    pass  # already exists
 
             # sqlite-vec テーブルは CREATE IF NOT EXISTS が使えないため個別に確認
             tables = {
@@ -138,6 +150,10 @@ class SQLiteStore:
     def _message_from_row(self, row: sqlite3.Row) -> Message:
         data = dict(row)
         data.setdefault("image_data", None)
+        data.setdefault("completion_tokens", None)
+        data.setdefault("tokens_per_second", None)
+        data.setdefault("elapsed_seconds", None)
+        data.setdefault("finish_reason", None)
         return Message(**data)
 
     def _memory_from_row(self, row: sqlite3.Row) -> MemoryChunk:
@@ -148,7 +164,7 @@ class SQLiteStore:
             self._message_from_row(message_row)
             for message_row in conn.execute(
                 """
-                SELECT id, role, content, image_data, created_at
+                SELECT id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY created_at ASC
@@ -313,10 +329,11 @@ class SQLiteStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, image_data, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (message.id, session_id, message.role, message.content, message.image_data, message.created_at),
+                (message.id, session_id, message.role, message.content, message.image_data, message.created_at,
+                 message.completion_tokens, message.tokens_per_second, message.elapsed_seconds, message.finish_reason),
             )
             conn.execute(
                 "UPDATE sessions SET updated_at = ? WHERE id = ?",

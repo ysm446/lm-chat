@@ -225,10 +225,14 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
 
     def event_stream():
         collected: list[str] = []
+        final_stats: dict | None = None
         try:
-            for chunk in stream_chat_completion(session, memory_context, thinking_enabled):
-                collected.append(chunk)
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+            for item in stream_chat_completion(session, memory_context, thinking_enabled):
+                if isinstance(item, str):
+                    collected.append(item)
+                    yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
+                else:
+                    final_stats = item
         except HTTPException as exc:
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
             return
@@ -236,7 +240,14 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
         assistant_text = "".join(collected).strip()
         assistant_message = store.append_message(
             payload.session_id,
-            MessageCreate(role="assistant", content=assistant_text),
+            MessageCreate(
+                role="assistant",
+                content=assistant_text,
+                completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
+                tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
+                elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
+                finish_reason=final_stats.get("finish_reason") if final_stats else None,
+            ),
         )
         updated_session = store.get_session(payload.session_id)
         if assistant_message is None or updated_session is None:

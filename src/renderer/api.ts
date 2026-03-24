@@ -6,6 +6,10 @@ export type ApiMessage = {
   content: string;
   image_data: string | null;
   created_at: string;
+  completion_tokens: number | null;
+  tokens_per_second: number | null;
+  elapsed_seconds: number | null;
+  finish_reason: string | null;
 };
 
 export type ApiSession = {

@@ -34,12 +34,20 @@ class Message(BaseModel):
     content: str
     image_data: str | None = None
     created_at: str = Field(default_factory=now_iso)
+    completion_tokens: int | None = None
+    tokens_per_second: float | None = None
+    elapsed_seconds: float | None = None
+    finish_reason: str | None = None
 
 
 class MessageCreate(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     image_data: str | None = None
+    completion_tokens: int | None = None
+    tokens_per_second: float | None = None
+    elapsed_seconds: float | None = None
+    finish_reason: str | None = None
 
 
 class Session(BaseModel):

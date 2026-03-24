@@ -854,6 +854,19 @@ a { color: var(--accent); }
   border-radius: var(--r-md);
 }
 
+/* ── Message stats ───────────────────────────────────── */
+.message-stats {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: 2px 2px;
+  margin-top: 6px;
+}
+.message-stats svg { flex-shrink: 0; opacity: 0.6; }
+.message-stats-sep { opacity: 0.35; }
+
 /* ── Message actions ─────────────────────────────────── */
 .message-actions {
   display: flex;

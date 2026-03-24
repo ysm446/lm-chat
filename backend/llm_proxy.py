@@ -3,7 +3,15 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Iterator
+from typing import TypedDict
 from urllib import error, request
+
+
+class GenerationStats(TypedDict):
+    completion_tokens: int
+    tokens_per_second: float
+    elapsed_seconds: float
+    finish_reason: str
 
 from fastapi import HTTPException
 
@@ -93,7 +101,7 @@ def generate_chat_completion(session: Session, memory_context: str = "", thinkin
         raise HTTPException(status_code=502, detail="Invalid response from llama-server") from exc
 
 
-def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> Iterator[str]:
+def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> Iterator[str | GenerationStats]:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context),
@@ -122,9 +130,22 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
                     payload = json.loads(data)
                 except json.JSONDecodeError:
                     continue
-                delta = payload.get("choices", [{}])[0].get("delta", {})
+                choice = payload.get("choices", [{}])[0]
+                delta = choice.get("delta", {})
                 content = delta.get("content")
                 if content:
                     yield content
+                elif choice.get("finish_reason"):
+                    usage = payload.get("usage", {})
+                    timings = payload.get("timings", {})
+                    # predicted_n はストリーミング時に確実に返る生成トークン数
+                    token_count = timings.get("predicted_n") or usage.get("completion_tokens", 0)
+                    if timings or usage:
+                        yield GenerationStats(
+                            completion_tokens=token_count,
+                            tokens_per_second=timings.get("predicted_per_second", 0.0),
+                            elapsed_seconds=timings.get("predicted_ms", 0.0) / 1000.0,
+                            finish_reason=choice.get("finish_reason", "stop"),
+                        )
     except error.URLError as exc:
         raise HTTPException(status_code=503, detail=f"llama-server is unavailable: {exc}") from exc
