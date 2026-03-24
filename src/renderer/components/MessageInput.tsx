@@ -66,9 +66,7 @@ export function MessageInput() {
       const dataUrl = await resizeImageToDataUrl(file);
       setImageData(dataUrl);
       setImageFileName(file.name);
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   };
 
   const handleSend = async () => {
@@ -82,21 +80,11 @@ export function MessageInput() {
     await sendMessage(currentSessionId, text, img);
   };
 
+  const canSend = !isSubmitting && (!!value.trim() || !!imageData);
+
   return (
     <section className="input-shell">
-      {imageData && (
-        <div className="image-preview-row">
-          <img src={imageData} alt={imageFileName} className="image-preview-thumb" />
-          <span className="image-preview-name">{imageFileName}</span>
-          <button
-            className="image-preview-remove"
-            onClick={() => { setImageData(null); setImageFileName(""); }}
-            title="画像を削除"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+      <div className="input-shell-inner">
       <div className="composer">
         <input
           ref={fileInputRef}
@@ -105,20 +93,24 @@ export function MessageInput() {
           style={{ display: "none" }}
           onChange={(e) => void handleFileChange(e)}
         />
-        <button
-          className="ghost-button attach-button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isSubmitting}
-          title="画像を添付"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>
-        </button>
+
+        {/* 画像プレビュー */}
+        {imageData && (
+          <div className="image-preview-row">
+            <img src={imageData} alt={imageFileName} className="image-preview-thumb" />
+            <span className="image-preview-name">{imageFileName}</span>
+            <button
+              className="image-preview-remove"
+              onClick={() => { setImageData(null); setImageFileName(""); }}
+              title="画像を削除"
+            >✕</button>
+          </div>
+        )}
+
+        {/* テキストエリア */}
         <textarea
-          placeholder="メッセージを入力..."
+          className="composer-textarea"
+          placeholder="Send a message to the model..."
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -130,54 +122,89 @@ export function MessageInput() {
           rows={2}
           disabled={isSubmitting}
         />
-        <button className="primary-button" onClick={() => void handleSend()} disabled={isSubmitting || (!value.trim() && !imageData)}>
-          {isSubmitting ? "受信中" : "送信"}
-        </button>
-      </div>
 
-      <div className="status-row">
-        <span className="pill">Web検索: オフ</span>
-        <button
-          className={`pill pill-toggle ${memoryEnabled ? "active" : ""}`}
-          onClick={toggleMemory}
-          title={memoryEnabled ? "記憶をオフにする" : "記憶をオンにする"}
-        >
-          記憶: {memoryEnabled ? "オン" : "オフ"}
-        </button>
-        <button
-          className={`pill pill-toggle ${thinkingEnabled ? "active" : ""}`}
-          onClick={toggleThinking}
-          title={thinkingEnabled ? "思考モードをオフにする" : "思考モードをオンにする"}
-        >
-          思考モード: {thinkingEnabled ? "オン" : "オフ"}
-        </button>
+        {/* ボトムアクションバー */}
+        <div className="composer-bottom">
+          <div className="composer-bottom-left">
+            {/* 画像添付 */}
+            <button
+              className="composer-icon-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSubmitting}
+              title="画像を添付"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </button>
 
-        <div className="token-ring-wrapper">
-          <svg width="26" height="26" viewBox="0 0 26 26" className="token-ring-svg">
-            <circle cx="13" cy="13" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="2.2" />
-            <circle
-              cx="13" cy="13" r={radius}
-              fill="none"
-              stroke={ringColor}
-              strokeWidth="2.2"
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round"
-              transform="rotate(-90 13 13)"
-              style={{ transition: "stroke-dashoffset 0.4s ease, stroke 0.3s" }}
-            />
-          </svg>
-          <span className="token-ring-pct" style={{ color: ringColor }}>
-            {usagePct !== null ? `${Math.round(usagePct)}%` : "—"}
-          </span>
-          {tokenCount !== null && (
-            <div className="token-ring-tooltip">
-              <p>会話トークン: <strong>{tokenCount.toLocaleString()}</strong></p>
-              <p>コンテキスト上限: <strong>{ctxSize.toLocaleString()}</strong></p>
-              <p>{usagePct!.toFixed(1)}% 使用中（{(100 - usagePct!).toFixed(1)}% 残り）</p>
+            {/* 記憶トグル */}
+            <button
+              className={`composer-chip${memoryEnabled ? " active" : ""}`}
+              onClick={toggleMemory}
+              title={memoryEnabled ? "記憶をオフにする" : "記憶をオンにする"}
+            >
+              記憶
+            </button>
+
+            {/* 思考モードトグル */}
+            <button
+              className={`composer-chip${thinkingEnabled ? " active" : ""}`}
+              onClick={toggleThinking}
+              title={thinkingEnabled ? "思考モードをオフにする" : "思考モードをオンにする"}
+            >
+              思考
+            </button>
+          </div>
+
+          <div className="composer-bottom-right">
+            {/* トークンリング */}
+            <div className="token-ring-wrapper">
+              <svg width="26" height="26" viewBox="0 0 26 26" className="token-ring-svg">
+                <circle cx="13" cy="13" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="2.2" />
+                <circle
+                  cx="13" cy="13" r={radius}
+                  fill="none"
+                  stroke={ringColor}
+                  strokeWidth="2.2"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={dashOffset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 13 13)"
+                  style={{ transition: "stroke-dashoffset 0.4s ease, stroke 0.3s" }}
+                />
+              </svg>
+              <span className="token-ring-pct" style={{ color: ringColor }}>
+                {usagePct !== null ? `${Math.round(usagePct)}%` : "—"}
+              </span>
+              {tokenCount !== null && (
+                <div className="token-ring-tooltip">
+                  <p>会話トークン: <strong>{tokenCount.toLocaleString()}</strong></p>
+                  <p>コンテキスト上限: <strong>{ctxSize.toLocaleString()}</strong></p>
+                  <p>{usagePct!.toFixed(1)}% 使用中（{(100 - usagePct!).toFixed(1)}% 残り）</p>
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="composer-divider" />
+
+            {/* 送信ボタン（丸アイコン） */}
+            <button
+              className="composer-send-btn"
+              onClick={() => void handleSend()}
+              disabled={!canSend}
+              title="送信 (Enter)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"/>
+                <polyline points="5 12 12 5 19 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
+      </div>
       </div>
     </section>
   );
