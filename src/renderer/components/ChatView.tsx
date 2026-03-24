@@ -55,7 +55,7 @@ export function ChatView() {
     <section className="chat-view">
       <div className="message-stream">
         {session?.messages.map((message) => (
-          <article key={message.id} className={`message-card ${message.role}`}>
+          <article key={message.id} className={`message-card ${message.role}${editingId === message.id ? " editing" : ""}`}>
             <div className="message-meta">
               <span>
                 {message.role === "assistant"
@@ -72,23 +72,17 @@ export function ChatView() {
                 <img src={message.image_data} alt="添付画像" className="message-image" />
               )}
               {editingId === message.id ? (
-                <div className="message-edit-area">
-                  <textarea
-                    ref={editTextareaRef}
-                    className="message-edit-textarea"
-                    value={editingContent}
-                    onChange={(e) => setEditingContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void commitEdit(session.id, message.id); }
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    rows={3}
-                  />
-                  <div className="message-edit-buttons">
-                    <button className="primary-button small" onClick={() => void commitEdit(session.id, message.id)}>保存</button>
-                    <button className="ghost-button" onClick={() => setEditingId(null)}>キャンセル</button>
-                  </div>
-                </div>
+                <textarea
+                  ref={editTextareaRef}
+                  className="message-edit-textarea"
+                  value={editingContent}
+                  onChange={(e) => setEditingContent(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void commitEdit(session.id, message.id); }
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  rows={3}
+                />
               ) : message.role === "user" ? (
                 message.content ? <p>{message.content}</p> : null
               ) : (() => {
@@ -142,6 +136,13 @@ export function ChatView() {
                     <span>Stop: {message.finish_reason}</span>
                   </>
                 )}
+              </div>
+            )}
+
+            {editingId === message.id && (
+              <div className="message-edit-buttons">
+                <button className="message-edit-discard" onClick={() => setEditingId(null)}>Discard (Esc)</button>
+                <button className="message-edit-save" onClick={() => void commitEdit(session.id, message.id)}>Save (Ctrl + Enter)</button>
               </div>
             )}
 
