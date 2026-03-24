@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 _CONFIG_PATH = Path(__file__).resolve().parent.parent / "data" / "config.json"
-_DEFAULTS: dict = {"ctx_size": 32768}
+_DEFAULTS: dict = {"ctx_size": 32768, "n_gpu_layers": -1}
 
 
 def get() -> dict:

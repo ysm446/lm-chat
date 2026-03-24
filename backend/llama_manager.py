@@ -56,10 +56,19 @@ def _kill_running() -> None:
             subprocess.run(["pkill", "-f", "llama-server"], capture_output=True)
 
 
-def switch_model(model_path: str, ctx_size: int = 32768) -> None:
+def get_model_props() -> dict:
+    """llama-server の /props からモデル情報を取得する。"""
+    try:
+        with urllib_request.urlopen(f"{LLAMA_SERVER_BASE_URL}/props", timeout=2) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return {}
+
+
+def switch_model(model_path: str, ctx_size: int = 32768, n_gpu_layers: int = -1) -> None:
     paths = get_llama_paths()
     exe = paths.get("llama_exe", "")
-    n_gpu = paths.get("n_gpu_layers", -1)
+    n_gpu = n_gpu_layers
 
     if not exe or not Path(exe).exists():
         raise ValueError(f"llama-server が見つかりません: {exe}")
@@ -100,3 +109,14 @@ def switch_model(model_path: str, ctx_size: int = 32768) -> None:
     paths["mmproj_path"] = effective_mmproj
     _PATHS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PATHS_FILE.write_text(json.dumps(paths, indent=2, ensure_ascii=False), "utf-8")
+
+
+def eject_model() -> None:
+    """llama-server を停止し VRAM を解放する。新しいモデルは起動しない。"""
+    logger.info("Ejecting model — killing llama-server...")
+    _kill_running()
+    paths = get_llama_paths()
+    paths["active_model_path"] = ""
+    _PATHS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _PATHS_FILE.write_text(json.dumps(paths, indent=2, ensure_ascii=False), "utf-8")
+    logger.info("Model ejected.")

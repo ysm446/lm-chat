@@ -10,6 +10,7 @@ import {
   deleteMessage as deleteMessageRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
+  ejectLlamaModel,
   getLlamaStatus,
   getSession,
   listLocalModels,
@@ -40,6 +41,7 @@ type ChatState = {
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
   applyModelSwitch: () => Promise<void>;
+  ejectModel: () => Promise<void>;
   toggleMemory: () => void;
   toggleThinking: () => void;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
@@ -162,6 +164,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ isSwitchingModel: false, error: "モデルの起動がタイムアウトしました" });
     } catch (e) {
       set({ isSwitchingModel: false, error: e instanceof Error ? e.message : "モデル切り替えに失敗しました" });
+    }
+  },
+
+  ejectModel: async () => {
+    set({ isSwitchingModel: true, error: null });
+    try {
+      await ejectLlamaModel();
+      set({ isSwitchingModel: false, activeModelPath: "", selectedModel: null });
+    } catch (e) {
+      set({ isSwitchingModel: false, error: e instanceof Error ? e.message : "モデルのアンロードに失敗しました" });
     }
   },
 

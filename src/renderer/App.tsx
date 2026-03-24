@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChatView } from "./components/ChatView";
 import { MessageInput } from "./components/MessageInput";
-import { ModelSelector } from "./components/ModelSelector";
+import { ModelBar } from "./components/ModelBar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
@@ -17,6 +17,8 @@ export function App() {
   const error = useChatStore((state) => state.error);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [rightWidth, setRightWidth] = useState(280);
+  const [showLeft, setShowLeft] = useState(true);
+  const [showRight, setShowRight] = useState(true);
 
   const makeResizeHandler = (
     getCurrent: () => number,
@@ -40,9 +42,7 @@ export function App() {
     document.addEventListener("mouseup", onUp);
   };
 
-  useEffect(() => {
-    void bootstrap();
-  }, [bootstrap]);
+  useEffect(() => { void bootstrap(); }, [bootstrap]);
 
   if (isBootstrapping) {
     return (
@@ -60,51 +60,60 @@ export function App() {
     return <WorkspaceEmptyState />;
   }
 
+  const gridCols = [
+    showLeft ? `${sidebarWidth}px` : "0px",
+    showLeft ? "1px" : "0px",
+    "1fr",
+    showRight ? "1px" : "0px",
+    showRight ? `${rightWidth}px` : "0px",
+  ].join(" ");
+
   return (
-    <div className="app-shell" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr 1px ${rightWidth}px` }}>
-      <aside className="left-pane">
-        <Sidebar />
-      </aside>
+    <div className="app-frame">
+      <ModelBar
+        showLeft={showLeft}
+        showRight={showRight}
+        onToggleLeft={() => setShowLeft((v) => !v)}
+        onToggleRight={() => setShowRight((v) => !v)}
+      />
+      <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
+        <aside className="left-pane" style={{ overflow: "hidden" }}>
+          <Sidebar />
+        </aside>
 
-      <div className="resize-handle" onMouseDown={makeResizeHandler(() => sidebarWidth, setSidebarWidth, 180, 480, "left")} />
+        <div className="resize-handle" style={{ pointerEvents: showLeft ? undefined : "none" }} onMouseDown={makeResizeHandler(() => sidebarWidth, setSidebarWidth, 180, 480, "left")} />
 
-      <main className="center-pane">
-        {/* チャット送信中プログレスバー */}
-        <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
+        <main className="center-pane">
+          <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
+          <header className="center-header">
+            <div>
+              <p className="eyebrow">ワークスペース</p>
+              <h1>{currentWorkspace.name}</h1>
+              <p className="muted">{currentWorkspace.description || "記憶とチャット履歴をワークスペース単位で管理"}</p>
+              {error ? <p className="error-text">{error}</p> : null}
+            </div>
+          </header>
+          <ChatView />
+          <MessageInput />
+        </main>
 
-        <header className="center-header">
-          <div>
-            <p className="eyebrow">ワークスペース</p>
-            <h1>{currentWorkspace.name}</h1>
-            <p className="muted">{currentWorkspace.description || "記憶とチャット履歴をワークスペース単位で管理"}</p>
-            {error ? <p className="error-text">{error}</p> : null}
+        <div className="resize-handle" style={{ pointerEvents: showRight ? undefined : "none" }} onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
+
+        <aside className="right-pane" style={{ overflow: "hidden" }}>
+          <SettingsPanel />
+        </aside>
+
+        {isSwitchingModel ? (
+          <div className="model-switch-overlay">
+            <div className="model-switch-card">
+              <div className="model-switch-spinner" />
+              <p className="eyebrow">モデル切り替え中</p>
+              <h2>llama-server を再起動しています</h2>
+              <p className="muted">新しいモデルの読み込みが完了するまでしばらくお待ちください…</p>
+            </div>
           </div>
-          <div className="header-actions">
-            <ModelSelector />
-          </div>
-        </header>
-
-        <ChatView />
-        <MessageInput />
-      </main>
-
-      <div className="resize-handle" onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
-
-      <aside className="right-pane">
-        <SettingsPanel />
-      </aside>
-
-      {/* モデル切り替え中オーバーレイ */}
-      {isSwitchingModel ? (
-        <div className="model-switch-overlay">
-          <div className="model-switch-card">
-            <div className="model-switch-spinner" />
-            <p className="eyebrow">モデル切り替え中</p>
-            <h2>llama-server を再起動しています</h2>
-            <p className="muted">新しいモデルの読み込みが完了するまでしばらくお待ちください…</p>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

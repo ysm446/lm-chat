@@ -93,14 +93,18 @@ export function fetchMemoryStats() {
 }
 
 export function getConfig() {
-  return request<{ ctx_size: number }>("/config");
+  return request<{ ctx_size: number; n_gpu_layers: number }>("/config");
 }
 
-export function updateConfig(patch: { ctx_size: number }) {
-  return request<{ ctx_size: number }>("/config", {
+export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number }) {
+  return request<{ ctx_size: number; n_gpu_layers: number }>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
+}
+
+export function getLlamaProps() {
+  return request<{ n_ctx?: number; total_slots?: number }>("/llama/props");
 }
 
 export function getSessionTokenCount(sessionId: string) {
@@ -111,6 +115,10 @@ export function getSessionTokenCount(sessionId: string) {
 
 export function getLlamaStatus() {
   return request<{ ready: boolean; active_model_path: string }>("/llama/status");
+}
+
+export function ejectLlamaModel() {
+  return request<{ status: string }>("/llama/eject", { method: "POST" });
 }
 
 export function switchLlamaModel(modelPath: string) {

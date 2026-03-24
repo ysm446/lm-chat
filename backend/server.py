@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
-from .llama_manager import get_llama_paths, is_ready, switch_model
+from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, list_models, stream_chat_completion
 from .memory.engine import MemoryEngine
 from .models import (
@@ -322,6 +322,11 @@ def get_session_token_count(session_id: str) -> dict[str, int]:
     return {"token_count": count, "ctx_size": config["ctx_size"]}
 
 
+@app.get("/llama/props")
+def llama_props() -> dict:
+    return get_model_props()
+
+
 @app.get("/llama/status")
 def llama_status() -> dict:
     paths = get_llama_paths()
@@ -329,6 +334,12 @@ def llama_status() -> dict:
         "ready": is_ready(),
         "active_model_path": paths.get("active_model_path", ""),
     }
+
+
+@app.post("/llama/eject")
+def llama_eject() -> dict:
+    eject_model()
+    return {"status": "ejected"}
 
 
 @app.post("/llama/switch-model")
@@ -339,7 +350,7 @@ def llama_switch_model(payload: dict) -> dict:
     config = get_config_data()
     logger.info("Switching model to: %s", model_path)
     try:
-        switch_model(model_path, ctx_size=config.get("ctx_size", 32768))
+        switch_model(model_path, ctx_size=config.get("ctx_size", 32768), n_gpu_layers=config.get("n_gpu_layers", -1))
     except ValueError as exc:
         logger.error("Model switch failed: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
