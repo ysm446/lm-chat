@@ -4,8 +4,10 @@ import {
   ApiSession,
   ApiWorkspace,
   LocalModel,
+  branchSession as branchSessionRequest,
   createSession as createSessionRequest,
   createWorkspace as createWorkspaceRequest,
+  deleteMessage as deleteMessageRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
   getLlamaStatus,
@@ -15,6 +17,7 @@ import {
   listWorkspaces,
   streamChatMessage,
   switchLlamaModel,
+  updateMessage as updateMessageRequest,
   updateSession as updateSessionRequest,
   updateWorkspace as updateWorkspaceRequest
 } from "../api";
@@ -47,6 +50,9 @@ type ChatState = {
   renameSession: (sessionId: string, title: string) => Promise<void>;
   removeSession: (sessionId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
+  deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
+  editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
+  branchSession: (sessionId: string, messageId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
@@ -253,6 +259,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to load session" });
     }
+  },
+
+  deleteMessage: async (sessionId, messageId) => {
+    await deleteMessageRequest(messageId);
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? { ...s, messages: s.messages.filter((m) => m.id !== messageId) }
+          : s
+      )
+    }));
+  },
+
+  editMessage: async (sessionId, messageId, content) => {
+    const updated = await updateMessageRequest(messageId, content);
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId
+          ? { ...s, messages: s.messages.map((m) => (m.id === messageId ? { ...m, content: updated.content } : m)) }
+          : s
+      )
+    }));
+  },
+
+  branchSession: async (sessionId, messageId) => {
+    const newSession = await branchSessionRequest(sessionId, messageId);
+    set((state) => ({
+      sessions: [newSession, ...state.sessions],
+      currentWorkspaceId: newSession.workspace_id,
+      currentSessionId: newSession.id
+    }));
   },
 
   sendMessage: async (sessionId, content, imageData) => {

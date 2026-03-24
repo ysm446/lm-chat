@@ -63,6 +63,10 @@ class SessionUpdate(BaseModel):
     model_name: str | None = None
 
 
+class MessageUpdate(BaseModel):
+    content: str
+
+
 class ChatSendRequest(BaseModel):
     session_id: str
     content: str

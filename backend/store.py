@@ -324,6 +324,48 @@ class SQLiteStore:
             )
         return message
 
+    def delete_message(self, message_id: str) -> bool:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+        return cursor.rowcount > 0
+
+    def update_message(self, message_id: str, content: str) -> Message | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, role, content, image_data, created_at FROM messages WHERE id = ?",
+                (message_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute("UPDATE messages SET content = ? WHERE id = ?", (content, message_id))
+        data = dict(row)
+        data["content"] = content
+        data.setdefault("image_data", None)
+        return Message(**data)
+
+    def branch_session(self, session_id: str, up_to_message_id: str) -> Session | None:
+        session = self.get_session(session_id)
+        if session is None:
+            return None
+        messages_to_copy: list[Message] = []
+        for msg in session.messages:
+            messages_to_copy.append(msg)
+            if msg.id == up_to_message_id:
+                break
+        new_session = self.create_session(
+            SessionCreate(
+                workspace_id=session.workspace_id,
+                title=f"{session.title} (分岐)",
+                model_name=session.model_name,
+            )
+        )
+        for msg in messages_to_copy:
+            self.append_message(
+                new_session.id,
+                MessageCreate(role=msg.role, content=msg.content, image_data=msg.image_data),
+            )
+        return self.get_session(new_session.id)
+
     def delete_session(self, session_id: str, delete_memory: bool) -> bool:
         with self._connect() as conn:
             if delete_memory:

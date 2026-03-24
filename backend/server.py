@@ -24,6 +24,7 @@ from .models import (
     MemorySearchResult,
     Message,
     MessageCreate,
+    MessageUpdate,
     Session,
     SessionCreate,
     SessionUpdate,
@@ -144,6 +145,33 @@ def update_session(session_id: str, payload: SessionUpdate) -> Session:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+@app.delete("/history/messages/{message_id}")
+def delete_message(message_id: str) -> dict[str, bool]:
+    deleted = store.delete_message(message_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"deleted": True}
+
+
+@app.patch("/history/messages/{message_id}", response_model=Message)
+def update_message(message_id: str, payload: MessageUpdate) -> Message:
+    message = store.update_message(message_id, payload.content)
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return message
+
+
+@app.post("/history/sessions/{session_id}/branch", response_model=Session)
+def branch_session(session_id: str, payload: dict) -> Session:
+    up_to_message_id = payload.get("up_to_message_id", "")
+    if not up_to_message_id:
+        raise HTTPException(status_code=400, detail="up_to_message_id is required")
+    new_session = store.branch_session(session_id, up_to_message_id)
+    if new_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return new_session
 
 
 @app.post("/history/sessions/{session_id}/messages", response_model=Message)

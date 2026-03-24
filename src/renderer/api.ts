@@ -139,6 +139,26 @@ export function updateSession(sessionId: string, payload: { title?: string; mode
   });
 }
 
+export function deleteMessage(messageId: string) {
+  return request<{ deleted: boolean }>(`/history/messages/${encodeURIComponent(messageId)}`, {
+    method: "DELETE"
+  });
+}
+
+export function updateMessage(messageId: string, content: string) {
+  return request<ApiMessage>(`/history/messages/${encodeURIComponent(messageId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content })
+  });
+}
+
+export function branchSession(sessionId: string, upToMessageId: string) {
+  return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/branch`, {
+    method: "POST",
+    body: JSON.stringify({ up_to_message_id: upToMessageId })
+  });
+}
+
 export function deleteSession(sessionId: string, deleteMemory = true) {
   return request<{ deleted: boolean; session_count: number }>(
     `/history/sessions/${encodeURIComponent(sessionId)}?delete_memory=${deleteMemory ? "true" : "false"}`,
