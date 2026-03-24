@@ -3,6 +3,17 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChatStore } from "../stores/chatStore";
 
+function parseThinking(content: string): { thinking: string | null; response: string; streaming: boolean } {
+  const complete = content.match(/^<think>([\s\S]*?)<\/think>\n?/);
+  if (complete) {
+    return { thinking: complete[1].trim(), response: content.slice(complete[0].length), streaming: false };
+  }
+  if (content.startsWith("<think>")) {
+    return { thinking: content.slice(7), response: "", streaming: true };
+  }
+  return { thinking: null, response: content, streaming: false };
+}
+
 export function ChatView() {
   const session = useChatStore((state) => state.currentSession());
   const isSubmitting = useChatStore((state) => state.isSubmitting);
@@ -78,17 +89,32 @@ export function ChatView() {
                     <button className="ghost-button" onClick={() => setEditingId(null)}>キャンセル</button>
                   </div>
                 </div>
-              ) : (
-                message.content ? (
-                  message.role === "user" ? (
-                    <p>{message.content}</p>
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                  )
-                ) : isSubmitting && message.role === "assistant" ? (
-                  <p className="typing-cursor">▍</p>
-                ) : null
-              )}
+              ) : message.role === "user" ? (
+                message.content ? <p>{message.content}</p> : null
+              ) : (() => {
+                if (!message.content) {
+                  return isSubmitting ? <p className="typing-cursor">▍</p> : null;
+                }
+                const { thinking, response, streaming } = parseThinking(message.content);
+                return (
+                  <>
+                    {thinking != null && (
+                      <details className="thinking-block" open={streaming || undefined}>
+                        <summary className="thinking-summary">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="thinking-chevron">
+                            <polyline points="9 18 15 12 9 6"/>
+                          </svg>
+                          {streaming ? "思考中..." : "思考の過程"}
+                        </summary>
+                        <div className="thinking-content">{thinking}</div>
+                      </details>
+                    )}
+                    {response
+                      ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{response}</ReactMarkdown>
+                      : streaming && isSubmitting ? <p className="typing-cursor">▍</p> : null}
+                  </>
+                );
+              })()}
             </div>
 
             {message.role === "assistant" && message.elapsed_seconds != null && (

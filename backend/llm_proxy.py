@@ -118,6 +118,7 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
     )
 
     try:
+        in_thinking = False
         with request.urlopen(req, timeout=600) as response:
             for raw_line in response:
                 line = raw_line.decode("utf-8", errors="ignore").strip()
@@ -132,8 +133,17 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
                     continue
                 choice = payload.get("choices", [{}])[0]
                 delta = choice.get("delta", {})
+                reasoning = delta.get("reasoning_content")
                 content = delta.get("content")
-                if content:
+                if reasoning:
+                    if not in_thinking:
+                        in_thinking = True
+                        yield "<think>"
+                    yield reasoning
+                elif content:
+                    if in_thinking:
+                        in_thinking = False
+                        yield "</think>\n"
                     yield content
                 elif choice.get("finish_reason"):
                     usage = payload.get("usage", {})
