@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { getConfig, getSessionTokenCount } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
@@ -32,6 +33,30 @@ export function MessageInput() {
   const toggleMemory = useChatStore((state) => state.toggleMemory);
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
   const toggleThinking = useChatStore((state) => state.toggleThinking);
+
+  const [tokenCount, setTokenCount] = useState<number | null>(null);
+  const [ctxSize, setCtxSize] = useState(32768);
+
+  useEffect(() => {
+    getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!currentSessionId || isSubmitting) return;
+    getSessionTokenCount(currentSessionId)
+      .then((r) => { setTokenCount(r.token_count); setCtxSize(r.ctx_size); })
+      .catch(() => {});
+  }, [currentSessionId, isSubmitting]);
+
+  const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
+  const ringColor =
+    usagePct === null ? "var(--border-strong)"
+    : usagePct >= 90  ? "#ef4444"
+    : usagePct >= 70  ? "#f59e0b"
+    : "var(--accent)";
+  const radius = 10;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = usagePct !== null ? circumference * (1 - usagePct / 100) : circumference;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -126,6 +151,33 @@ export function MessageInput() {
         >
           思考モード: {thinkingEnabled ? "オン" : "オフ"}
         </button>
+
+        <div className="token-ring-wrapper">
+          <svg width="26" height="26" viewBox="0 0 26 26" className="token-ring-svg">
+            <circle cx="13" cy="13" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="2.2" />
+            <circle
+              cx="13" cy="13" r={radius}
+              fill="none"
+              stroke={ringColor}
+              strokeWidth="2.2"
+              strokeDasharray={circumference}
+              strokeDashoffset={dashOffset}
+              strokeLinecap="round"
+              transform="rotate(-90 13 13)"
+              style={{ transition: "stroke-dashoffset 0.4s ease, stroke 0.3s" }}
+            />
+          </svg>
+          <span className="token-ring-pct" style={{ color: ringColor }}>
+            {usagePct !== null ? `${Math.round(usagePct)}%` : "—"}
+          </span>
+          {tokenCount !== null && (
+            <div className="token-ring-tooltip">
+              <p>会話トークン: <strong>{tokenCount.toLocaleString()}</strong></p>
+              <p>コンテキスト上限: <strong>{ctxSize.toLocaleString()}</strong></p>
+              <p>{usagePct!.toFixed(1)}% 使用中（{(100 - usagePct!).toFixed(1)}% 残り）</p>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

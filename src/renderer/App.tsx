@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ChatView } from "./components/ChatView";
 import { MessageInput } from "./components/MessageInput";
 import { ModelSelector } from "./components/ModelSelector";
@@ -15,6 +15,30 @@ export function App() {
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
   const error = useChatStore((state) => state.error);
+  const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [rightWidth, setRightWidth] = useState(280);
+
+  const makeResizeHandler = (
+    getCurrent: () => number,
+    setter: (w: number) => void,
+    min: number,
+    max: number,
+    direction: "left" | "right" = "left"
+  ) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = getCurrent();
+    const onMove = (ev: MouseEvent) => {
+      const delta = direction === "left" ? ev.clientX - startX : startX - ev.clientX;
+      setter(Math.max(min, Math.min(max, startWidth + delta)));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   useEffect(() => {
     void bootstrap();
@@ -37,10 +61,12 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr 1px ${rightWidth}px` }}>
       <aside className="left-pane">
         <Sidebar />
       </aside>
+
+      <div className="resize-handle" onMouseDown={makeResizeHandler(() => sidebarWidth, setSidebarWidth, 180, 480, "left")} />
 
       <main className="center-pane">
         {/* チャット送信中プログレスバー */}
@@ -61,6 +87,8 @@ export function App() {
         <ChatView />
         <MessageInput />
       </main>
+
+      <div className="resize-handle" onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
 
       <aside className="right-pane">
         <SettingsPanel />

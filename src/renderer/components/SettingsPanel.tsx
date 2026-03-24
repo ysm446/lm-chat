@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchMemoryStats, getConfig, getSessionTokenCount, updateConfig } from "../api";
+import { fetchMemoryStats, getConfig, updateConfig } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -10,16 +10,12 @@ type MemoryStats = {
 
 export function SettingsPanel() {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
-  const currentSessionId = useChatStore((state) => state.currentSessionId);
-  const isSubmitting = useChatStore((state) => state.isSubmitting);
 
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [ctxSize, setCtxSize] = useState<number>(32768);
   const [ctxInput, setCtxInput] = useState<string>("32768");
   const [ctxSaving, setCtxSaving] = useState(false);
   const [ctxSaved, setCtxSaved] = useState(false);
-  const [tokenCount, setTokenCount] = useState<number | null>(null);
-  const [tokenCtxSize, setTokenCtxSize] = useState<number>(32768);
 
   // Load config on mount
   useEffect(() => {
@@ -27,7 +23,6 @@ export function SettingsPanel() {
       .then((cfg) => {
         setCtxSize(cfg.ctx_size);
         setCtxInput(String(cfg.ctx_size));
-        setTokenCtxSize(cfg.ctx_size);
       })
       .catch(() => {});
   }, []);
@@ -39,21 +34,6 @@ export function SettingsPanel() {
       .catch(() => {});
   }, [currentWorkspace?.id]);
 
-  // Load token count for current session
-  useEffect(() => {
-    if (!currentSessionId) {
-      setTokenCount(null);
-      return;
-    }
-    if (isSubmitting) return; // wait until done streaming
-    getSessionTokenCount(currentSessionId)
-      .then((res) => {
-        setTokenCount(res.token_count);
-        setTokenCtxSize(res.ctx_size);
-      })
-      .catch(() => {});
-  }, [currentSessionId, isSubmitting]);
-
   const handleSaveCtx = async () => {
     const val = parseInt(ctxInput, 10);
     if (isNaN(val) || val < 512) return;
@@ -61,7 +41,6 @@ export function SettingsPanel() {
     try {
       const cfg = await updateConfig({ ctx_size: val });
       setCtxSize(cfg.ctx_size);
-      setTokenCtxSize(cfg.ctx_size);
       setCtxSaved(true);
       setTimeout(() => setCtxSaved(false), 2000);
     } catch {
@@ -71,45 +50,8 @@ export function SettingsPanel() {
     }
   };
 
-  const usagePct = tokenCount !== null ? Math.min((tokenCount / tokenCtxSize) * 100, 100) : null;
-  const barColor =
-    usagePct === null ? "var(--accent)"
-    : usagePct >= 90 ? "#ef4444"
-    : usagePct >= 70 ? "#f59e0b"
-    : "#22c55e";
-
   return (
     <div className="settings-stack">
-      {/* Token usage */}
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">コンテキスト</p>
-            <h2>トークン使用量</h2>
-          </div>
-        </div>
-        {usagePct !== null ? (
-          <div className="token-usage">
-            <div className="token-bar-track">
-              <div
-                className="token-bar-fill"
-                style={{ width: `${usagePct}%`, background: barColor }}
-              />
-            </div>
-            <div className="token-bar-label">
-              <span style={{ color: barColor }}>
-                {tokenCount!.toLocaleString()} トークン
-              </span>
-              <span className="muted">
-                / {tokenCtxSize.toLocaleString()} ({usagePct.toFixed(1)}%)
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="muted">会話を開始するとトークン数が表示されます</p>
-        )}
-      </section>
-
       {/* Context size setting */}
       <section className="panel">
         <div className="panel-header">
