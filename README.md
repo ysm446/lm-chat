@@ -7,13 +7,16 @@
 - **ワークスペース管理** — チャット履歴と記憶をワークスペース単位で分離
 - **ストリーミングチャット** — SSE によるリアルタイムトークン表示
 - **長期記憶** — 過去の会話を自動で埋め込み・検索してプロンプトに注入（ワークスペース単位でスコープ）
-- **モデル切り替え** — UI から GGUF モデルを選択して llama-server を再起動、前回選択を次回起動時に復元
-- **思考モードトグル** — Qwen3 系モデルの thinking モードを ON/OFF
-- **トークン使用量バー** — コンテキスト使用率をリアルタイムで可視化（緑／黄／赤）
-- **コンテキスト長設定** — UI から `--ctx-size` を変更して次回起動に反映
+- **モデル選択UI** — 上部バーから GGUF モデルをダイアログで選択・ロード、イジェクトで VRAM 解放
+- **サイドバートグル** — 左右サイドバーを個別に表示/非表示
+- **会話分岐** — 任意のメッセージ地点からブランチを作成
+- **画像添付** — ビジョンモデル対応。画像を添付して質問
+- **生成統計** — 各返答の末尾にトークン数・速度・経過時間・停止理由を表示
+- **思考モードトグル** — Thinking 対応モデルの推論過程を ON/OFF
+- **トークンリング** — コンテキスト使用率をリアルタイムで可視化
+- **コンテキスト長 / GPU オフロード設定** — 右パネルのスライダーで設定、次回ロード時に反映
+- **メッセージ操作** — コピー・編集・削除・分岐をメッセージ単位で実行
 - **セッションタイトル自動生成** — 最初のメッセージから自動生成
-- **インライン名前変更** — ワークスペース・チャット名をインラインで編集
-- **Markdown レンダリング** — コードブロック・テーブル・リスト対応
 
 ## アーキテクチャ
 
@@ -72,6 +75,7 @@ bin/
 models/
   YourModel-GGUF/
     yourmodel.Q4_K_M.gguf       ← GGUF モデルを配置
+    yourmodel-mmproj.gguf       ← ビジョンモデルの場合は mmproj も同ディレクトリに
 ```
 
 ### 4. `start.bat` を編集
@@ -103,8 +107,8 @@ lm-chat/
 │   ├── server.py            FastAPI エンドポイント
 │   ├── models.py            Pydantic モデル定義
 │   ├── store.py             SQLite CRUD
-│   ├── llm_proxy.py         llama-server プロキシ・トークナイザ
-│   ├── llama_manager.py     モデル切り替え（プロセス管理）
+│   ├── llm_proxy.py         llama-server プロキシ・生成統計抽出
+│   ├── llama_manager.py     モデル切り替え・イジェクト（プロセス管理）
 │   ├── config_store.py      設定の永続化 (data/config.json)
 │   ├── memory/
 │   │   ├── engine.py        記憶の保存・検索エントリポイント
@@ -114,20 +118,20 @@ lm-chat/
 ├── src/
 │   ├── main/main.ts         Electron メインプロセス
 │   └── renderer/
-│       ├── App.tsx
+│       ├── App.tsx          ルートレイアウト・サイドバー開閉
 │       ├── api.ts           バックエンド API クライアント
 │       ├── stores/chatStore.ts  Zustand グローバルストア
 │       ├── components/
-│       │   ├── ChatView.tsx
-│       │   ├── MessageInput.tsx
-│       │   ├── ModelSelector.tsx
-│       │   ├── HistorySidebar.tsx
-│       │   ├── WorkspaceSwitcher.tsx
-│       │   └── SettingsPanel.tsx
+│       │   ├── ModelBar.tsx          上部モデルバー
+│       │   ├── ModelPickerModal.tsx  モデル選択ダイアログ
+│       │   ├── Sidebar.tsx           左サイドバー（ワークスペース・セッションツリー）
+│       │   ├── ChatView.tsx          メッセージ一覧・生成統計
+│       │   ├── MessageInput.tsx      入力エリア・画像添付・トークンリング
+│       │   └── SettingsPanel.tsx     右パネル（コンテキスト長・GPU 設定）
 │       └── styles.css
 ├── data/                    自動生成（Git 管理外）
 │   ├── lm_chat.db           SQLite データベース
-│   ├── config.json          ctx_size 等の設定
+│   ├── config.json          ctx_size・n_gpu_layers 等の設定
 │   └── llama_paths.json     llama-server パス・前回モデル
 ├── models/                  GGUF モデル置き場（Git 管理外）
 ├── bin/                     llama-server バイナリ（Git 管理外）
@@ -142,6 +146,8 @@ lm-chat/
 - **sqlite-vec** による埋め込みベクトル KNN 検索
 - Reciprocal Rank Fusion (RRF) + 時間減衰でスコアを統合
 - 記憶はワークスペース単位でスコープ — 他ワークスペースの記憶は参照されない
+
+**記憶ボタンについて**: オフにすると過去の記憶を参照せずに送信します。ただし会話の**保存は常に行われます**。
 
 ## 手動起動（開発用）
 
@@ -161,5 +167,6 @@ npm run electron:dev
 ## 補足
 
 - `bin/`、`models/`、`node_modules/`、`dist/`、`data/` は Git 管理対象外です。
-- モデルは UI のヘッダーから切り替え可能。選択は次回起動時にも維持されます。
-- コンテキスト長は右パネルの設定から変更できます（再起動後に反映）。
+- モデルは上部バーのボタンから選択・ロード可能。イジェクトボタンで VRAM を即時解放。
+- コンテキスト長・GPU オフロード層数は右パネルのスライダーで設定（次回モデルロード時に反映）。
+- サイドバーは上部バーの左右パネルアイコンで個別に表示/非表示を切り替え可能。
