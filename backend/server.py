@@ -89,11 +89,11 @@ _MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 
 
 @app.get("/models/local")
-def list_local_models() -> list[dict[str, str]]:
+def list_local_models() -> list[dict]:
     if not _MODELS_DIR.exists():
         return []
     return [
-        {"id": p.stem, "path": str(p)}
+        {"id": p.stem, "path": str(p), "size_bytes": p.stat().st_size}
         for p in sorted(_MODELS_DIR.rglob("*.gguf"))
         if "mmproj" not in p.stem.lower()
     ]

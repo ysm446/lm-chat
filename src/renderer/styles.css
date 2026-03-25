@@ -228,6 +228,31 @@ a { color: var(--accent); }
 .model-picker-name {
   font-family: "Cascadia Code", "Fira Code", monospace;
   font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-picker-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.model-picker-params {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.model-picker-size {
+  font-size: 11px;
+  color: var(--text-faint);
+  min-width: 58px;
+  text-align: right;
 }
 .model-picker-badge {
   font-size: 10px;

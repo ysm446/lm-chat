@@ -40,6 +40,7 @@ export type ChatStreamEvent =
 export type LocalModel = {
   id: string;
   path: string;
+  size_bytes: number;
 };
 
 const API_BASE = "http://127.0.0.1:8000";

@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../stores/chatStore";
 
+function formatSize(bytes: number): string {
+  const gb = bytes / 1024 ** 3;
+  return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
+
+function extractParams(id: string): string | null {
+  const m = id.match(/(\d+(?:\.\d+)?)\s*[Bb](?:[^a-zA-Z]|$)/);
+  return m ? `${m[1]}B` : null;
+}
+
 type Props = { onClose: () => void };
 
 export function ModelPickerModal({ onClose }: Props) {
@@ -62,9 +72,13 @@ export function ModelPickerModal({ onClose }: Props) {
                 onClick={() => void handleSelect(m.id)}
               >
                 <span className="model-picker-name">{m.id}</span>
-                {isActive && (
-                  <span className="model-picker-badge">読込中</span>
-                )}
+                <span className="model-picker-meta">
+                  {extractParams(m.id) && (
+                    <span className="model-picker-params">{extractParams(m.id)}</span>
+                  )}
+                  <span className="model-picker-size">{formatSize(m.size_bytes)}</span>
+                  {isActive && <span className="model-picker-badge">読込中</span>}
+                </span>
               </button>
             );
           })}
