@@ -25,6 +25,7 @@ export function MessageInput() {
   const [imageData, setImageData] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sendMessage = useChatStore((state) => state.sendMessage);
   const currentSessionId = useChatStore((state) => state.currentSessionId);
@@ -47,6 +48,14 @@ export function MessageInput() {
       .then((r) => { setTokenCount(r.token_count); setCtxSize(r.ctx_size); })
       .catch(() => {});
   }, [currentSessionId, isSubmitting]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`;
+  }, [value]);
 
   const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
   const ringColor =
@@ -109,6 +118,7 @@ export function MessageInput() {
 
         {/* テキストエリア */}
         <textarea
+          ref={textareaRef}
           className="composer-textarea"
           placeholder="Send a message to the model..."
           value={value}

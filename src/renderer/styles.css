@@ -1,4 +1,4 @@
-﻿/* ── Design tokens ────────────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────── */
 :root {
   color-scheme: dark;
 
@@ -1042,7 +1042,7 @@ details.thinking-block[open] .thinking-chevron {
 .input-shell {
   padding: 12px 20px 16px;
   border-top: 1px solid var(--border);
-  background: var(--bg-sidebar);
+  background: var(--bg-chat);
   flex-shrink: 0;
 }
 
@@ -1072,7 +1072,7 @@ details.thinking-block[open] .thinking-chevron {
   font-family: inherit;
   font-size: 14px;
   min-height: 60px;
-  max-height: 200px;
+  max-height: 400px;
   line-height: 1.6;
   padding: 14px 16px 8px;
   resize: none;
