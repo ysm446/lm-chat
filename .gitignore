@@ -37,6 +37,8 @@ models/
 # Local app data
 data/*.db
 data/**/*.db
+data/llama_paths.json
+data/config.json
 data/downloads/
 data/database/
 data/sd_outputs/
