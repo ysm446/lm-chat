@@ -205,14 +205,16 @@ export async function streamChatMessage(
     onToken: (chunk: string) => void;
     onDone: (session: ApiSession) => void;
     onError: (detail: string) => void;
-  }
+  },
+  signal?: AbortSignal
 ) {
   const response = await fetch(`${API_BASE}/chat/send/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled })
+    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled }),
+    signal
   });
 
   if (!response.ok || !response.body) {

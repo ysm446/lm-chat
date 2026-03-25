@@ -32,6 +32,7 @@ type ChatState = {
   currentSessionId: string | null;
   isBootstrapping: boolean;
   isSubmitting: boolean;
+  abortController: AbortController | null;
   error: string | null;
   streamingText: string;
   availableModels: LocalModel[];
@@ -58,6 +59,7 @@ type ChatState = {
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
+  stopGeneration: () => void;
   sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
@@ -84,6 +86,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentSessionId: null,
   isBootstrapping: false,
   isSubmitting: false,
+  abortController: null,
   error: null,
   streamingText: "",
   availableModels: [],
@@ -328,8 +331,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const user = optimisticMessage("user", content, imageData);
     const assistant = optimisticMessage("assistant", "");
 
+    const controller = new AbortController();
     set((state) => ({
       isSubmitting: true,
+      abortController: controller,
       error: null,
       streamingText: "",
       sessions: state.sessions.map((session) =>
@@ -379,6 +384,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set((state) => ({
             error: detail,
             isSubmitting: false,
+            abortController: null,
             streamingText: "",
             sessions: state.sessions.map((session) =>
               session.id === sessionId
@@ -390,11 +396,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             )
           }));
         }
-      });
+      }, controller.signal);
     } catch (error) {
+      // ユーザーによる中断 — 途中テキストをそのまま残す
+      if (error instanceof Error && error.name === "AbortError") {
+        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        return;
+      }
       set((state) => ({
         error: error instanceof Error ? error.message : "Failed to send message",
         isSubmitting: false,
+        abortController: null,
         streamingText: "",
         sessions: state.sessions.map((session) =>
           session.id === sessionId
@@ -408,6 +420,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         )
       }));
     }
+  },
+
+  stopGeneration: () => {
+    get().abortController?.abort();
   },
 
   currentWorkspace: () => get().workspaces.find((workspace) => workspace.id === get().currentWorkspaceId),

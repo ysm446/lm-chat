@@ -28,6 +28,7 @@ export function MessageInput() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sendMessage = useChatStore((state) => state.sendMessage);
+  const stopGeneration = useChatStore((state) => state.stopGeneration);
   const currentSessionId = useChatStore((state) => state.currentSessionId);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const memoryEnabled = useChatStore((state) => state.memoryEnabled);
@@ -200,18 +201,30 @@ export function MessageInput() {
 
             <div className="composer-divider" />
 
-            {/* 送信ボタン（丸アイコン） */}
-            <button
-              className="composer-send-btn"
-              onClick={() => void handleSend()}
-              disabled={!canSend}
-              title="送信 (Enter)"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"/>
-                <polyline points="5 12 12 5 19 12"/>
-              </svg>
-            </button>
+            {/* 送信 / 停止ボタン */}
+            {isSubmitting ? (
+              <button
+                className="composer-stop-btn"
+                onClick={stopGeneration}
+                title="生成を停止"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="4" y="4" width="16" height="16" rx="2"/>
+                </svg>
+              </button>
+            ) : (
+              <button
+                className="composer-send-btn"
+                onClick={() => void handleSend()}
+                disabled={!canSend}
+                title="送信 (Enter)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5"/>
+                  <polyline points="5 12 12 5 19 12"/>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
