@@ -111,6 +111,15 @@ class SQLiteStore:
                 except Exception:
                     pass  # already exists
 
+            # memory_chunks インデックス（既存 DB にも自動適用）
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memory_chunks_workspace ON memory_chunks(workspace_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memory_chunks_session ON memory_chunks(session_id)"
+            )
+            conn.commit()
+
             # sqlite-vec テーブルは CREATE IF NOT EXISTS が使えないため個別に確認
             tables = {
                 row[0]
