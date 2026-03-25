@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 from sentence_transformers import SentenceTransformer
@@ -17,7 +18,13 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
-def embed(text: str) -> list[float]:
+@lru_cache(maxsize=512)
+def embed(text: str) -> tuple[float, ...]:
     model = _get_model()
-    vector = model.encode(text, normalize_embeddings=True)
-    return vector.tolist()
+    vector = model.encode(text, normalize_embeddings=True, show_progress_bar=False)
+    return tuple(vector.tolist())
+
+
+def warmup() -> None:
+    """サーバー起動時にモデルをロードして最初のリクエストの遅延をなくす。"""
+    embed("warmup")

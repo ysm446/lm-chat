@@ -78,6 +78,9 @@ finish_reason TEXT         -- 停止理由（"stop", "length" 等）
 - **記憶ボタン（`memory_enabled`）は「過去の記憶を参照するか」を制御するのみ。保存は常に行われる**
 - 埋め込み次元は `ruri-v3-310m` に合わせて **768 次元**（`memory_vec` テーブル）
 - FTS5 の MATCH クエリはユーザー入力を `'"' + query.replace('"', ' ') + '"'` でサニタイズ
+- FTS5 キーワード検索は `memory_chunks` と JOIN して workspace フィルタを1クエリで完結させる
+- `embed()` には `@lru_cache(maxsize=512)` が適用されており、同じテキストの再推論をスキップする。戻り値は `tuple[float, ...]`
+- サーバー起動時にバックグラウンドスレッドで `warmup_embedder()` を呼び出し、初回リクエストの遅延を解消する
 - DB スキーマ変更時は `data/lm_chat.db` を削除して再作成が必要
 
 ### llama-server との通信
@@ -173,6 +176,9 @@ llama-server が `timings` フィールドを返していない場合は表示�
 
 ### start.bat が起動しない
 `start.bat` を直接 `cmd.exe` から実行してエラーメッセージを確認。`ERROR:` プレフィックス付きのメッセージが出るはず。
+
+### 起動直後にデータが取得できない
+`start.bat` はバックエンド（`/health`）とフロントエンド（port 5173）の両方が応答するまで待機してから Electron を起動する。バックエンドが 60 秒以内に起動しない場合は uvicorn ログを確認。
 
 ## 開発の流れ
 

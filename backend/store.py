@@ -480,20 +480,18 @@ class SQLiteStore:
             # 特殊文字をエスケープしてフレーズ検索クエリに変換
             safe_query = '"' + query.replace('"', ' ') + '"'
             try:
-                fts_ids_raw = conn.execute(
-                    "SELECT id FROM memory_fts WHERE content MATCH ? LIMIT ?",
-                    (safe_query, top_k * 4),
+                fts_rows = conn.execute(
+                    """
+                    SELECT mc.id FROM memory_fts mf
+                    JOIN memory_chunks mc ON mc.id = mf.id
+                    WHERE mf.content MATCH ? AND mc.workspace_id = ?
+                    LIMIT ?
+                    """,
+                    (safe_query, workspace_id, top_k * 4),
                 ).fetchall()
-                fts_ids = [row["id"] for row in fts_ids_raw]
-                if fts_ids:
-                    placeholders_fts = ",".join("?" * len(fts_ids))
-                    fts_rows = conn.execute(
-                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_fts}) AND workspace_id = ?",
-                        (*fts_ids, workspace_id),
-                    ).fetchall()
-                    for rank, row in enumerate(fts_rows):
-                        scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
-                    logger.debug("FTS5 hits: %d", len(fts_rows))
+                for rank, row in enumerate(fts_rows):
+                    scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+                logger.debug("FTS5 hits: %d", len(fts_rows))
             except Exception as e:
                 logger.warning("FTS5 search failed: %s", e)
 

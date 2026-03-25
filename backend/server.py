@@ -15,6 +15,7 @@ from .config_store import get as get_config_data
 from .config_store import update as update_config_data
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion
+from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .models import (
     ChatSendRequest,
@@ -48,6 +49,10 @@ app.add_middleware(
 
 store = SQLiteStore()
 memory_engine = MemoryEngine(store)
+
+# 埋め込みモデルをバックグラウンドでウォームアップ（初回リクエストの遅延を防ぐ）
+import threading
+threading.Thread(target=warmup_embedder, daemon=True).start()
 
 
 def build_memory_context(session: Session, query: str) -> str:

@@ -78,6 +78,14 @@ start "LM Chat Backend" /min cmd /c "set LLAMA_SERVER_BASE_URL=http://127.0.0.1:
 echo Starting frontend...
 start "LM Chat Frontend" /min cmd /c "npm run dev"
 
+echo Waiting for backend on http://127.0.0.1:8000 ...
+powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='http://127.0.0.1:8000/health';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
+if errorlevel 1 (
+  echo ERROR: Backend did not become ready within 60 seconds.
+  pause
+  exit /b 1
+)
+
 echo Waiting for frontend on http://127.0.0.1:5173 ...
 powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='http://127.0.0.1:5173';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
 if errorlevel 1 (
