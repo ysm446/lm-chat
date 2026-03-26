@@ -1154,12 +1154,12 @@ details.thinking-block[open] .thinking-chevron {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #ef4444;
+  background: var(--accent, #4f52d9);
   color: #fff;
   flex-shrink: 0;
   transition: background 0.15s, transform 0.1s;
 }
-.composer-stop-btn:hover { background: #dc2626; transform: scale(1.06); }
+.composer-stop-btn:hover { background: var(--accent-hover, #5558e3); transform: scale(1.06); }
 
 /* ── Token ring ───────────────────────────────────────── */
 .token-ring-wrapper {

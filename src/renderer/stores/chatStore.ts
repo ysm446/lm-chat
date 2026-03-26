@@ -410,7 +410,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
         set({ isSubmitting: false, abortController: null, streamingText: "" });
         try {
-          const saved = await appendSessionMessageRequest(sessionId, {
+          await appendSessionMessageRequest(sessionId, {
             role: "assistant",
             content: partialText,
             finish_reason: "user_stopped",
@@ -418,12 +418,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             tokens_per_second: tokensPerSecond,
             elapsed_seconds: elapsedSeconds
           });
+          // セッション全体を再取得してユーザー・アシスタント両メッセージのIDを本物に差し替える
+          const refreshed = await getSession(sessionId);
           set((state) => ({
-            sessions: state.sessions.map((s) =>
-              s.id === sessionId
-                ? { ...s, messages: s.messages.map((m) => (m.id === assistant.id ? saved : m)) }
-                : s
-            )
+            sessions: state.sessions.map((s) => (s.id === sessionId ? refreshed : s))
           }));
         } catch {
           // 保存失敗時はオプティミスティックメッセージをそのまま残す
