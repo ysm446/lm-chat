@@ -179,6 +179,23 @@ export function updateMessage(messageId: string, content: string) {
   });
 }
 
+export function appendSessionMessage(
+  sessionId: string,
+  payload: {
+    role: MessageRole;
+    content: string;
+    finish_reason?: string | null;
+    completion_tokens?: number | null;
+    tokens_per_second?: number | null;
+    elapsed_seconds?: number | null;
+  }
+) {
+  return request<ApiMessage>(`/history/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export function branchSession(sessionId: string, upToMessageId: string) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/branch`, {
     method: "POST",

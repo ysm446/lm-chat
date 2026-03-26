@@ -4,6 +4,7 @@ import {
   ApiSession,
   ApiWorkspace,
   LocalModel,
+  appendSessionMessage as appendSessionMessageRequest,
   branchSession as branchSessionRequest,
   createSession as createSessionRequest,
   createWorkspace as createWorkspaceRequest,
@@ -332,6 +333,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const assistant = optimisticMessage("assistant", "");
 
     const controller = new AbortController();
+    const streamStartTime = Date.now();
+    let tokenCount = 0;
     set((state) => ({
       isSubmitting: true,
       abortController: controller,
@@ -347,6 +350,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await streamChatMessage(sessionId, content, imageData ?? null, get().memoryEnabled, get().thinkingEnabled, {
         onToken: (chunk) => {
+          tokenCount++;
           set((state) => ({
             streamingText: state.streamingText + chunk,
             sessions: state.sessions.map((session) =>
@@ -398,9 +402,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }, controller.signal);
     } catch (error) {
-      // ユーザーによる中断 — 途中テキストをそのまま残す
+      // ユーザーによる中断 — 途中テキストをDBに保存して finish_reason を記録
       if (error instanceof Error && error.name === "AbortError") {
+        const partialText = get().sessions.find((s) => s.id === sessionId)
+          ?.messages.find((m) => m.id === assistant.id)?.content ?? "";
+        const elapsedSeconds = (Date.now() - streamStartTime) / 1000;
+        const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
         set({ isSubmitting: false, abortController: null, streamingText: "" });
+        try {
+          const saved = await appendSessionMessageRequest(sessionId, {
+            role: "assistant",
+            content: partialText,
+            finish_reason: "user_stopped",
+            completion_tokens: tokenCount,
+            tokens_per_second: tokensPerSecond,
+            elapsed_seconds: elapsedSeconds
+          });
+          set((state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === sessionId
+                ? { ...s, messages: s.messages.map((m) => (m.id === assistant.id ? saved : m)) }
+                : s
+            )
+          }));
+        } catch {
+          // 保存失敗時はオプティミスティックメッセージをそのまま残す
+        }
         return;
       }
       set((state) => ({
