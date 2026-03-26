@@ -10,10 +10,10 @@
 start.bat
 ```
 
-- llama-server: `localhost:8080`
 - FastAPI: `localhost:8000`（uvicorn `--reload` で自動再読み込み）
 - Vite: `localhost:5173`
 - Electron: Vite に接続して起動
+- llama-server: **起動しない**。アプリからモデルを選択したときに起動する（`localhost:8080`）
 
 バックエンドは `--reload` が有効なので、Python ファイルを保存すると自動反映される。フロントエンドも Vite HMR で自動反映。Electron 自体は再起動が必要。
 
@@ -54,7 +54,7 @@ start.bat
 |---|---|
 | `data/lm_chat.db` | SQLite DB（自動生成） |
 | `data/config.json` | `ctx_size`・`n_gpu_layers` のユーザー設定 |
-| `data/llama_paths.json` | llama-server の実行パス・前回選択モデル（start.bat が書き込み） |
+| `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新 |
 | `start.bat` | 全プロセスの一括起動スクリプト |
 
 ## DB スキーマ（messages テーブル）
@@ -66,7 +66,7 @@ created_at TEXT,
 completion_tokens INTEGER, -- 生成トークン数（アシスタントのみ）
 tokens_per_second REAL,    -- 生成速度
 elapsed_seconds REAL,      -- 生成時間（秒）
-finish_reason TEXT         -- 停止理由（"stop", "length" 等）
+finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" 等）
 ```
 
 新カラムは `_init_db()` 内の `ALTER TABLE` で既存 DB に自動マイグレーションされる。
@@ -93,6 +93,8 @@ finish_reason TEXT         -- 停止理由（"stop", "length" 等）
 ### フロントエンドの状態管理
 - すべての状態は `chatStore.ts`（Zustand）に集約
 - `sendMessage` がストリーミング・記憶保存・セッション更新・タイトル自動生成を担う
+- ユーザーが生成を中断した場合（`AbortError`）、部分テキストを `finish_reason: "user_stopped"` + 経過時間・トークン統計付きで DB に保存し、`getSession` で再取得してメッセージ ID を正規化する
+- `activeModelPath` が空のときは `MessageInput` のテキストエリア・送信ボタン・画像添付ボタンを無効化する
 - モデル切り替えは `applyModelSwitch` が `/llama/switch-model` → ポーリング → 完了を管理
 - 左右サイドバーの開閉状態は `App.tsx` の `showLeft`/`showRight` で管理し、グリッドカラム幅で制御
 
@@ -166,7 +168,10 @@ POST /search/web
 `data/lm_chat.db` を削除して再起動。
 
 ### llama-server が見つからない（Model switch failed）
-`data/llama_paths.json` が壊れているか存在しない。`start.bat` を再実行すると書き直される。
+`data/llama_paths.json` が壊れているか存在しない。`start.bat` を再実行すると `llama_exe` パスが書き直される。
+
+### 起動直後にチャットが入力できない
+正常な動作。モデル未選択時はチャット入力が無効になる。上部モデルバーからモデルを選択してロードすること。
 
 ### 記憶が保存されない / 検索されない
 uvicorn ログ（LM Chat Backend ウィンドウ）で `Memory save failed` / `Memory context build failed` を確認。
