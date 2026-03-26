@@ -31,6 +31,7 @@ export function MessageInput() {
   const stopGeneration = useChatStore((state) => state.stopGeneration);
   const currentSessionId = useChatStore((state) => state.currentSessionId);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
+  const activeModelPath = useChatStore((state) => state.activeModelPath);
   const memoryEnabled = useChatStore((state) => state.memoryEnabled);
   const toggleMemory = useChatStore((state) => state.toggleMemory);
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
@@ -90,7 +91,8 @@ export function MessageInput() {
     await sendMessage(currentSessionId, text, img);
   };
 
-  const canSend = !isSubmitting && (!!value.trim() || !!imageData);
+  const modelReady = !!activeModelPath;
+  const canSend = modelReady && !isSubmitting && (!!value.trim() || !!imageData);
 
   return (
     <section className="input-shell">
@@ -121,7 +123,7 @@ export function MessageInput() {
         <textarea
           ref={textareaRef}
           className="composer-textarea"
-          placeholder="Send a message to the model..."
+          placeholder={modelReady ? "Send a message to the model..." : "モデルを選択してください..."}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -131,7 +133,7 @@ export function MessageInput() {
             }
           }}
           rows={2}
-          disabled={isSubmitting}
+          disabled={!modelReady || isSubmitting}
         />
 
         {/* ボトムアクションバー */}
@@ -141,7 +143,7 @@ export function MessageInput() {
             <button
               className="composer-icon-btn"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isSubmitting}
+              disabled={!modelReady || isSubmitting}
               title="画像を添付"
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
