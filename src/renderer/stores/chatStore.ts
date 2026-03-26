@@ -124,13 +124,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const activeModel = models.find((m) => status.active_model_path.includes(m.id));
       set({
         availableModels: models,
-        selectedModel: activeModel?.id ?? models[0]?.id ?? null,
+        selectedModel: activeModel?.id ?? null,
         activeModelPath: status.active_model_path,
       });
     } catch {
       try {
         const models = await listLocalModels();
-        set({ availableModels: models, selectedModel: models[0]?.id ?? null });
+        set({ availableModels: models, selectedModel: null });
       } catch { /* ignore */ }
     }
   },
