@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig } from "../api";
+import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -120,6 +120,15 @@ export function SettingsPanel() {
     setPendingName("");
   };
 
+  const handleOverwritePrompt = async () => {
+    if (!selectedPromptId) return;
+    try {
+      const updated = await updateSystemPrompt(selectedPromptId, systemPromptText);
+      setSavedPrompts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      saveActiveSystemPrompt(systemPromptText, selectedPromptId).catch(() => {});
+    } catch { /* ignore */ }
+  };
+
   const handleDeletePrompt = async () => {
     if (!selectedPromptId) return;
     try {
@@ -132,12 +141,11 @@ export function SettingsPanel() {
 
   const handleTextareaChange = (value: string) => {
     setSystemPromptText(value);
-    // テキストが保存済みプロンプトと一致しなければ選択解除
+    // テキストが別の保存済みプロンプトと一致すれば選択を切り替え、どれとも一致しなければ現在の選択を維持
     const match = savedPrompts.find((p) => p.content === value);
-    const newId = match?.id ?? "";
-    setSelectedPromptId(newId);
-    if (newId !== selectedPromptId) {
-      saveActiveSystemPrompt(value, newId).catch(() => {});
+    if (match && match.id !== selectedPromptId) {
+      setSelectedPromptId(match.id);
+      saveActiveSystemPrompt(value, match.id).catch(() => {});
     }
   };
 
@@ -209,6 +217,18 @@ export function SettingsPanel() {
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+                <button
+                  className="sys-prompt-icon-btn"
+                  title="選択中のプロンプトに上書き保存"
+                  onClick={() => void handleOverwritePrompt()}
+                  disabled={!selectedPromptId || savedPrompts.find((p) => p.id === selectedPromptId)?.content === systemPromptText}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
                   </svg>
                 </button>
                 <button

@@ -33,6 +33,19 @@ def create_prompt(name: str, content: str) -> dict:
     return prompt
 
 
+def update_prompt(prompt_id: str, name: str | None, content: str | None) -> dict | None:
+    data = _load()
+    for p in data["prompts"]:
+        if p["id"] == prompt_id:
+            if name is not None:
+                p["name"] = name
+            if content is not None:
+                p["content"] = content
+            _save(data)
+            return p
+    return None
+
+
 def delete_prompt(prompt_id: str) -> bool:
     data = _load()
     before = len(data["prompts"])

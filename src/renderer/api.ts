@@ -243,6 +243,13 @@ export function createSystemPrompt(name: string, content: string) {
   });
 }
 
+export function updateSystemPrompt(id: string, content: string) {
+  return request<SavedSystemPrompt>(`/system-prompts/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
+  });
+}
+
 export function deleteSystemPrompt(id: string) {
   return request<{ deleted: boolean }>(`/system-prompts/${encodeURIComponent(id)}`, {
     method: "DELETE",
