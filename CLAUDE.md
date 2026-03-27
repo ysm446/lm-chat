@@ -26,9 +26,11 @@ start.bat
 | `backend/server.py` | FastAPI ルーター。全エンドポイントの定義 |
 | `backend/models.py` | Pydantic モデル。リクエスト/レスポンス型 |
 | `backend/store.py` | SQLite CRUD。セッション・ワークスペース・記憶 |
-| `backend/llm_proxy.py` | llama-server への HTTP プロキシ。`SYSTEM_PROMPT`・生成統計抽出もここ |
+| `backend/llm_proxy.py` | llama-server への HTTP プロキシ。システムプロンプト適用・生成統計抽出 |
 | `backend/llama_manager.py` | モデル切り替え・イジェクト・llama-server プロセス管理 |
 | `backend/config_store.py` | `data/config.json` への設定永続化（`ctx_size`, `n_gpu_layers`） |
+| `backend/settings_store.py` | `data/settings.json` への UI 設定永続化（`show_left`, `show_right`） |
+| `backend/system_prompt_store.py` | `data/system_prompts.json` への保存済みシステムプロンプト管理 |
 | `backend/memory/engine.py` | 記憶保存・検索のエントリポイント |
 | `backend/memory/embedder.py` | `ruri-v3-310m` による埋め込み生成（初回に自動 DL） |
 | `backend/memory/chunker.py` | Q&A ペアチャンキング |
@@ -45,7 +47,7 @@ start.bat
 | `src/renderer/components/Sidebar.tsx` | 左サイドバー。ワークスペース＋セッションのツリー表示 |
 | `src/renderer/components/ChatView.tsx` | メッセージ一覧。生成統計・メッセージアクションボタン |
 | `src/renderer/components/MessageInput.tsx` | 入力エリア。画像添付・トークンリング・送信 |
-| `src/renderer/components/SettingsPanel.tsx` | 右サイドバー。コンテキスト長・GPU オフロードスライダー |
+| `src/renderer/components/SettingsPanel.tsx` | 右サイドバー。システムプロンプト管理・コンテキスト長・GPU オフロードスライダー |
 | `src/renderer/styles.css` | 全スタイル（CSS 変数ベース、LM Studio 風ダークテーマ） |
 
 ### 設定・データ
@@ -54,8 +56,12 @@ start.bat
 |---|---|
 | `data/lm_chat.db` | SQLite DB（自動生成） |
 | `data/config.json` | `ctx_size`・`n_gpu_layers` のユーザー設定 |
+| `data/settings.json` | UI 設定（`show_left`・`show_right` サイドバー開閉状態） |
+| `data/system_prompts.json` | 保存済みシステムプロンプト一覧とアクティブテキスト |
 | `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新 |
 | `start.bat` | 全プロセスの一括起動スクリプト |
+
+`data/*.json`（llama_paths.json, config.json, settings.json, system_prompts.json）はすべて `.gitignore` 対象。
 
 ## DB スキーマ（messages テーブル）
 
@@ -72,6 +78,19 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 新カラムは `_init_db()` 内の `ALTER TABLE` で既存 DB に自動マイグレーションされる。
 
 ## アーキテクチャ上の注意点
+
+### システムプロンプト
+- `backend/system_prompt_store.py` が `data/system_prompts.json` に保存済みプロンプト一覧とアクティブテキストを管理
+- `SettingsPanel.tsx` で編集・保存・削除 UI を提供（インライン命名、ドロップダウン選択）
+- アクティブテキストは `chatStore.systemPromptText` に保持し、`streamChatMessage` / `streamTempChatMessage` 呼び出し時に渡す
+- バックエンド `llm_proxy._build_messages()` が受け取った `system_prompt` 引数を使用（空の場合はデフォルト `SYSTEM_PROMPT` 定数にフォールバック）
+- トークン数は `POST /tokenize` で取得（debounce 500ms）
+
+### 一時チャット
+- `tempChatMode` フラグが ON のとき、`sendTempMessage` がメッセージを DB に書き込まず Zustand の `tempMessages` にのみ保持
+- バックエンドは `/chat/temp/stream` エンドポイントで処理（`stream_temp_chat()` in `llm_proxy.py`）
+- `ChatView.tsx` は `tempChatMode` のとき `tempMessages` を表示し、ブランチ/編集/削除ボタンを非表示にする
+- 一時チャットモードを終了すると `tempMessages` がリセットされる
 
 ### 記憶システム
 - 記憶はワークスペース単位でスコープ。`workspace_id` でフィルタ必須
@@ -96,7 +115,7 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - ユーザーが生成を中断した場合（`AbortError`）、部分テキストを `finish_reason: "user_stopped"` + 経過時間・トークン統計付きで DB に保存し、`getSession` で再取得してメッセージ ID を正規化する
 - `activeModelPath` が空のときは `MessageInput` のテキストエリア・送信ボタン・画像添付ボタンを無効化する
 - モデル切り替えは `applyModelSwitch` が `/llama/switch-model` → ポーリング → 完了を管理
-- 左右サイドバーの開閉状態は `App.tsx` の `showLeft`/`showRight` で管理し、グリッドカラム幅で制御
+- 左右サイドバーの開閉状態は `App.tsx` の `showLeft`/`showRight` で管理し、初期値は `/settings` API から取得。変更時は即時 PATCH 保存
 
 ### レイアウト構造
 ```
@@ -129,6 +148,7 @@ GET  /workspaces
 POST /workspaces
 PATCH /workspaces/{id}
 DELETE /workspaces/{id}
+POST /workspaces/reorder
 
 GET  /history/sessions?workspace_id=
 POST /history/sessions
@@ -137,13 +157,15 @@ PATCH /history/sessions/{id}
 DELETE /history/sessions/{id}
 POST /history/sessions/{id}/messages
 GET  /history/sessions/{id}/token_count
-POST /history/sessions/{id}/branch  ← 指定メッセージまでのセッションを複製
+POST /history/sessions/{id}/branch        ← 指定メッセージまでのセッションを複製
+POST /history/sessions/{id}/generate-title
 
 DELETE /history/messages/{id}
-PATCH  /history/messages/{id}       ← メッセージ内容を編集
+PATCH  /history/messages/{id}             ← メッセージ内容を編集
 
 POST /chat/send
 POST /chat/send/stream
+POST /chat/temp/stream                    ← 一時チャット（DB 書き込みなし）
 
 POST /memory/save
 GET  /memory/search
@@ -152,12 +174,22 @@ DELETE /memory/workspace/{id}
 GET  /memory/stats
 
 GET  /config
-PATCH /config                       ← ctx_size, n_gpu_layers
+PATCH /config                             ← ctx_size, n_gpu_layers
+
+GET  /settings
+PATCH /settings                           ← show_left, show_right
+
+GET  /system-prompts
+POST /system-prompts
+DELETE /system-prompts/{id}
+PATCH /system-prompts/active              ← アクティブテキストを保存
+
+POST /tokenize                            ← {"text": str} → {"token_count": int}
 
 GET  /llama/status
-GET  /llama/props                   ← llama-server のモデルプロパティ取得
+GET  /llama/props                         ← llama-server のモデルプロパティ取得
 POST /llama/switch-model
-POST /llama/eject                   ← llama-server を停止して VRAM 解放
+POST /llama/eject                         ← llama-server を停止して VRAM 解放
 
 POST /search/web
 ```

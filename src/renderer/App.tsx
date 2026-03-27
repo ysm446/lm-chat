@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getSettings, updateSettings } from "./api";
 import { ChatView } from "./components/ChatView";
 import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
@@ -21,7 +22,7 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [rightWidth, setRightWidth] = useState(280);
   const [showLeft, setShowLeft] = useState(true);
-  const [showRight, setShowRight] = useState(true);
+  const [showRight, setShowRight] = useState(false);
 
   const makeResizeHandler = (
     getCurrent: () => number,
@@ -46,6 +47,13 @@ export function App() {
   };
 
   useEffect(() => { void bootstrap(); }, [bootstrap]);
+
+  useEffect(() => {
+    getSettings().then((s) => {
+      setShowLeft(s.show_left);
+      setShowRight(s.show_right);
+    }).catch(() => {});
+  }, []);
 
   if (isBootstrapping) {
     return (
@@ -76,8 +84,8 @@ export function App() {
       <ModelBar
         showLeft={showLeft}
         showRight={showRight}
-        onToggleLeft={() => setShowLeft((v) => !v)}
-        onToggleRight={() => setShowRight((v) => !v)}
+        onToggleLeft={() => { const n = !showLeft; setShowLeft(n); void updateSettings({ show_left: n }); }}
+        onToggleRight={() => { const n = !showRight; setShowRight(n); void updateSettings({ show_right: n }); }}
       />
       <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
         <aside className="left-pane" style={{ overflow: "hidden" }}>

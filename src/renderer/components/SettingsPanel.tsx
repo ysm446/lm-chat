@@ -20,9 +20,9 @@ export function SettingsPanel() {
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [contextOpen, setContextOpen] = useState(true);
+  const [contextOpen, setContextOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [systemPromptOpen, setSystemPromptOpen] = useState(true);
+  const [systemPromptOpen, setSystemPromptOpen] = useState(false);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);

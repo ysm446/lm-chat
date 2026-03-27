@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
+from .settings_store import get as get_settings_data
+from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, get_all as get_system_prompts, set_active_text
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
@@ -412,6 +414,16 @@ def get_config() -> dict:
 @app.patch("/config")
 def patch_config(payload: ConfigUpdate) -> dict:
     return update_config_data(payload.model_dump(exclude_none=True))
+
+
+@app.get("/settings")
+def get_settings() -> dict:
+    return get_settings_data()
+
+
+@app.patch("/settings")
+def patch_settings(payload: dict) -> dict:
+    return update_settings_data(payload)
 
 
 @app.get("/history/sessions/{session_id}/token_count")

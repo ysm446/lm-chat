@@ -8,8 +8,10 @@
 - **ストリーミングチャット** — SSE によるリアルタイムトークン表示
 - **長期記憶** — 過去の会話を自動で埋め込み・検索してプロンプトに注入（ワークスペース単位でスコープ）
 - **モデル選択UI** — 上部バーから GGUF モデルをダイアログで選択・ロード、イジェクトで VRAM 解放
-- **サイドバートグル** — 左右サイドバーを個別に表示/非表示
+- **サイドバートグル** — 左右サイドバーを個別に表示/非表示（状態を次回起動時も復元）
 - **会話分岐** — 任意のメッセージ地点からブランチを作成
+- **一時チャット** — DB に保存されない一時的な会話モード（タイトルバーのアイコンで切り替え）
+- **システムプロンプト管理** — 右パネルでシステムプロンプトを編集・保存・選択。トークン数をリアルタイム表示
 - **画像添付** — ビジョンモデル対応。画像を添付して質問
 - **生成統計** — 各返答の末尾にトークン数・速度・経過時間・停止理由を表示（ユーザー停止時も部分回答を保存）
 - **思考モードトグル** — Thinking 対応モデルの推論過程を ON/OFF
@@ -104,22 +106,24 @@ Electron ウィンドウを閉じると全プロセスが自動停止します�
 ```
 lm-chat/
 ├── backend/
-│   ├── server.py            FastAPI エンドポイント
-│   ├── models.py            Pydantic モデル定義
-│   ├── store.py             SQLite CRUD
-│   ├── llm_proxy.py         llama-server プロキシ・生成統計抽出
-│   ├── llama_manager.py     モデル切り替え・イジェクト（プロセス管理）
-│   ├── config_store.py      設定の永続化 (data/config.json)
+│   ├── server.py                FastAPI エンドポイント
+│   ├── models.py                Pydantic モデル定義
+│   ├── store.py                 SQLite CRUD
+│   ├── llm_proxy.py             llama-server プロキシ・生成統計抽出
+│   ├── llama_manager.py         モデル切り替え・イジェクト（プロセス管理）
+│   ├── config_store.py          設定の永続化 (data/config.json)
+│   ├── settings_store.py        UI 設定の永続化 (data/settings.json)
+│   ├── system_prompt_store.py   システムプロンプトの永続化 (data/system_prompts.json)
 │   ├── memory/
-│   │   ├── engine.py        記憶の保存・検索エントリポイント
-│   │   ├── embedder.py      ruri-v3-310m による埋め込み生成
-│   │   └── chunker.py       Q&A ペアチャンキング
+│   │   ├── engine.py            記憶の保存・検索エントリポイント
+│   │   ├── embedder.py          ruri-v3-310m による埋め込み生成
+│   │   └── chunker.py           Q&A ペアチャンキング
 │   └── requirements.txt
 ├── src/
-│   ├── main/main.ts         Electron メインプロセス
+│   ├── main/main.ts             Electron メインプロセス
 │   └── renderer/
-│       ├── App.tsx          ルートレイアウト・サイドバー開閉
-│       ├── api.ts           バックエンド API クライアント
+│       ├── App.tsx              ルートレイアウト・サイドバー開閉
+│       ├── api.ts               バックエンド API クライアント
 │       ├── stores/chatStore.ts  Zustand グローバルストア
 │       ├── components/
 │       │   ├── ModelBar.tsx          上部モデルバー
@@ -127,15 +131,17 @@ lm-chat/
 │       │   ├── Sidebar.tsx           左サイドバー（ワークスペース・セッションツリー）
 │       │   ├── ChatView.tsx          メッセージ一覧・生成統計
 │       │   ├── MessageInput.tsx      入力エリア・画像添付・トークンリング
-│       │   └── SettingsPanel.tsx     右パネル（コンテキスト長・GPU 設定）
+│       │   └── SettingsPanel.tsx     右パネル（システムプロンプト・コンテキスト長・GPU 設定）
 │       └── styles.css
-├── data/                    自動生成（Git 管理外）
-│   ├── lm_chat.db           SQLite データベース
-│   ├── config.json          ctx_size・n_gpu_layers 等の設定
-│   └── llama_paths.json     llama-server exe パス（モデルはアプリから選択）
-├── models/                  GGUF モデル置き場（Git 管理外）
-├── bin/                     llama-server バイナリ（Git 管理外）
-└── start.bat                一括起動スクリプト
+├── data/                        自動生成（Git 管理外）
+│   ├── lm_chat.db               SQLite データベース
+│   ├── config.json              ctx_size・n_gpu_layers 等の設定
+│   ├── settings.json            サイドバー開閉状態等の UI 設定
+│   ├── system_prompts.json      保存済みシステムプロンプト
+│   └── llama_paths.json         llama-server exe パス（モデルはアプリから選択）
+├── models/                      GGUF モデル置き場（Git 管理外）
+├── bin/                         llama-server バイナリ（Git 管理外）
+└── start.bat                    一括起動スクリプト
 ```
 
 ## 記憶システム
@@ -171,3 +177,4 @@ npm run electron:dev
 - 起動直後はモデル未選択状態です。上部バーのモデルバーからモデルを選択してロードしてください。モデルが選択されていない間はチャット入力が無効になります。イジェクトボタンで VRAM を即時解放できます。
 - コンテキスト長・GPU オフロード層数は右パネルのスライダーで設定（次回モデルロード時に反映）。
 - サイドバーは上部バーの左右パネルアイコンで個別に表示/非表示を切り替え可能。
+- 右パネルのシステムプロンプトエリアでプロンプトを編集・保存できます。`+` ボタンで名前をつけて保存、ドロップダウンで保存済みプロンプトを選択。

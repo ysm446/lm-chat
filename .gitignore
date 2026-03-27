@@ -39,6 +39,8 @@ data/*.db
 data/**/*.db
 data/llama_paths.json
 data/config.json
+data/settings.json
+data/system_prompts.json
 data/downloads/
 data/database/
 data/sd_outputs/
@@ -59,7 +61,6 @@ logs/
 *.swo
 *~
 .last_model_cache.json
-settings.json
 forge_api_info.txt
 
 # OS

@@ -116,6 +116,17 @@ export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number }
   });
 }
 
+export function getSettings() {
+  return request<{ show_left: boolean; show_right: boolean }>("/settings");
+}
+
+export function updateSettings(patch: { show_left?: boolean; show_right?: boolean }) {
+  return request<{ show_left: boolean; show_right: boolean }>("/settings", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 export function getLlamaProps() {
   return request<{ n_ctx?: number; total_slots?: number }>("/llama/props");
 }

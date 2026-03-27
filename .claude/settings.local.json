@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(echo \":*)",
-      "Bash(conda run:*)"
+      "Bash(conda run:*)",
+      "Bash(find /d/GitHub/lm-chat -type f \\\\\\(-name *.bak -o -name *.tmp -o -name *.log \\\\\\))"
     ]
   }
 }
