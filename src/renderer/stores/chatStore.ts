@@ -18,6 +18,8 @@ import {
   listLocalModels,
   listSessions,
   listWorkspaces,
+  listSystemPrompts,
+  saveActiveSystemPrompt,
   streamChatMessage,
   switchLlamaModel,
   updateMessage as updateMessageRequest,
@@ -42,6 +44,8 @@ type ChatState = {
   isSwitchingModel: boolean;
   memoryEnabled: boolean;
   thinkingEnabled: boolean;
+  systemPromptText: string;
+  setSystemPromptText: (text: string) => void;
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
   applyModelSwitch: () => Promise<void>;
@@ -96,6 +100,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSwitchingModel: false,
   memoryEnabled: true,
   thinkingEnabled: false,
+  systemPromptText: "",
 
   bootstrap: async () => {
     set({ isBootstrapping: true, error: null });
@@ -133,6 +138,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ availableModels: models, selectedModel: null });
       } catch { /* ignore */ }
     }
+    // システムプロンプトの active_text を読み込む
+    try {
+      const sp = await listSystemPrompts();
+      set({ systemPromptText: sp.active_text });
+    } catch { /* ignore */ }
   },
 
   setSelectedModel: (modelId) => set({ selectedModel: modelId }),
@@ -189,6 +199,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  setSystemPromptText: (text) => {
+    set({ systemPromptText: text });
+    saveActiveSystemPrompt(text).catch(() => {});
+  },
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
 
@@ -400,7 +414,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             )
           }));
         }
-      }, controller.signal);
+      }, controller.signal, get().systemPromptText || null);
     } catch (error) {
       // ユーザーによる中断 — 途中テキストをDBに保存して finish_reason を記録
       if (error instanceof Error && error.name === "AbortError") {

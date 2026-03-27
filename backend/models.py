@@ -88,6 +88,7 @@ class ChatSendRequest(BaseModel):
     image_data: str | None = None
     memory_enabled: bool = True
     thinking_enabled: bool = False
+    system_prompt: str | None = None
 
 
 class ChatSendResponse(BaseModel):

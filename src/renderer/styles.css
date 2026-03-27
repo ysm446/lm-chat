@@ -1674,6 +1674,87 @@ details.thinking-block[open] .thinking-chevron {
   text-align: right;
 }
 
+/* ── System Prompt ────────────────────────────────────── */
+.sys-prompt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sys-prompt-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+  outline: none;
+}
+.sys-prompt-select:focus { border-color: var(--accent); }
+
+.sys-prompt-name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+}
+.sys-prompt-name-input::placeholder { color: var(--text-faint); }
+
+.sys-prompt-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sys-prompt-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.sys-prompt-icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); }
+.sys-prompt-icon-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+.sys-prompt-textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  padding: 8px 10px;
+  outline: none;
+  box-sizing: border-box;
+}
+.sys-prompt-textarea:focus { border-color: var(--accent); }
+
+.sys-prompt-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.sys-prompt-token-count {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
 /* ── Responsive ───────────────────────────────────────── */
 @media (max-width: 960px) {
   .right-pane { display: none; }

@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
+from .system_prompt_store import create_prompt, delete_prompt, get_all as get_system_prompts, set_active_text
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion
 from .memory.embedder import warmup as warmup_embedder
@@ -78,6 +79,47 @@ def save_turn_memory(session_id: str, user_content: str, assistant_content: str)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/tokenize")
+def tokenize(payload: dict) -> dict[str, int]:
+    text = payload.get("text", "")
+    if not text:
+        return {"token_count": 0}
+    try:
+        return {"token_count": count_tokens(text)}
+    except Exception:
+        return {"token_count": max(1, len(text) // 2)}
+
+
+@app.get("/system-prompts")
+def list_system_prompts() -> dict:
+    return get_system_prompts()
+
+
+@app.post("/system-prompts")
+def add_system_prompt(payload: dict) -> dict:
+    name = payload.get("name", "").strip()
+    content = payload.get("content", "")
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    prompt = create_prompt(name, content)
+    return prompt
+
+
+@app.delete("/system-prompts/{prompt_id}")
+def remove_system_prompt(prompt_id: str) -> dict[str, bool]:
+    deleted = delete_prompt(prompt_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Prompt not found")
+    return {"deleted": True}
+
+
+@app.patch("/system-prompts/active")
+def update_active_system_prompt(payload: dict) -> dict[str, str]:
+    text = payload.get("text", "")
+    set_active_text(text)
+    return {"active_text": text}
 
 
 @app.get("/v1/models")
@@ -220,7 +262,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
-    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled)
+    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled, payload.system_prompt)
     assistant_message = store.append_message(
         payload.session_id,
         MessageCreate(role="assistant", content=assistant_text),
@@ -249,12 +291,13 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
     thinking_enabled = payload.thinking_enabled
+    system_prompt = payload.system_prompt
 
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, memory_context, thinking_enabled):
+            for item in stream_chat_completion(session, memory_context, thinking_enabled, system_prompt):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"

@@ -212,6 +212,39 @@ export function deleteSession(sessionId: string, deleteMemory = true) {
   );
 }
 
+export function countTokens(text: string) {
+  return request<{ token_count: number }>("/tokenize", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+export type SavedSystemPrompt = { id: string; name: string; content: string };
+
+export function listSystemPrompts() {
+  return request<{ prompts: SavedSystemPrompt[]; active_text: string }>("/system-prompts");
+}
+
+export function createSystemPrompt(name: string, content: string) {
+  return request<SavedSystemPrompt>("/system-prompts", {
+    method: "POST",
+    body: JSON.stringify({ name, content }),
+  });
+}
+
+export function deleteSystemPrompt(id: string) {
+  return request<{ deleted: boolean }>(`/system-prompts/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}
+
+export function saveActiveSystemPrompt(text: string) {
+  return request<{ active_text: string }>("/system-prompts/active", {
+    method: "PATCH",
+    body: JSON.stringify({ text }),
+  });
+}
+
 export async function streamChatMessage(
   sessionId: string,
   content: string,
@@ -223,14 +256,15 @@ export async function streamChatMessage(
     onDone: (session: ApiSession) => void;
     onError: (detail: string) => void;
   },
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  systemPrompt?: string | null
 ) {
   const response = await fetch(`${API_BASE}/chat/send/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled }),
+    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null }),
     signal
   });
 

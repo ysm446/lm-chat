@@ -53,12 +53,11 @@ def list_models() -> dict[str, list[dict[str, str]]]:
     }
 
 
-def _build_messages(session: Session, memory_context: str = "") -> list[dict]:
-    system_prompt = SYSTEM_PROMPT
-    if memory_context:
-        system_prompt = f"{SYSTEM_PROMPT}\n\n{memory_context}"
+def _build_messages(session: Session, memory_context: str = "", system_prompt: str | None = None) -> list[dict]:
+    base_prompt = system_prompt if system_prompt else SYSTEM_PROMPT
+    effective_prompt = f"{base_prompt}\n\n{memory_context}" if memory_context else base_prompt
 
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    messages: list[dict] = [{"role": "system", "content": effective_prompt}]
     for message in session.messages:
         if message.image_data:
             content: list[dict] = []
@@ -107,10 +106,10 @@ def generate_title(text: str) -> str:
         return text[:40]
 
 
-def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> str:
+def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
-        "messages": _build_messages(session, memory_context),
+        "messages": _build_messages(session, memory_context, system_prompt),
         "stream": False,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
@@ -137,10 +136,10 @@ def generate_chat_completion(session: Session, memory_context: str = "", thinkin
         raise HTTPException(status_code=502, detail="Invalid response from llama-server") from exc
 
 
-def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False) -> Iterator[str | GenerationStats]:
+def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
-        "messages": _build_messages(session, memory_context),
+        "messages": _build_messages(session, memory_context, system_prompt),
         "stream": True,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
