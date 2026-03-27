@@ -11,6 +11,7 @@ export function App() {
   const bootstrap = useChatStore((state) => state.bootstrap);
   const workspaces = useChatStore((state) => state.workspaces);
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
+  const currentSession = useChatStore((state) => state.currentSession());
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
@@ -86,12 +87,8 @@ export function App() {
         <main className="center-pane">
           <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
           <header className="center-header">
-            <div>
-              <p className="eyebrow">ワークスペース</p>
-              <h1>{currentWorkspace.name}</h1>
-              <p className="muted">{currentWorkspace.description || "記憶とチャット履歴をワークスペース単位で管理"}</p>
-              {error ? <p className="error-text">{error}</p> : null}
-            </div>
+            <h1 className="center-header-title">{currentSession?.title ?? "New chat"}</h1>
+            {error ? <p className="error-text">{error}</p> : null}
           </header>
           <ChatView />
           <MessageInput />
