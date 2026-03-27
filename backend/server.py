@@ -15,7 +15,7 @@ from .config_store import get as get_config_data
 from .config_store import update as update_config_data
 from .system_prompt_store import create_prompt, delete_prompt, get_all as get_system_prompts, set_active_text
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion
+from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .models import (
@@ -30,6 +30,7 @@ from .models import (
     Session,
     SessionCreate,
     SessionUpdate,
+    TempChatRequest,
     WebSearchRequest,
     Workspace,
     WorkspaceCreate,
@@ -249,6 +250,28 @@ def append_session_message(session_id: str, payload: MessageCreate) -> Message:
     if message is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return message
+
+
+@app.post("/chat/temp/stream")
+def chat_temp_stream(payload: TempChatRequest) -> StreamingResponse:
+    messages = [{"role": m.role, "content": m.content} for m in payload.messages]
+
+    def event_stream():
+        collected: list[str] = []
+        final_stats: dict | None = None
+        try:
+            for item in stream_temp_chat(messages, payload.thinking_enabled, payload.system_prompt):
+                if isinstance(item, str):
+                    collected.append(item)
+                    yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
+                else:
+                    final_stats = item
+        except HTTPException as exc:
+            yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+        yield f"data: {json.dumps({'type': 'done', 'stats': final_stats})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.post("/chat/send", response_model=ChatSendResponse)

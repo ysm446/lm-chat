@@ -136,22 +136,13 @@ def generate_chat_completion(session: Session, memory_context: str = "", thinkin
         raise HTTPException(status_code=502, detail="Invalid response from llama-server") from exc
 
 
-def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
-    payload = {
-        "model": session.model_name or LLAMA_MODEL,
-        "messages": _build_messages(session, memory_context, system_prompt),
-        "stream": True,
-        "chat_template_kwargs": {"enable_thinking": thinking_enabled},
-    }
-    if not thinking_enabled:
-        payload["thinking"] = {"type": "disabled"}
+def _iter_stream(payload: dict) -> Iterator[str | GenerationStats]:
     req = request.Request(
         f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-
     try:
         in_thinking = False
         with request.urlopen(req, timeout=600) as response:
@@ -163,10 +154,10 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
                 if data == "[DONE]":
                     break
                 try:
-                    payload = json.loads(data)
+                    chunk = json.loads(data)
                 except json.JSONDecodeError:
                     continue
-                choice = payload.get("choices", [{}])[0]
+                choice = chunk.get("choices", [{}])[0]
                 delta = choice.get("delta", {})
                 reasoning = delta.get("reasoning_content")
                 content = delta.get("content")
@@ -181,9 +172,8 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
                         yield "</think>\n"
                     yield content
                 elif choice.get("finish_reason"):
-                    usage = payload.get("usage", {})
-                    timings = payload.get("timings", {})
-                    # predicted_n はストリーミング時に確実に返る生成トークン数
+                    usage = chunk.get("usage", {})
+                    timings = chunk.get("timings", {})
                     token_count = timings.get("predicted_n") or usage.get("completion_tokens", 0)
                     if timings or usage:
                         yield GenerationStats(
@@ -194,3 +184,29 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
                         )
     except error.URLError as exc:
         raise HTTPException(status_code=503, detail=f"llama-server is unavailable: {exc}") from exc
+
+
+def stream_temp_chat(messages: list[dict], thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
+    base = system_prompt if system_prompt else SYSTEM_PROMPT
+    built = [{"role": "system", "content": base}] + [{"role": m["role"], "content": m["content"]} for m in messages]
+    payload: dict = {
+        "model": LLAMA_MODEL,
+        "messages": built,
+        "stream": True,
+        "chat_template_kwargs": {"enable_thinking": thinking_enabled},
+    }
+    if not thinking_enabled:
+        payload["thinking"] = {"type": "disabled"}
+    yield from _iter_stream(payload)
+
+
+def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
+    payload: dict = {
+        "model": session.model_name or LLAMA_MODEL,
+        "messages": _build_messages(session, memory_context, system_prompt),
+        "stream": True,
+        "chat_template_kwargs": {"enable_thinking": thinking_enabled},
+    }
+    if not thinking_enabled:
+        payload["thinking"] = {"type": "disabled"}
+    yield from _iter_stream(payload)

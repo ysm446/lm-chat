@@ -21,6 +21,7 @@ import {
   listSystemPrompts,
   saveActiveSystemPrompt,
   streamChatMessage,
+  streamTempChatMessage,
   switchLlamaModel,
   updateMessage as updateMessageRequest,
   generateSessionTitle as generateSessionTitleRequest,
@@ -46,6 +47,10 @@ type ChatState = {
   thinkingEnabled: boolean;
   systemPromptText: string;
   setSystemPromptText: (text: string) => void;
+  tempChatMode: boolean;
+  tempMessages: ApiMessage[];
+  toggleTempChat: () => void;
+  sendTempMessage: (content: string) => Promise<void>;
   bootstrap: () => Promise<void>;
   setSelectedModel: (modelId: string) => void;
   applyModelSwitch: () => Promise<void>;
@@ -101,6 +106,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   memoryEnabled: true,
   thinkingEnabled: false,
   systemPromptText: "",
+  tempChatMode: false,
+  tempMessages: [],
 
   bootstrap: async () => {
     set({ isBootstrapping: true, error: null });
@@ -203,6 +210,87 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ systemPromptText: text });
     saveActiveSystemPrompt(text).catch(() => {});
   },
+
+  toggleTempChat: () => set((state) => ({
+    tempChatMode: !state.tempChatMode,
+    tempMessages: [],
+    streamingText: "",
+  })),
+
+  sendTempMessage: async (content) => {
+    const { tempMessages, systemPromptText, thinkingEnabled } = get();
+
+    const makeMsg = (role: ApiMessage["role"], text: string): ApiMessage => ({
+      id: `tmp-${crypto.randomUUID()}`,
+      role,
+      content: text,
+      image_data: null,
+      created_at: new Date().toISOString(),
+      completion_tokens: null,
+      tokens_per_second: null,
+      elapsed_seconds: null,
+      finish_reason: null,
+      model_name: null,
+    });
+
+    const userMsg = makeMsg("user", content);
+    const assistantMsg = makeMsg("assistant", "");
+    const controller = new AbortController();
+
+    set((state) => ({
+      isSubmitting: true,
+      abortController: controller,
+      error: null,
+      streamingText: "",
+      tempMessages: [...state.tempMessages, userMsg, assistantMsg],
+    }));
+
+    const apiMessages = [...tempMessages, userMsg].map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    try {
+      await streamTempChatMessage(
+        apiMessages,
+        thinkingEnabled,
+        systemPromptText || null,
+        {
+          onToken: (chunk) => {
+            set((state) => ({
+              streamingText: state.streamingText + chunk,
+              tempMessages: state.tempMessages.map((m) =>
+                m.id === assistantMsg.id ? { ...m, content: m.content + chunk } : m
+              ),
+            }));
+          },
+          onDone: () => {
+            set({ isSubmitting: false, abortController: null, streamingText: "" });
+          },
+          onError: (detail) => {
+            set((state) => ({
+              error: detail,
+              isSubmitting: false,
+              abortController: null,
+              streamingText: "",
+              tempMessages: state.tempMessages.filter((m) => m.id !== assistantMsg.id),
+            }));
+          },
+        },
+        controller.signal
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        return;
+      }
+      set((state) => ({
+        error: error instanceof Error ? error.message : "Failed to send message",
+        isSubmitting: false,
+        abortController: null,
+        streamingText: "",
+        tempMessages: state.tempMessages.filter((m) => m.id !== userMsg.id && m.id !== assistantMsg.id),
+      }));
+    }
+  },
+
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
 

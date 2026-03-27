@@ -91,6 +91,17 @@ class ChatSendRequest(BaseModel):
     system_prompt: str | None = None
 
 
+class TempChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class TempChatRequest(BaseModel):
+    messages: list[TempChatMessage]
+    system_prompt: str | None = None
+    thinking_enabled: bool = False
+
+
 class ChatSendResponse(BaseModel):
     session: Session
     assistant_message: Message

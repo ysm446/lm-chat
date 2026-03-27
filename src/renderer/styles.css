@@ -531,6 +531,24 @@ a { color: var(--accent); }
   margin: 0;
 }
 
+.center-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.center-header-btn:hover { background: rgba(255,255,255,0.07); color: var(--text-dim); }
+.center-header-btn.active { color: var(--accent); background: var(--accent-soft); }
+.center-header-btn.active:hover { background: rgba(124,90,247,0.18); }
+
 .header-actions {
   display: flex;
   align-items: center;

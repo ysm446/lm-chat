@@ -245,6 +245,49 @@ export function saveActiveSystemPrompt(text: string) {
   });
 }
 
+export type TempMessage = { role: "user" | "assistant"; content: string };
+
+export async function streamTempChatMessage(
+  messages: TempMessage[],
+  thinkingEnabled: boolean,
+  systemPrompt: string | null,
+  handlers: {
+    onToken: (chunk: string) => void;
+    onDone: () => void;
+    onError: (detail: string) => void;
+  },
+  signal?: AbortSignal
+) {
+  const response = await fetch(`${API_BASE}/chat/temp/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt }),
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const event of events) {
+      const line = event.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      const payload = JSON.parse(line.slice(6)) as { type: string; content?: string; detail?: string };
+      if (payload.type === "token") handlers.onToken(payload.content ?? "");
+      else if (payload.type === "done") handlers.onDone();
+      else if (payload.type === "error") handlers.onError(payload.detail ?? "Unknown error");
+    }
+  }
+}
+
 export async function streamChatMessage(
   sessionId: string,
   content: string,

@@ -28,10 +28,12 @@ export function MessageInput() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sendMessage = useChatStore((state) => state.sendMessage);
+  const sendTempMessage = useChatStore((state) => state.sendTempMessage);
   const stopGeneration = useChatStore((state) => state.stopGeneration);
   const currentSessionId = useChatStore((state) => state.currentSessionId);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const activeModelPath = useChatStore((state) => state.activeModelPath);
+  const tempChatMode = useChatStore((state) => state.tempChatMode);
   const memoryEnabled = useChatStore((state) => state.memoryEnabled);
   const toggleMemory = useChatStore((state) => state.toggleMemory);
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
@@ -81,18 +83,22 @@ export function MessageInput() {
   };
 
   const handleSend = async () => {
-    if (!currentSessionId) return;
     if (!value.trim() && !imageData) return;
     const text = value.trim();
     const img = imageData;
     setValue("");
     setImageData(null);
     setImageFileName("");
-    await sendMessage(currentSessionId, text, img);
+    if (tempChatMode) {
+      await sendTempMessage(text);
+    } else {
+      if (!currentSessionId) return;
+      await sendMessage(currentSessionId, text, img);
+    }
   };
 
   const modelReady = !!activeModelPath;
-  const canSend = modelReady && !isSubmitting && (!!value.trim() || !!imageData);
+  const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageData && !tempChatMode));
 
   return (
     <section className="input-shell">

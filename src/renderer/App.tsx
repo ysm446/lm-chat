@@ -12,6 +12,8 @@ export function App() {
   const workspaces = useChatStore((state) => state.workspaces);
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
   const currentSession = useChatStore((state) => state.currentSession());
+  const tempChatMode = useChatStore((state) => state.tempChatMode);
+  const toggleTempChat = useChatStore((state) => state.toggleTempChat);
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
@@ -87,8 +89,20 @@ export function App() {
         <main className="center-pane">
           <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
           <header className="center-header">
-            <h1 className="center-header-title">{currentSession?.title ?? "New chat"}</h1>
-            {error ? <p className="error-text">{error}</p> : null}
+            <h1 className="center-header-title">
+              {tempChatMode ? "一時チャット" : (currentSession?.title ?? "New chat")}
+            </h1>
+            <div style={{ flex: 1 }} />
+            {error ? <p className="error-text" style={{ margin: 0 }}>{error}</p> : null}
+            <button
+              className={`center-header-btn${tempChatMode ? " active" : ""}`}
+              onClick={toggleTempChat}
+              title={tempChatMode ? "一時チャットを終了（履歴に戻る）" : "一時チャット（保存されません）"}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeDasharray="3 2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </button>
           </header>
           <ChatView />
           <MessageInput />

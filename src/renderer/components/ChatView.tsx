@@ -21,7 +21,10 @@ export function ChatView() {
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const editMessage = useChatStore((state) => state.editMessage);
   const branchSession = useChatStore((state) => state.branchSession);
+  const tempChatMode = useChatStore((state) => state.tempChatMode);
+  const tempMessages = useChatStore((state) => state.tempMessages);
   const modelName = selectedModel ?? session?.model_name ?? "";
+  const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function ChatView() {
   return (
     <section className="chat-view">
       <div className="message-stream">
-        {session?.messages.map((message) => (
+        {messages.map((message) => (
           <article key={message.id} className={`message-card ${message.role}${editingId === message.id ? " editing" : ""}`}>
             <div className="message-meta">
               <span>
@@ -146,7 +149,7 @@ export function ChatView() {
               </div>
             )}
 
-            {editingId !== message.id && (
+            {editingId !== message.id && !tempChatMode && (
               <div className="message-actions">
                 {/* Branch */}
                 <button
