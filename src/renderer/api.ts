@@ -233,7 +233,7 @@ export function countTokens(text: string) {
 export type SavedSystemPrompt = { id: string; name: string; content: string };
 
 export function listSystemPrompts() {
-  return request<{ prompts: SavedSystemPrompt[]; active_text: string }>("/system-prompts");
+  return request<{ prompts: SavedSystemPrompt[]; active_text: string; active_id: string }>("/system-prompts");
 }
 
 export function createSystemPrompt(name: string, content: string) {
@@ -249,10 +249,10 @@ export function deleteSystemPrompt(id: string) {
   });
 }
 
-export function saveActiveSystemPrompt(text: string) {
-  return request<{ active_text: string }>("/system-prompts/active", {
+export function saveActiveSystemPrompt(text: string, activeId?: string) {
+  return request<{ active_text: string; active_id: string }>("/system-prompts/active", {
     method: "PATCH",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, active_id: activeId ?? "" }),
   });
 }
 

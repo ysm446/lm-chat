@@ -13,7 +13,7 @@ def _load() -> dict:
             return json.loads(_PATH.read_text("utf-8"))
         except Exception:
             pass
-    return {"prompts": [], "active_text": ""}
+    return {"prompts": [], "active_text": "", "active_id": ""}
 
 
 def _save(data: dict) -> None:
@@ -46,4 +46,10 @@ def delete_prompt(prompt_id: str) -> bool:
 def set_active_text(text: str) -> None:
     data = _load()
     data["active_text"] = text
+    _save(data)
+
+
+def set_active_id(prompt_id: str) -> None:
+    data = _load()
+    data["active_id"] = prompt_id
     _save(data)

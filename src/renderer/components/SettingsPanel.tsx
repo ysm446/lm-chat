@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, updateConfig } from "../api";
+import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -41,7 +41,10 @@ export function SettingsPanel() {
       })
       .catch(() => {});
     listSystemPrompts()
-      .then((data) => setSavedPrompts(data.prompts))
+      .then((data) => {
+        setSavedPrompts(data.prompts);
+        if (data.active_id) setSelectedPromptId(data.active_id);
+      })
       .catch(() => {});
   }, []);
 
@@ -89,9 +92,13 @@ export function SettingsPanel() {
     setSelectedPromptId(id);
     if (!id) {
       setSystemPromptText("");
+      saveActiveSystemPrompt("", "").catch(() => {});
     } else {
       const prompt = savedPrompts.find((p) => p.id === id);
-      if (prompt) setSystemPromptText(prompt.content);
+      if (prompt) {
+        setSystemPromptText(prompt.content);
+        saveActiveSystemPrompt(prompt.content, id).catch(() => {});
+      }
     }
   };
 
@@ -107,6 +114,7 @@ export function SettingsPanel() {
       const newPrompt = await createSystemPrompt(pendingName.trim(), systemPromptText);
       setSavedPrompts((prev) => [...prev, newPrompt]);
       setSelectedPromptId(newPrompt.id);
+      saveActiveSystemPrompt(systemPromptText, newPrompt.id).catch(() => {});
     } catch { /* ignore */ }
     setNamingMode(false);
     setPendingName("");
@@ -118,6 +126,7 @@ export function SettingsPanel() {
       await deleteSystemPrompt(selectedPromptId);
       setSavedPrompts((prev) => prev.filter((p) => p.id !== selectedPromptId));
       setSelectedPromptId("");
+      saveActiveSystemPrompt(systemPromptText, "").catch(() => {});
     } catch { /* ignore */ }
   };
 
@@ -125,7 +134,11 @@ export function SettingsPanel() {
     setSystemPromptText(value);
     // テキストが保存済みプロンプトと一致しなければ選択解除
     const match = savedPrompts.find((p) => p.content === value);
-    setSelectedPromptId(match?.id ?? "");
+    const newId = match?.id ?? "";
+    setSelectedPromptId(newId);
+    if (newId !== selectedPromptId) {
+      saveActiveSystemPrompt(value, newId).catch(() => {});
+    }
   };
 
   const ctxMax = modelMaxCtx ?? 131072;

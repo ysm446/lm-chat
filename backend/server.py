@@ -15,7 +15,7 @@ from .config_store import get as get_config_data
 from .config_store import update as update_config_data
 from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
-from .system_prompt_store import create_prompt, delete_prompt, get_all as get_system_prompts, set_active_text
+from .system_prompt_store import create_prompt, delete_prompt, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
@@ -121,8 +121,10 @@ def remove_system_prompt(prompt_id: str) -> dict[str, bool]:
 @app.patch("/system-prompts/active")
 def update_active_system_prompt(payload: dict) -> dict[str, str]:
     text = payload.get("text", "")
+    prompt_id = payload.get("active_id", "")
     set_active_text(text)
-    return {"active_text": text}
+    set_active_id(prompt_id)
+    return {"active_text": text, "active_id": prompt_id}
 
 
 @app.get("/v1/models")
