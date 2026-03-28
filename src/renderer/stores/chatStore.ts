@@ -21,6 +21,7 @@ import {
   listSystemPrompts,
   saveActiveSystemPrompt,
   streamChatMessage,
+  streamContinueMessage,
   streamTempChatMessage,
   switchLlamaModel,
   updateMessage as updateMessageRequest,
@@ -70,6 +71,7 @@ type ChatState = {
   editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
   stopGeneration: () => void;
+  continueGeneration: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
@@ -551,6 +553,89 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   stopGeneration: () => {
     get().abortController?.abort();
+  },
+
+  continueGeneration: async (sessionId) => {
+    const current = get().sessions.find((s) => s.id === sessionId);
+    if (!current) return;
+
+    const assistant = optimisticMessage("assistant", "");
+    const controller = new AbortController();
+    const streamStartTime = Date.now();
+    let tokenCount = 0;
+
+    set((state) => ({
+      isSubmitting: true,
+      abortController: controller,
+      error: null,
+      streamingText: "",
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, messages: [...s.messages, assistant] } : s
+      )
+    }));
+
+    try {
+      await streamContinueMessage(sessionId, get().thinkingEnabled, {
+        onToken: (chunk) => {
+          tokenCount++;
+          set((state) => ({
+            streamingText: state.streamingText + chunk,
+            sessions: state.sessions.map((s) =>
+              s.id === sessionId
+                ? { ...s, messages: s.messages.map((m) => m.id === assistant.id ? { ...m, content: m.content + chunk } : m) }
+                : s
+            )
+          }));
+        },
+        onDone: (session) => {
+          set((state) => ({
+            sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
+            isSubmitting: false,
+            streamingText: ""
+          }));
+        },
+        onError: (detail) => {
+          set((state) => ({
+            error: detail,
+            isSubmitting: false,
+            abortController: null,
+            streamingText: "",
+            sessions: state.sessions.map((s) =>
+              s.id === sessionId ? { ...s, messages: s.messages.filter((m) => m.id !== assistant.id) } : s
+            )
+          }));
+        }
+      }, controller.signal, get().systemPromptText || null);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        const partialText = get().sessions.find((s) => s.id === sessionId)?.messages.find((m) => m.id === assistant.id)?.content ?? "";
+        const elapsedSeconds = (Date.now() - streamStartTime) / 1000;
+        const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
+        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        try {
+          await appendSessionMessageRequest(sessionId, {
+            role: "assistant",
+            content: partialText,
+            finish_reason: "user_stopped",
+            completion_tokens: tokenCount,
+            tokens_per_second: tokensPerSecond,
+            elapsed_seconds: elapsedSeconds
+          });
+          const refreshed = await getSession(sessionId);
+          set((state) => ({ sessions: state.sessions.map((s) => (s.id === sessionId ? refreshed : s)) }));
+        } catch { /* ignore */ }
+        return;
+      }
+      set((state) => ({
+        error: error instanceof Error ? error.message : "Failed to generate response",
+        isSubmitting: false,
+        abortController: null,
+        streamingText: "",
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId ? { ...s, messages: s.messages.filter((m) => m.id !== assistant.id) } : s
+        )
+      }));
+    }
   },
 
   currentWorkspace: () => get().workspaces.find((workspace) => workspace.id === get().currentWorkspaceId),

@@ -23,6 +23,7 @@ export function ChatView() {
   const branchSession = useChatStore((state) => state.branchSession);
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const tempMessages = useChatStore((state) => state.tempMessages);
+  const continueGeneration = useChatStore((state) => state.continueGeneration);
   const modelName = selectedModel ?? session?.model_name ?? "";
   const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -198,6 +199,19 @@ export function ChatView() {
             )}
           </article>
         ))}
+        {!tempChatMode && !isSubmitting && messages.length > 0 && messages[messages.length - 1].role === "user" && session && (
+          <div className="generate-response-wrap">
+            <button
+              className="generate-response-btn"
+              onClick={() => void continueGeneration(session.id)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Generate AI Response
+            </button>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
     </section>

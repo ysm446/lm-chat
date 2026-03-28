@@ -8,6 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -367,6 +368,59 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
             logger.debug("Memory saved for session %s", payload.session_id)
         except Exception as e:
             logger.warning("Memory save failed: %s", e)
+        yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+class ChatContinueRequest(BaseModel):
+    session_id: str
+    thinking_enabled: bool = False
+    system_prompt: str | None = None
+
+
+@app.post("/chat/continue/stream")
+def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
+    session = store.get_session(payload.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not session.messages or session.messages[-1].role != "user":
+        raise HTTPException(status_code=400, detail="Last message must be from user")
+
+    thinking_enabled = payload.thinking_enabled
+    system_prompt = payload.system_prompt
+
+    def event_stream():
+        collected: list[str] = []
+        final_stats: dict | None = None
+        try:
+            for item in stream_chat_completion(session, "", thinking_enabled, system_prompt):
+                if isinstance(item, str):
+                    collected.append(item)
+                    yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
+                else:
+                    final_stats = item
+        except HTTPException as exc:
+            yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+
+        assistant_text = "".join(collected).strip()
+        assistant_message = store.append_message(
+            payload.session_id,
+            MessageCreate(
+                role="assistant",
+                content=assistant_text,
+                completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
+                tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
+                elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
+                finish_reason=final_stats.get("finish_reason") if final_stats else None,
+                model_name=session.model_name or None,
+            ),
+        )
+        updated_session = store.get_session(payload.session_id)
+        if assistant_message is None or updated_session is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
+            return
         yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
