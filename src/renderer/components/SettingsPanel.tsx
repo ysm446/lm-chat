@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
@@ -7,6 +7,8 @@ type MemoryStats = {
   session_count: number;
   memory_chunk_count: number;
 };
+
+const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1 } as const;
 
 export function SettingsPanel() {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
@@ -30,6 +32,8 @@ export function SettingsPanel() {
   const [selectedPromptId, setSelectedPromptId] = useState<string>("");
   const [tokenCount, setTokenCount] = useState<number | null>(null);
   const tokenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [namingMode, setNamingMode] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -152,14 +156,29 @@ export function SettingsPanel() {
     }
   };
 
+  const onTipEnter = useCallback((text: string) => (e: React.MouseEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    tooltipTimerRef.current = setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      setTooltip({ text, x: rect.left - 10, y: rect.top + rect.height / 2 });
+    }, 400);
+  }, []);
+
+  const onTipLeave = useCallback(() => {
+    if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
+    setTooltip(null);
+  }, []);
+
   const ctxMax = modelMaxCtx ?? 131072;
   const gpuMax = 100;
 
   return (
+    <>
     <div className="settings-stack">
       {/* System Prompt */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setSystemPromptOpen((v) => !v)}>
+        <button className="settings-section-header" onClick={() => setSystemPromptOpen((v) => !v)} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存・呼び出しも可能です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -264,7 +283,7 @@ export function SettingsPanel() {
 
       {/* Context and Offload */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)}>
+        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("推論パラメータの設定。Temperatureはすぐに反映。Context Length と GPU Offload は次回モデルロード時に反映されます。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>
@@ -283,18 +302,27 @@ export function SettingsPanel() {
             {/* Temperature */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label">Temperature</span>
-                <input
-                  className="settings-number-input"
-                  type="number"
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  value={temperature}
-                  onChange={(e) => setTemperature(Number(e.target.value))}
-                  onBlur={() => void handleSave({ temperature })}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ temperature }); }}
-                />
+                <span className="settings-field-label" onMouseEnter={onTipEnter("生成のランダム性。低いほど一貫した回答、高いほど多様・創造的な表現になります。（範囲: 0〜2、デフォルト: 0.8）")} onMouseLeave={onTipLeave}>Temperature</span>
+                <div className="settings-field-controls">
+                  {temperature !== DEFAULTS.temperature && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setTemperature(DEFAULTS.temperature); void handleSave({ temperature: DEFAULTS.temperature }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <input
+                    className="settings-number-input"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.05}
+                    value={temperature}
+                    onChange={(e) => setTemperature(Number(e.target.value))}
+                    onBlur={() => void handleSave({ temperature })}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ temperature }); }}
+                  />
+                </div>
               </div>
               <input
                 className="settings-slider"
@@ -311,18 +339,27 @@ export function SettingsPanel() {
             {/* Context Length */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label">Context Length</span>
-                <input
-                  className="settings-number-input"
-                  type="number"
-                  min={512}
-                  max={ctxMax}
-                  step={1024}
-                  value={ctxSize}
-                  onChange={(e) => setCtxSize(Number(e.target.value))}
-                  onBlur={() => void handleSave({ ctx_size: ctxSize })}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ ctx_size: ctxSize }); }}
-                />
+                <span className="settings-field-label" onMouseEnter={onTipEnter("一度に扱える最大トークン数。長い会話や長文処理には大きな値が必要ですが、VRAMを多く消費します。次回モデルロード時に反映。")} onMouseLeave={onTipLeave}>Context Length</span>
+                <div className="settings-field-controls">
+                  {ctxSize !== DEFAULTS.ctx_size && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCtxSize(DEFAULTS.ctx_size); void handleSave({ ctx_size: DEFAULTS.ctx_size }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <input
+                    className="settings-number-input"
+                    type="number"
+                    min={512}
+                    max={ctxMax}
+                    step={1024}
+                    value={ctxSize}
+                    onChange={(e) => setCtxSize(Number(e.target.value))}
+                    onBlur={() => void handleSave({ ctx_size: ctxSize })}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ ctx_size: ctxSize }); }}
+                  />
+                </div>
               </div>
               {modelMaxCtx && (
                 <p className="settings-field-hint">
@@ -344,17 +381,26 @@ export function SettingsPanel() {
             {/* GPU Offload */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label">GPU Offload</span>
-                <input
-                  className="settings-number-input"
-                  type="number"
-                  min={-1}
-                  max={gpuMax}
-                  value={nGpuLayers}
-                  onChange={(e) => setNGpuLayers(Number(e.target.value))}
-                  onBlur={() => void handleSave({ n_gpu_layers: nGpuLayers })}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ n_gpu_layers: nGpuLayers }); }}
-                />
+                <span className="settings-field-label" onMouseEnter={onTipEnter("GPUに転送するレイヤー数。-1で全レイヤーをGPUへオフロード（最速）。VRAMが不足する場合は値を下げてください。次回モデルロード時に反映。")} onMouseLeave={onTipLeave}>GPU Offload</span>
+                <div className="settings-field-controls">
+                  {nGpuLayers !== DEFAULTS.n_gpu_layers && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setNGpuLayers(DEFAULTS.n_gpu_layers); void handleSave({ n_gpu_layers: DEFAULTS.n_gpu_layers }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <input
+                    className="settings-number-input"
+                    type="number"
+                    min={-1}
+                    max={gpuMax}
+                    value={nGpuLayers}
+                    onChange={(e) => setNGpuLayers(Number(e.target.value))}
+                    onBlur={() => void handleSave({ n_gpu_layers: nGpuLayers })}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ n_gpu_layers: nGpuLayers }); }}
+                  />
+                </div>
               </div>
               <p className="settings-field-hint">-1 = 全レイヤーをGPUへ。次回モデルロード時に反映</p>
               <input
@@ -376,7 +422,7 @@ export function SettingsPanel() {
 
       {/* Advanced */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)}>
+        <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)} onMouseEnter={onTipEnter("推論エンジン・埋め込みモデル・記憶システムの情報と統計を表示します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="4 6 20 6"/><polyline points="4 12 20 12"/><polyline points="4 18 14 18"/>
@@ -406,5 +452,14 @@ export function SettingsPanel() {
         )}
       </section>
     </div>
+    {tooltip && (
+      <div
+        className="settings-tooltip"
+        style={{ top: tooltip.y, left: tooltip.x }}
+      >
+        {tooltip.text}
+      </div>
+    )}
+    </>
   );
 }
