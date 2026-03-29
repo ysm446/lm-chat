@@ -106,11 +106,12 @@ def generate_title(text: str) -> str:
         return text[:40]
 
 
-def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> str:
+def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context, system_prompt),
         "stream": False,
+        "temperature": temperature,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
     if not thinking_enabled:
@@ -186,13 +187,14 @@ def _iter_stream(payload: dict) -> Iterator[str | GenerationStats]:
         raise HTTPException(status_code=503, detail=f"llama-server is unavailable: {exc}") from exc
 
 
-def stream_temp_chat(messages: list[dict], thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
+def stream_temp_chat(messages: list[dict], thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> Iterator[str | GenerationStats]:
     base = system_prompt if system_prompt else SYSTEM_PROMPT
     built = [{"role": "system", "content": base}] + [{"role": m["role"], "content": m["content"]} for m in messages]
     payload: dict = {
         "model": LLAMA_MODEL,
         "messages": built,
         "stream": True,
+        "temperature": temperature,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
     if not thinking_enabled:
@@ -200,11 +202,12 @@ def stream_temp_chat(messages: list[dict], thinking_enabled: bool = False, syste
     yield from _iter_stream(payload)
 
 
-def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None) -> Iterator[str | GenerationStats]:
+def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> Iterator[str | GenerationStats]:
     payload: dict = {
         "model": session.model_name or LLAMA_MODEL,
         "messages": _build_messages(session, memory_context, system_prompt),
         "stream": True,
+        "temperature": temperature,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
     }
     if not thinking_enabled:

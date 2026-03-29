@@ -271,11 +271,13 @@ def append_session_message(session_id: str, payload: MessageCreate) -> Message:
 def chat_temp_stream(payload: TempChatRequest) -> StreamingResponse:
     messages = [{"role": m.role, "content": m.content} for m in payload.messages]
 
+    temperature = get_config_data().get("temperature", 0.8)
+
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_temp_chat(messages, payload.thinking_enabled, payload.system_prompt):
+            for item in stream_temp_chat(messages, payload.thinking_enabled, payload.system_prompt, temperature):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
@@ -300,7 +302,8 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
-    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled, payload.system_prompt)
+    temperature = get_config_data().get("temperature", 0.8)
+    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled, payload.system_prompt, temperature)
     assistant_message = store.append_message(
         payload.session_id,
         MessageCreate(role="assistant", content=assistant_text),
@@ -330,12 +333,13 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
+    temperature = get_config_data().get("temperature", 0.8)
 
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, memory_context, thinking_enabled, system_prompt):
+            for item in stream_chat_completion(session, memory_context, thinking_enabled, system_prompt, temperature):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
@@ -389,12 +393,13 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
 
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
+    temperature = get_config_data().get("temperature", 0.8)
 
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, "", thinking_enabled, system_prompt):
+            for item in stream_chat_completion(session, "", thinking_enabled, system_prompt, temperature):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"

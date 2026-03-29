@@ -17,6 +17,7 @@ export function SettingsPanel() {
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [ctxSize, setCtxSize] = useState(32768);
   const [nGpuLayers, setNGpuLayers] = useState(-1);
+  const [temperature, setTemperature] = useState(0.8);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -38,6 +39,7 @@ export function SettingsPanel() {
       .then((cfg) => {
         setCtxSize(cfg.ctx_size);
         setNGpuLayers(cfg.n_gpu_layers);
+        setTemperature(cfg.temperature ?? 0.8);
       })
       .catch(() => {});
     listSystemPrompts()
@@ -75,12 +77,13 @@ export function SettingsPanel() {
     };
   }, [systemPromptText]);
 
-  const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number }) => {
+  const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number }) => {
     setSaving(true);
     try {
       const cfg = await updateConfig(patch);
       setCtxSize(cfg.ctx_size);
       setNGpuLayers(cfg.n_gpu_layers);
+      setTemperature(cfg.temperature ?? 0.8);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
@@ -277,6 +280,34 @@ export function SettingsPanel() {
 
         {contextOpen && (
           <div className="settings-section-body">
+            {/* Temperature */}
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label">Temperature</span>
+                <input
+                  className="settings-number-input"
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.05}
+                  value={temperature}
+                  onChange={(e) => setTemperature(Number(e.target.value))}
+                  onBlur={() => void handleSave({ temperature })}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ temperature }); }}
+                />
+              </div>
+              <input
+                className="settings-slider"
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={temperature}
+                onChange={(e) => setTemperature(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ temperature })}
+              />
+            </div>
+
             {/* Context Length */}
             <div className="settings-field">
               <div className="settings-field-header">

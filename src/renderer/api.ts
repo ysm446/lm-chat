@@ -106,11 +106,11 @@ export function fetchMemoryStats() {
 }
 
 export function getConfig() {
-  return request<{ ctx_size: number; n_gpu_layers: number }>("/config");
+  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number }>("/config");
 }
 
-export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number }) {
-  return request<{ ctx_size: number; n_gpu_layers: number }>("/config", {
+export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number }) {
+  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number }>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
