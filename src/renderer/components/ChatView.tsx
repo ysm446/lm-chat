@@ -1,7 +1,64 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useChatStore } from "../stores/chatStore";
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function HighlightText({ text, query, current }: { text: string; query: string; current: boolean }) {
+  if (!query.trim()) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${escapeRegex(query)})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className={`search-highlight${current ? " current" : ""}`}>{part}</mark>
+          : part
+      )}
+    </>
+  );
+}
+
+// rehype プラグイン: HAST のテキストノードを走査してマッチ部分を <mark> に置き換える
+function hastHighlight(node: any, query: string, className: string[]) {
+  if (!node.children) return;
+  const newChildren: any[] = [];
+  for (const child of node.children) {
+    if (child.type === "text") {
+      const parts = child.value.split(new RegExp(`(${escapeRegex(query)})`, "gi"));
+      if (parts.length === 1) {
+        newChildren.push(child);
+      } else {
+        for (const part of parts) {
+          if (!part) continue;
+          if (part.toLowerCase() === query.toLowerCase()) {
+            newChildren.push({
+              type: "element", tagName: "mark",
+              properties: { className },
+              children: [{ type: "text", value: part }],
+            });
+          } else {
+            newChildren.push({ type: "text", value: part });
+          }
+        }
+      }
+    } else {
+      hastHighlight(child, query, className);
+      newChildren.push(child);
+    }
+  }
+  node.children = newChildren;
+}
+
+function makeHighlightPlugin(query: string, isCurrent: boolean) {
+  const className = isCurrent ? ["search-highlight", "current"] : ["search-highlight"];
+  return () => (tree: any) => {
+    if (!query.trim()) return;
+    hastHighlight(tree, query, className);
+  };
+}
 
 function parseThinking(content: string): { thinking: string | null; response: string; streaming: boolean } {
   const complete = content.match(/^<think>([\s\S]*?)<\/think>\n?/);
@@ -32,6 +89,58 @@ export function ChatView() {
   const [editingContent, setEditingContent] = useState("");
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // ── Search ───────────────────────────────────────────
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [matchIndex, setMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const matchCardRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const matchedIds = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return messages.filter((m) => m.content?.toLowerCase().includes(q)).map((m) => m.id);
+  }, [messages, searchQuery]);
+
+  useEffect(() => { setMatchIndex(0); }, [searchQuery]);
+
+  useEffect(() => {
+    if (matchedIds.length === 0) return;
+    const id = matchedIds[matchIndex];
+    matchCardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [matchIndex, matchedIds]);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    setTimeout(() => searchInputRef.current?.focus(), 0);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (matchedIds.length === 0) return;
+    setMatchIndex((i) => (i + 1) % matchedIds.length);
+  }, [matchedIds.length]);
+
+  const goPrev = useCallback(() => {
+    if (matchedIds.length === 0) return;
+    setMatchIndex((i) => (i - 1 + matchedIds.length) % matchedIds.length);
+  }, [matchedIds.length]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [openSearch]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [session?.messages.length, isSubmitting]);
@@ -57,9 +166,51 @@ export function ChatView() {
 
   return (
     <section className="chat-view">
+      {searchOpen && (
+        <div className="chat-search-bar">
+          <div className="chat-search-box">
+            <input
+              ref={searchInputRef}
+              className="chat-search-input"
+              type="text"
+              placeholder="検索..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeSearch();
+                if (e.key === "Enter") { e.shiftKey ? goPrev() : goNext(); }
+              }}
+            />
+            <span className="chat-search-count">
+              {matchedIds.length === 0
+                ? (searchQuery ? "0件" : "")
+                : `${matchIndex + 1}/${matchedIds.length}`}
+            </span>
+            <button className="chat-search-nav" onClick={goPrev} title="前へ (Shift+Enter)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+            </button>
+            <button className="chat-search-nav" onClick={goNext} title="次へ (Enter)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button className="chat-search-close" onClick={closeSearch} title="閉じる (Esc)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
       <div className="message-stream">
-        {messages.map((message) => (
-          <article key={message.id} className={`message-card ${message.role}${editingId === message.id ? " editing" : ""}`}>
+        {messages.map((message) => {
+          const isMatch = matchedIds.includes(message.id);
+          const isCurrent = matchedIds[matchIndex] === message.id;
+          return (
+          <article
+            key={message.id}
+            className={`message-card ${message.role}${editingId === message.id ? " editing" : ""}${isMatch ? " search-match" : ""}${isCurrent ? " search-current" : ""}`}
+            ref={(el) => {
+              if (el && isMatch) matchCardRefs.current.set(message.id, el);
+              else matchCardRefs.current.delete(message.id);
+            }}
+          >
             <div className="message-meta">
               <span>
                 {message.role === "assistant"
@@ -88,7 +239,9 @@ export function ChatView() {
                   rows={3}
                 />
               ) : message.role === "user" ? (
-                message.content ? <p>{message.content}</p> : null
+                message.content
+                  ? <p><HighlightText text={message.content} query={searchOpen ? searchQuery : ""} current={isCurrent} /></p>
+                  : null
               ) : (() => {
                 if (!message.content) {
                   return isSubmitting ? <p className="typing-cursor">▍</p> : null;
@@ -108,7 +261,7 @@ export function ChatView() {
                       </details>
                     )}
                     {response
-                      ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{response}</ReactMarkdown>
+                      ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={searchOpen && searchQuery.trim() ? [makeHighlightPlugin(searchQuery, isCurrent)] : []}>{response}</ReactMarkdown>
                       : streaming && isSubmitting ? <p className="typing-cursor">▍</p> : null}
                   </>
                 );
@@ -198,7 +351,8 @@ export function ChatView() {
               </div>
             )}
           </article>
-        ))}
+          );
+        })}
         {!tempChatMode && !isSubmitting && messages.length > 0 && messages[messages.length - 1].role === "user" && session && (
           <div className="generate-response-wrap">
             <button
