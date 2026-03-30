@@ -178,8 +178,6 @@ export function Sidebar() {
             <div
             key={ws.id}
             className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}`}
-            draggable
-            onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; }}
             onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== ws.id) setDragOverId(ws.id); }}
             onDragLeave={() => setDragOverId(null)}
             onDrop={(e) => {
@@ -228,7 +226,7 @@ export function Sidebar() {
                 </div>
               ) : (
                 <div className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}>
-                  <span className="ws-drag-handle" title="ドラッグして並べ替え">
+                  <span className="ws-drag-handle" title="ドラッグして並べ替え" draggable onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; }}>
                     <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
                       <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
                       <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
