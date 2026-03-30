@@ -18,7 +18,7 @@ from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
+from .llm_proxy import SYSTEM_PROMPT, autocomplete as llm_autocomplete, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .models import (
@@ -83,6 +83,18 @@ def save_turn_memory(session_id: str, user_content: str, assistant_content: str)
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/autocomplete")
+def autocomplete_endpoint(payload: dict) -> dict[str, str]:
+    text = payload.get("text", "").strip()
+    if not text or len(text) < 4 or not is_ready():
+        return {"completion": ""}
+    try:
+        max_tokens = get_config_data().get("completion_length", 80)
+        return {"completion": llm_autocomplete(text, max_tokens)}
+    except Exception:
+        return {"completion": ""}
 
 
 @app.post("/tokenize")

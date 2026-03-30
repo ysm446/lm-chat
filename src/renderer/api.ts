@@ -105,12 +105,19 @@ export function fetchMemoryStats() {
   return request<{ workspace_count: number; session_count: number; memory_chunk_count: number }>("/memory/stats");
 }
 
-export function getConfig() {
-  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number }>("/config");
+export function fetchAutocomplete(text: string) {
+  return request<{ completion: string }>("/autocomplete", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
 }
 
-export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number }) {
-  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number }>("/config", {
+export function getConfig() {
+  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number; completion_length: number }>("/config");
+}
+
+export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) {
+  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number; completion_length: number }>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

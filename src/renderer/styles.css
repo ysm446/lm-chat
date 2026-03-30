@@ -1176,7 +1176,42 @@ details.thinking-block[open] .thinking-chevron {
 
 .composer:focus-within { border-color: var(--accent-border); }
 
+.composer-autocomplete-wrap {
+  position: relative;
+}
+
+.composer-ghost-layer {
+  position: absolute;
+  inset: 0;
+  padding: 14px 16px 8px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  pointer-events: none;
+  color: transparent;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.composer-ghost-existing {
+  color: var(--text);
+}
+
+.composer-ghost-suggest {
+  color: var(--text-faint);
+}
+
+.composer-textarea.ghost-active {
+  color: transparent;
+  caret-color: var(--text);
+}
+
 .composer-textarea {
+  position: relative;
+  z-index: 1;
   width: 100%;
   background: transparent;
   border: none;

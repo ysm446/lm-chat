@@ -46,6 +46,7 @@ type ChatState = {
   isSwitchingModel: boolean;
   memoryEnabled: boolean;
   thinkingEnabled: boolean;
+  autocompleteEnabled: boolean;
   systemPromptText: string;
   setSystemPromptText: (text: string) => void;
   tempChatMode: boolean;
@@ -58,6 +59,7 @@ type ChatState = {
   ejectModel: () => Promise<void>;
   toggleMemory: () => void;
   toggleThinking: () => void;
+  toggleAutocomplete: () => void;
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
   renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
@@ -107,6 +109,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSwitchingModel: false,
   memoryEnabled: true,
   thinkingEnabled: false,
+  autocompleteEnabled: false,
   systemPromptText: "",
   tempChatMode: false,
   tempMessages: [],
@@ -295,6 +298,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
+  toggleAutocomplete: () => set((state) => ({ autocompleteEnabled: !state.autocompleteEnabled })),
 
   reorderWorkspaces: async (orderedIds) => {
     set((state) => ({

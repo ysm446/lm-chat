@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getConfig, getSessionTokenCount } from "../api";
+import { fetchAutocomplete, getConfig, getSessionTokenCount } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
@@ -38,9 +38,14 @@ export function MessageInput() {
   const toggleMemory = useChatStore((state) => state.toggleMemory);
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
   const toggleThinking = useChatStore((state) => state.toggleThinking);
+  const autocompleteEnabled = useChatStore((state) => state.autocompleteEnabled);
+  const toggleAutocomplete = useChatStore((state) => state.toggleAutocomplete);
 
   const [tokenCount, setTokenCount] = useState<number | null>(null);
   const [ctxSize, setCtxSize] = useState(32768);
+  const [suggestion, setSuggestion] = useState("");
+  const [cursorPos, setCursorPos] = useState(0);
+  const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
@@ -56,10 +61,22 @@ export function MessageInput() {
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`;
   }, [value]);
+
+  useEffect(() => {
+    setSuggestion("");
+    if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
+    const textBeforeCursor = value.slice(0, cursorPos);
+    if (!autocompleteEnabled || !textBeforeCursor.trim() || textBeforeCursor.length < 4 || !activeModelPath) return;
+    autocompleteTimerRef.current = setTimeout(() => {
+      fetchAutocomplete(textBeforeCursor)
+        .then((r) => setSuggestion(r.completion))
+        .catch(() => {});
+    }, 700);
+    return () => { if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current); };
+  }, [value, cursorPos, autocompleteEnabled, activeModelPath]);
 
   const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
   const ringColor =
@@ -89,6 +106,7 @@ export function MessageInput() {
     setValue("");
     setImageData(null);
     setImageFileName("");
+    setSuggestion("");
     if (tempChatMode) {
       await sendTempMessage(text);
     } else {
@@ -125,22 +143,53 @@ export function MessageInput() {
           </div>
         )}
 
-        {/* テキストエリア */}
-        <textarea
-          ref={textareaRef}
-          className="composer-textarea"
-          placeholder={modelReady ? "Send a message to the model..." : "モデルを選択してください..."}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void handleSend();
-            }
-          }}
-          rows={2}
-          disabled={!modelReady || isSubmitting}
-        />
+        {/* テキストエリア + ゴーストテキストオーバーレイ */}
+        <div className="composer-autocomplete-wrap">
+          {suggestion && (
+            <div className="composer-ghost-layer" aria-hidden="true">
+              <span className="composer-ghost-existing">{value.slice(0, cursorPos)}</span><span className="composer-ghost-suggest">{suggestion}</span><span className="composer-ghost-existing">{value.slice(cursorPos)}</span>
+            </div>
+          )}
+          <textarea
+            ref={textareaRef}
+            className={`composer-textarea${suggestion ? " ghost-active" : ""}`}
+            placeholder={modelReady ? "Send a message to the model..." : "モデルを選択してください..."}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setCursorPos(e.target.selectionStart ?? e.target.value.length);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Tab" && suggestion) {
+                e.preventDefault();
+                const before = value.slice(0, cursorPos);
+                const after = value.slice(cursorPos);
+                const newValue = before + suggestion + after;
+                const newCursor = cursorPos + suggestion.length;
+                setValue(newValue);
+                setCursorPos(newCursor);
+                setSuggestion("");
+                setTimeout(() => {
+                  textareaRef.current?.setSelectionRange(newCursor, newCursor);
+                }, 0);
+                return;
+              }
+              if (e.key === "Escape" && suggestion) {
+                e.preventDefault();
+                setSuggestion("");
+                return;
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+            onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+            rows={2}
+            disabled={!modelReady || isSubmitting}
+          />
+        </div>
 
         {/* ボトムアクションバー */}
         <div className="composer-bottom">
@@ -175,6 +224,15 @@ export function MessageInput() {
               title={thinkingEnabled ? "思考モードをオフにする" : "思考モードをオンにする"}
             >
               思考
+            </button>
+
+            {/* 自動補完トグル */}
+            <button
+              className={`composer-chip${autocompleteEnabled ? " active" : ""}`}
+              onClick={toggleAutocomplete}
+              title={autocompleteEnabled ? "自動補完をオフにする" : "自動補完をオンにする（Tab で確定）"}
+            >
+              補完
             </button>
           </div>
 

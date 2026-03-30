@@ -8,7 +8,7 @@ type MemoryStats = {
   memory_chunk_count: number;
 };
 
-const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1 } as const;
+const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1, completion_length: 80 } as const;
 
 export function SettingsPanel() {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
@@ -20,6 +20,7 @@ export function SettingsPanel() {
   const [ctxSize, setCtxSize] = useState(32768);
   const [nGpuLayers, setNGpuLayers] = useState(-1);
   const [temperature, setTemperature] = useState(0.8);
+  const [completionLength, setCompletionLength] = useState(80);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -44,6 +45,7 @@ export function SettingsPanel() {
         setCtxSize(cfg.ctx_size);
         setNGpuLayers(cfg.n_gpu_layers);
         setTemperature(cfg.temperature ?? 0.8);
+        setCompletionLength(cfg.completion_length ?? 80);
       })
       .catch(() => {});
     listSystemPrompts()
@@ -81,13 +83,14 @@ export function SettingsPanel() {
     };
   }, [systemPromptText]);
 
-  const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number }) => {
+  const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) => {
     setSaving(true);
     try {
       const cfg = await updateConfig(patch);
       setCtxSize(cfg.ctx_size);
       setNGpuLayers(cfg.n_gpu_layers);
       setTemperature(cfg.temperature ?? 0.8);
+      setCompletionLength(cfg.completion_length ?? 80);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
@@ -333,6 +336,43 @@ export function SettingsPanel() {
                 value={temperature}
                 onChange={(e) => setTemperature(Number(e.target.value))}
                 onMouseUp={() => void handleSave({ temperature })}
+              />
+            </div>
+
+            {/* Completion Length */}
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("自動補完で生成するテキストの最大トークン数。短いほど速く表示されます。（範囲: 10〜300、デフォルト: 80）")} onMouseLeave={onTipLeave}>Completion Length</span>
+                <div className="settings-field-controls">
+                  {completionLength !== DEFAULTS.completion_length && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCompletionLength(DEFAULTS.completion_length); void handleSave({ completion_length: DEFAULTS.completion_length }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <input
+                    className="settings-number-input"
+                    type="number"
+                    min={10}
+                    max={300}
+                    step={10}
+                    value={completionLength}
+                    onChange={(e) => setCompletionLength(Number(e.target.value))}
+                    onBlur={() => void handleSave({ completion_length: completionLength })}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ completion_length: completionLength }); }}
+                  />
+                </div>
+              </div>
+              <input
+                className="settings-slider"
+                type="range"
+                min={10}
+                max={300}
+                step={10}
+                value={completionLength}
+                onChange={(e) => setCompletionLength(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ completion_length: completionLength })}
               />
             </div>
 

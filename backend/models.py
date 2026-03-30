@@ -111,6 +111,7 @@ class ConfigUpdate(BaseModel):
     ctx_size: int | None = None
     n_gpu_layers: int | None = None
     temperature: float | None = None
+    completion_length: int | None = None
 
 
 class MemoryChunk(BaseModel):
