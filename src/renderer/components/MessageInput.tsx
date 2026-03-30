@@ -197,7 +197,7 @@ export function MessageInput() {
           <textarea
             ref={textareaRef}
             className={`composer-textarea${suggestion && !correction ? " ghost-active" : ""}`}
-            placeholder={modelReady ? "Send a message to the model..." : "モデルを選択してください..."}
+            placeholder={modelReady ? "ここにメッセージを入力..." : "モデルを選択してください..."}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);

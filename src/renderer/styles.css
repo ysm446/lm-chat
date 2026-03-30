@@ -1961,6 +1961,7 @@ details.thinking-block[open] .thinking-chevron {
   box-sizing: border-box;
 }
 .sys-prompt-textarea:focus { border-color: var(--accent); }
+.sys-prompt-textarea::placeholder { color: var(--text-faint); }
 
 .sys-prompt-footer {
   display: flex;
