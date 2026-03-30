@@ -28,7 +28,7 @@ start.bat
 | `backend/store.py` | SQLite CRUD。セッション・ワークスペース・記憶 |
 | `backend/llm_proxy.py` | llama-server への HTTP プロキシ。システムプロンプト適用・生成統計抽出 |
 | `backend/llama_manager.py` | モデル切り替え・イジェクト・llama-server プロセス管理 |
-| `backend/config_store.py` | `data/config.json` への設定永続化（`ctx_size`, `n_gpu_layers`） |
+| `backend/config_store.py` | `data/config.json` への設定永続化（`ctx_size`, `n_gpu_layers`, `temperature`, `completion_length`） |
 | `backend/settings_store.py` | `data/settings.json` への UI 設定永続化（`show_left`, `show_right`） |
 | `backend/system_prompt_store.py` | `data/system_prompts.json` への保存済みシステムプロンプト管理 |
 | `backend/memory/engine.py` | 記憶保存・検索のエントリポイント |
@@ -46,8 +46,8 @@ start.bat
 | `src/renderer/components/ModelPickerModal.tsx` | モデル選択ダイアログ |
 | `src/renderer/components/Sidebar.tsx` | 左サイドバー。ワークスペース＋セッションのツリー表示 |
 | `src/renderer/components/ChatView.tsx` | メッセージ一覧。生成統計・メッセージアクションボタン |
-| `src/renderer/components/MessageInput.tsx` | 入力エリア。画像添付・トークンリング・送信 |
-| `src/renderer/components/SettingsPanel.tsx` | 右サイドバー。システムプロンプト管理・コンテキスト長・GPU オフロードスライダー |
+| `src/renderer/components/MessageInput.tsx` | 入力エリア。画像添付・トークンリング・インライン補完・選択テキスト校正・送信 |
+| `src/renderer/components/SettingsPanel.tsx` | 右サイドバー。システムプロンプト管理・コンテキスト長・GPU オフロード・Temperature・補完長スライダー |
 | `src/renderer/styles.css` | 全スタイル（CSS 変数ベース、LM Studio 風ダークテーマ） |
 
 ### 設定・データ
@@ -55,7 +55,7 @@ start.bat
 | ファイル | 役割 |
 |---|---|
 | `data/lm_chat.db` | SQLite DB（自動生成） |
-| `data/config.json` | `ctx_size`・`n_gpu_layers` のユーザー設定 |
+| `data/config.json` | `ctx_size`・`n_gpu_layers`・`temperature`・`completion_length` のユーザー設定 |
 | `data/settings.json` | UI 設定（`show_left`・`show_right` サイドバー開閉状態） |
 | `data/system_prompts.json` | 保存済みシステムプロンプト一覧とアクティブテキスト |
 | `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新 |
@@ -108,6 +108,26 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - ストリーミング最終フレームの `timings.predicted_n`・`timings.predicted_per_second`・`timings.predicted_ms`・`choices[0].finish_reason` から生成統計を抽出
 - `llama_manager.py` のモデル切り替えは Windows では `taskkill /F /IM llama-server.exe` でプロセスを終了
 - mmproj（マルチモーダルプロジェクタ）はモデルと同ディレクトリの `*.gguf` ファイルを自動検出
+
+### インライン補完（オートコンプリート）
+- `autocompleteEnabled`（chatStore）が ON のとき、入力テキスト（カーソル前）を 700ms デバウンスで `POST /autocomplete` に送信
+- 補完案はゴーストテキスト（薄色）としてテキストエリア上にオーバーレイ表示（`.composer-ghost-layer`）
+- Tab で確定（カーソル位置に挿入）、Esc でキャンセル
+- テキストが選択されている間は補完を無効化し、代わりに校正モードに入る
+- 補完長は `completion_length`（config）で制御（デフォルト 80 トークン）
+
+### 選択テキスト校正
+- テキストを範囲選択すると 700ms デバウンスで `POST /correct` に選択テキストを送信
+- 校正案はテキストエリアの上に `position: fixed` のポップアップとして表示（紫系ボーダー）
+- Tab で選択範囲を校正案に置換（`document.execCommand('insertText')` でネイティブ undo スタックに記録）、Ctrl+Z で元に戻せる
+- Esc でキャンセル。校正結果が元テキストと同じ場合はポップアップを表示しない
+- `llm_proxy.correct()` は誤字・脱字・文法ミスのみ修正し、内容・表現は変えない指示を持つ
+
+### チャット内検索（Ctrl+F）
+- `ChatView.tsx` 内の検索バー（`.chat-search-bar`）で Ctrl+F トグル
+- カスタム rehype プラグイン（`makeHighlightPlugin`）が HAST ツリーを走査し、ReactMarkdown レンダリング済みテキストにもインラインハイライトを適用
+- 現在のマッチは `.search-highlight.current`（オレンジ系）、その他は `.search-highlight`（黄色系）
+- n/N キーまたはボタンで前後のマッチへ移動
 
 ### フロントエンドの状態管理
 - すべての状態は `chatStore.ts`（Zustand）に集約
@@ -174,7 +194,7 @@ DELETE /memory/workspace/{id}
 GET  /memory/stats
 
 GET  /config
-PATCH /config                             ← ctx_size, n_gpu_layers
+PATCH /config                             ← ctx_size, n_gpu_layers, temperature, completion_length
 
 GET  /settings
 PATCH /settings                           ← show_left, show_right
@@ -185,6 +205,8 @@ DELETE /system-prompts/{id}
 PATCH /system-prompts/active              ← アクティブテキストを保存
 
 POST /tokenize                            ← {"text": str} → {"token_count": int}
+POST /autocomplete                        ← {"text": str} → {"completion": str}
+POST /correct                             ← {"text": str} → {"corrected": str}
 
 GET  /llama/status
 GET  /llama/props                         ← llama-server のモデルプロパティ取得
