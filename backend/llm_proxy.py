@@ -142,6 +142,41 @@ def autocomplete(text: str, max_tokens: int = 80) -> str:
         return ""
 
 
+def correct(text: str) -> str:
+    """選択テキストを校正・改善する"""
+    payload = {
+        "model": LLAMA_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "あなたはテキスト校正アシスタントです。"
+                    "ユーザーが選択したテキストを校正・改善してください。"
+                    "改善後のテキストのみを返してください。説明や前置きは不要です。"
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        "stream": False,
+        "max_tokens": 200,
+        "temperature": 0.3,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "thinking": {"type": "disabled"},
+    }
+    req = request.Request(
+        f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=15) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        return body["choices"][0]["message"]["content"].strip()
+    except Exception:
+        return ""
+
+
 def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,

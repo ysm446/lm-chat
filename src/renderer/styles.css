@@ -1204,6 +1204,38 @@ details.thinking-block[open] .thinking-chevron {
   color: var(--text-faint);
 }
 
+.composer-correction-popup {
+  position: fixed;
+  transform: translateY(-100%);
+  margin-top: -8px;
+  background: #2a2c3a;
+  border: 1px solid rgba(160, 120, 255, 0.45);
+  border-radius: 6px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  pointer-events: none;
+}
+
+.composer-correction-text {
+  color: rgba(190, 150, 255, 0.95);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composer-correction-hint {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .composer-textarea.ghost-active {
   color: transparent;
   caret-color: var(--text);

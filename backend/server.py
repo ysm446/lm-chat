@@ -18,7 +18,7 @@ from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, autocomplete as llm_autocomplete, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
+from .llm_proxy import SYSTEM_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .models import (
@@ -95,6 +95,17 @@ def autocomplete_endpoint(payload: dict) -> dict[str, str]:
         return {"completion": llm_autocomplete(text, max_tokens)}
     except Exception:
         return {"completion": ""}
+
+
+@app.post("/correct")
+def correct_endpoint(payload: dict) -> dict[str, str]:
+    text = payload.get("text", "").strip()
+    if not text or not is_ready():
+        return {"corrected": ""}
+    try:
+        return {"corrected": llm_correct(text)}
+    except Exception:
+        return {"corrected": ""}
 
 
 @app.post("/tokenize")

@@ -112,6 +112,13 @@ export function fetchAutocomplete(text: string) {
   });
 }
 
+export function fetchCorrect(text: string) {
+  return request<{ corrected: string }>("/correct", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
 export function getConfig() {
   return request<{ ctx_size: number; n_gpu_layers: number; temperature: number; completion_length: number }>("/config");
 }

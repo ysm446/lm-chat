@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchAutocomplete, getConfig, getSessionTokenCount } from "../api";
+import { fetchAutocomplete, fetchCorrect, getConfig, getSessionTokenCount } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
@@ -45,7 +45,12 @@ export function MessageInput() {
   const [ctxSize, setCtxSize] = useState(32768);
   const [suggestion, setSuggestion] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
+  const [selStart, setSelStart] = useState(0);
+  const [selEnd, setSelEnd] = useState(0);
+  const [correction, setCorrection] = useState("");
+  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const correctionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
@@ -66,7 +71,14 @@ export function MessageInput() {
   }, [value]);
 
   useEffect(() => {
+    // When text is selected, handle correction instead of autocomplete
+    if (selStart !== selEnd) {
+      setSuggestion("");
+      if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
+      return;
+    }
     setSuggestion("");
+    setCorrection("");
     if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
     const textBeforeCursor = value.slice(0, cursorPos);
     if (!autocompleteEnabled || !textBeforeCursor.trim() || textBeforeCursor.length < 4 || !activeModelPath) return;
@@ -76,7 +88,27 @@ export function MessageInput() {
         .catch(() => {});
     }, 700);
     return () => { if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current); };
-  }, [value, cursorPos, autocompleteEnabled, activeModelPath]);
+  }, [value, cursorPos, selStart, selEnd, autocompleteEnabled, activeModelPath]);
+
+  useEffect(() => {
+    setCorrection("");
+    setCorrectionPos(null);
+    if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current);
+    if (selStart === selEnd || !activeModelPath) return;
+    const selected = value.slice(selStart, selEnd);
+    if (!selected.trim()) return;
+    // Compute popup position from textarea rect
+    if (textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+    correctionTimerRef.current = setTimeout(() => {
+      fetchCorrect(selected)
+        .then((r) => { if (r.corrected && r.corrected !== selected) setCorrection(r.corrected); })
+        .catch(() => {});
+    }, 700);
+    return () => { if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current); };
+  }, [selStart, selEnd, value, activeModelPath]);
 
   const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
   const ringColor =
@@ -107,6 +139,7 @@ export function MessageInput() {
     setImageData(null);
     setImageFileName("");
     setSuggestion("");
+    setCorrection("");
     if (tempChatMode) {
       await sendTempMessage(text);
     } else {
@@ -119,6 +152,17 @@ export function MessageInput() {
   const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageData && !tempChatMode));
 
   return (
+    <>
+    {correction && correctionPos && (
+      <div
+        className="composer-correction-popup"
+        style={{ top: correctionPos.top, left: correctionPos.left, width: correctionPos.width }}
+        aria-live="polite"
+      >
+        <span className="composer-correction-text">{correction}</span>
+        <span className="composer-correction-hint">Tab で置換 · Esc でキャンセル</span>
+      </div>
+    )}
     <section className="input-shell">
       <div className="input-shell-inner">
       <div className="composer">
@@ -145,14 +189,14 @@ export function MessageInput() {
 
         {/* テキストエリア + ゴーストテキストオーバーレイ */}
         <div className="composer-autocomplete-wrap">
-          {suggestion && (
+          {suggestion && !correction && (
             <div className="composer-ghost-layer" aria-hidden="true">
               <span className="composer-ghost-existing">{value.slice(0, cursorPos)}</span><span className="composer-ghost-suggest">{suggestion}</span><span className="composer-ghost-existing">{value.slice(cursorPos)}</span>
             </div>
           )}
           <textarea
             ref={textareaRef}
-            className={`composer-textarea${suggestion ? " ghost-active" : ""}`}
+            className={`composer-textarea${suggestion && !correction ? " ghost-active" : ""}`}
             placeholder={modelReady ? "Send a message to the model..." : "モデルを選択してください..."}
             value={value}
             onChange={(e) => {
@@ -160,6 +204,32 @@ export function MessageInput() {
               setCursorPos(e.target.selectionStart ?? e.target.value.length);
             }}
             onKeyDown={(e) => {
+              if (e.key === "Tab" && correction) {
+                e.preventDefault();
+                const ta = textareaRef.current;
+                if (ta) {
+                  ta.focus();
+                  ta.setSelectionRange(selStart, selEnd);
+                  // execCommand keeps the native undo stack intact (Ctrl+Z works)
+                  const ok = document.execCommand("insertText", false, correction);
+                  if (!ok) {
+                    // fallback: manual replacement without undo support
+                    const newValue = value.slice(0, selStart) + correction + value.slice(selEnd);
+                    setValue(newValue);
+                  }
+                  const newCursor = selStart + correction.length;
+                  setCursorPos(newCursor);
+                  setSelStart(newCursor);
+                  setSelEnd(newCursor);
+                }
+                setCorrection("");
+                return;
+              }
+              if (e.key === "Escape" && correction) {
+                e.preventDefault();
+                setCorrection("");
+                return;
+              }
               if (e.key === "Tab" && suggestion) {
                 e.preventDefault();
                 const before = value.slice(0, cursorPos);
@@ -184,8 +254,24 @@ export function MessageInput() {
                 void handleSend();
               }
             }}
-            onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
-            onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart)}
+            onSelect={(e) => {
+              const t = e.target as HTMLTextAreaElement;
+              setSelStart(t.selectionStart);
+              setSelEnd(t.selectionEnd);
+              setCursorPos(t.selectionStart);
+            }}
+            onClick={(e) => {
+              const t = e.target as HTMLTextAreaElement;
+              setCursorPos(t.selectionStart);
+              setSelStart(t.selectionStart);
+              setSelEnd(t.selectionEnd);
+            }}
+            onKeyUp={(e) => {
+              const t = e.target as HTMLTextAreaElement;
+              setCursorPos(t.selectionStart);
+              setSelStart(t.selectionStart);
+              setSelEnd(t.selectionEnd);
+            }}
             rows={2}
             disabled={!modelReady || isSubmitting}
           />
@@ -296,5 +382,6 @@ export function MessageInput() {
       </div>
       </div>
     </section>
+    </>
   );
 }
