@@ -218,7 +218,17 @@ export function ChatView() {
                   : message.role === "user" ? "ユーザー" : "システム"}
               </span>
               <time>
-                {new Date(message.created_at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                {(() => {
+                  const d = new Date(message.created_at);
+                  const today = new Date();
+                  const isToday = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+                  const isSameYear = d.getFullYear() === today.getFullYear();
+                  return isToday
+                    ? d.toLocaleTimeString("ja-JP", { hour: "numeric", minute: "2-digit" })
+                    : isSameYear
+                      ? d.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })
+                      : d.toLocaleString("ja-JP", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+                })()}
               </time>
             </div>
 
