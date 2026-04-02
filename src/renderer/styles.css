@@ -1114,7 +1114,7 @@ details.thinking-block[open] .thinking-chevron {
 .message-edit-area { display: contents; }
 .message-edit-textarea {
   width: 100%;
-  min-height: 90px;
+  min-height: 44px;
   padding: 12px 14px;
   background: var(--bg-input);
   border: 1.5px solid var(--accent);
@@ -1123,7 +1123,8 @@ details.thinking-block[open] .thinking-chevron {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
-  resize: vertical;
+  resize: none;
+  overflow: hidden;
   box-sizing: border-box;
 }
 .message-edit-textarea:focus { outline: none; }

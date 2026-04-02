@@ -60,6 +60,11 @@ function makeHighlightPlugin(query: string, isCurrent: boolean) {
   };
 }
 
+function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
 function parseThinking(content: string): { thinking: string | null; response: string; streaming: boolean } {
   const complete = content.match(/^<think>([\s\S]*?)<\/think>\n?/);
   if (complete) {
@@ -146,8 +151,10 @@ export function ChatView() {
   }, [session?.messages.length, isSubmitting]);
 
   useEffect(() => {
-    if (editingId) editTextareaRef.current?.focus();
-  }, [editingId]);
+    if (!editingId) return;
+    resizeTextareaToContent(editTextareaRef.current);
+    editTextareaRef.current?.focus();
+  }, [editingContent, editingId]);
 
   const startEdit = (messageId: string, content: string) => {
     setEditingId(messageId);
@@ -241,12 +248,15 @@ export function ChatView() {
                   ref={editTextareaRef}
                   className="message-edit-textarea"
                   value={editingContent}
-                  onChange={(e) => setEditingContent(e.target.value)}
+                  onChange={(e) => {
+                    setEditingContent(e.target.value);
+                    resizeTextareaToContent(e.currentTarget);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void commitEdit(session.id, message.id); }
                     if (e.key === "Escape") setEditingId(null);
                   }}
-                  rows={3}
+                  rows={1}
                 />
               ) : message.role === "user" ? (
                 message.content
