@@ -20,12 +20,33 @@ function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise
   });
 }
 
+function normalizeAutocompleteSuggestion(prefix: string, completion: string) {
+  const normalizedPrefix = prefix.replace(/\r\n/g, "\n");
+  const normalizedCompletion = completion.replace(/\r\n/g, "\n").trimEnd();
+
+  if (!normalizedCompletion) return "";
+  if (normalizedCompletion === normalizedPrefix) return "";
+  if (normalizedCompletion.startsWith(normalizedPrefix)) {
+    return normalizedCompletion.slice(normalizedPrefix.length).replace(/^\s+/, "");
+  }
+
+  const maxOverlap = Math.min(normalizedPrefix.length, normalizedCompletion.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (normalizedPrefix.slice(-overlap) === normalizedCompletion.slice(0, overlap)) {
+      return normalizedCompletion.slice(overlap);
+    }
+  }
+
+  return normalizedCompletion;
+}
+
 export function MessageInput() {
   const [value, setValue] = useState("");
   const [imageData, setImageData] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const ghostLayerRef = useRef<HTMLDivElement>(null);
 
   const sendMessage = useChatStore((state) => state.sendMessage);
   const sendTempMessage = useChatStore((state) => state.sendTempMessage);
@@ -48,9 +69,11 @@ export function MessageInput() {
   const [selStart, setSelStart] = useState(0);
   const [selEnd, setSelEnd] = useState(0);
   const [correction, setCorrection] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const correctionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autocompleteRequestIdRef = useRef(0);
 
   useEffect(() => {
     getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
@@ -68,36 +91,59 @@ export function MessageInput() {
     if (!textarea) return;
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`;
+    if (ghostLayerRef.current) {
+      ghostLayerRef.current.style.transform = `translateY(-${textarea.scrollTop}px)`;
+    }
   }, [value]);
 
   useEffect(() => {
-    // When text is selected, handle correction instead of autocomplete
-    if (selStart !== selEnd) {
+    autocompleteRequestIdRef.current += 1;
+
+    if (selStart !== selEnd || isComposing) {
       setSuggestion("");
       if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
       return;
     }
+
     setSuggestion("");
     setCorrection("");
     if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
     const textBeforeCursor = value.slice(0, cursorPos);
     if (!autocompleteEnabled || !textBeforeCursor.trim() || textBeforeCursor.length < 4 || !activeModelPath) return;
+
+    const requestId = autocompleteRequestIdRef.current;
+    const expectedValue = value;
+    const expectedCursor = cursorPos;
+
     autocompleteTimerRef.current = setTimeout(() => {
       fetchAutocomplete(textBeforeCursor)
-        .then((r) => setSuggestion(r.completion))
+        .then((r) => {
+          const textarea = textareaRef.current;
+          if (!textarea) return;
+          if (requestId !== autocompleteRequestIdRef.current) return;
+          if (isComposing) return;
+          if (textarea.value !== expectedValue) return;
+          if ((textarea.selectionStart ?? expectedCursor) !== expectedCursor) return;
+
+          const nextSuggestion = normalizeAutocompleteSuggestion(textBeforeCursor, r.completion);
+          if (!nextSuggestion || textarea.value.slice(expectedCursor).startsWith(nextSuggestion)) {
+            setSuggestion("");
+            return;
+          }
+          setSuggestion(nextSuggestion);
+        })
         .catch(() => {});
     }, 700);
     return () => { if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current); };
-  }, [value, cursorPos, selStart, selEnd, autocompleteEnabled, activeModelPath]);
+  }, [value, cursorPos, selStart, selEnd, autocompleteEnabled, activeModelPath, isComposing]);
 
   useEffect(() => {
     setCorrection("");
     setCorrectionPos(null);
     if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current);
-    if (selStart === selEnd || !activeModelPath) return;
+    if (selStart === selEnd || !activeModelPath || isComposing) return;
     const selected = value.slice(selStart, selEnd);
     if (!selected.trim()) return;
-    // Compute popup position from textarea rect
     if (textareaRef.current) {
       const rect = textareaRef.current.getBoundingClientRect();
       setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
@@ -108,7 +154,7 @@ export function MessageInput() {
         .catch(() => {});
     }, 700);
     return () => { if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current); };
-  }, [selStart, selEnd, value, activeModelPath]);
+  }, [selStart, selEnd, value, activeModelPath, isComposing]);
 
   const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
   const ringColor =
@@ -149,6 +195,7 @@ export function MessageInput() {
   };
 
   const modelReady = !!activeModelPath;
+  const showGhost = !!suggestion && !correction && !isComposing;
   const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageData && !tempChatMode));
 
   return (
@@ -174,7 +221,6 @@ export function MessageInput() {
           onChange={(e) => void handleFileChange(e)}
         />
 
-        {/* 画像プレビュー */}
         {imageData && (
           <div className="image-preview-row">
             <img src={imageData} alt={imageFileName} className="image-preview-thumb" />
@@ -187,21 +233,36 @@ export function MessageInput() {
           </div>
         )}
 
-        {/* テキストエリア + ゴーストテキストオーバーレイ */}
         <div className="composer-autocomplete-wrap">
-          {suggestion && !correction && (
-            <div className="composer-ghost-layer" aria-hidden="true">
+          {showGhost && (
+            <div ref={ghostLayerRef} className="composer-ghost-layer" aria-hidden="true">
               <span className="composer-ghost-existing">{value.slice(0, cursorPos)}</span><span className="composer-ghost-suggest">{suggestion}</span><span className="composer-ghost-existing">{value.slice(cursorPos)}</span>
             </div>
           )}
           <textarea
             ref={textareaRef}
-            className={`composer-textarea${suggestion && !correction ? " ghost-active" : ""}`}
+            className={`composer-textarea${showGhost ? " ghost-active" : ""}`}
             placeholder={modelReady ? "ここにメッセージを入力..." : "モデルを選択してください..."}
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
               setCursorPos(e.target.selectionStart ?? e.target.value.length);
+            }}
+            onCompositionStart={() => {
+              autocompleteRequestIdRef.current += 1;
+              setIsComposing(true);
+              setSuggestion("");
+            }}
+            onCompositionEnd={(e) => {
+              setIsComposing(false);
+              setCursorPos(e.currentTarget.selectionStart ?? e.currentTarget.value.length);
+              setSelStart(e.currentTarget.selectionStart ?? 0);
+              setSelEnd(e.currentTarget.selectionEnd ?? 0);
+            }}
+            onScroll={(e) => {
+              if (ghostLayerRef.current) {
+                ghostLayerRef.current.style.transform = `translateY(-${e.currentTarget.scrollTop}px)`;
+              }
             }}
             onKeyDown={(e) => {
               if (e.key === "Tab" && correction) {
@@ -210,10 +271,8 @@ export function MessageInput() {
                 if (ta) {
                   ta.focus();
                   ta.setSelectionRange(selStart, selEnd);
-                  // execCommand keeps the native undo stack intact (Ctrl+Z works)
                   const ok = document.execCommand("insertText", false, correction);
                   if (!ok) {
-                    // fallback: manual replacement without undo support
                     const newValue = value.slice(0, selStart) + correction + value.slice(selEnd);
                     setValue(newValue);
                   }
@@ -249,7 +308,7 @@ export function MessageInput() {
                 setSuggestion("");
                 return;
               }
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !isComposing) {
                 e.preventDefault();
                 void handleSend();
               }
@@ -277,10 +336,8 @@ export function MessageInput() {
           />
         </div>
 
-        {/* ボトムアクションバー */}
         <div className="composer-bottom">
           <div className="composer-bottom-left">
-            {/* 画像添付 */}
             <button
               className="composer-icon-btn"
               onClick={() => fileInputRef.current?.click()}
@@ -294,7 +351,6 @@ export function MessageInput() {
               </svg>
             </button>
 
-            {/* 記憶トグル */}
             <button
               className={`composer-chip${memoryEnabled ? " active" : ""}`}
               onClick={toggleMemory}
@@ -303,7 +359,6 @@ export function MessageInput() {
               記憶
             </button>
 
-            {/* 思考モードトグル */}
             <button
               className={`composer-chip${thinkingEnabled ? " active" : ""}`}
               onClick={toggleThinking}
@@ -312,7 +367,6 @@ export function MessageInput() {
               思考
             </button>
 
-            {/* 自動補完トグル */}
             <button
               className={`composer-chip${autocompleteEnabled ? " active" : ""}`}
               onClick={toggleAutocomplete}
@@ -323,7 +377,6 @@ export function MessageInput() {
           </div>
 
           <div className="composer-bottom-right">
-            {/* トークンリング */}
             <div className="token-ring-wrapper">
               <svg width="26" height="26" viewBox="0 0 26 26" className="token-ring-svg">
                 <circle cx="13" cy="13" r={radius} fill="none" stroke="var(--border-strong)" strokeWidth="2.2" />
@@ -353,7 +406,6 @@ export function MessageInput() {
 
             <div className="composer-divider" />
 
-            {/* 送信 / 停止ボタン */}
             {isSubmitting ? (
               <button
                 className="composer-stop-btn"
