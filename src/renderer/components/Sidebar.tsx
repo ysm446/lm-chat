@@ -18,6 +18,7 @@ export function Sidebar() {
   const removeWorkspace = useChatStore((s) => s.removeWorkspace);
   const removeSession = useChatStore((s) => s.removeSession);
   const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
+  const reorderSessions = useChatStore((s) => s.reorderSessions);
 
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(currentWorkspaceId ? [currentWorkspaceId] : [])
@@ -38,6 +39,8 @@ export function Sidebar() {
 
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [sessionDragId, setSessionDragId] = useState<string | null>(null);
+  const [sessionDragOverId, setSessionDragOverId] = useState<string | null>(null);
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
@@ -139,7 +142,7 @@ export function Sidebar() {
   };
 
   return (
-    <div className="sidebar">
+    <div className={`sidebar${dragId ? " workspace-dragging" : ""}${sessionDragId ? " session-dragging" : ""}`}>
       <div className="sidebar-header">
         {showNewWs ? (
           <div className="inline-edit-row" style={{ flex: 1 }}>
@@ -178,8 +181,12 @@ export function Sidebar() {
             <div
             key={ws.id}
             className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); if (dragId && dragId !== ws.id) setDragOverId(ws.id); }}
-            onDragLeave={() => setDragOverId(null)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dragId && dragId !== ws.id) setDragOverId(ws.id);
+            }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null); }}
             onDrop={(e) => {
               e.preventDefault();
               if (!dragId || dragId === ws.id) { setDragId(null); setDragOverId(null); return; }
@@ -226,7 +233,7 @@ export function Sidebar() {
                 </div>
               ) : (
                 <div className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}>
-                  <span className="ws-drag-handle" title="ドラッグして並べ替え" draggable onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; }}>
+                  <span className="ws-drag-handle" title="ドラッグして並べ替え" draggable onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ws.id); }}>
                     <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
                       <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
                       <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
@@ -275,7 +282,27 @@ export function Sidebar() {
                   {wsSessions.map((session) => (
                     <div
                       key={session.id}
-                      className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}`}
+                      className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = "move";
+                        if (sessionDragId && sessionDragId !== session.id) setSessionDragOverId(session.id);
+                      }}
+                      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSessionDragOverId(null); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!sessionDragId || sessionDragId === session.id) { setSessionDragId(null); setSessionDragOverId(null); return; }
+                        const from = wsSessions.findIndex((s) => s.id === sessionDragId);
+                        const to = wsSessions.findIndex((s) => s.id === session.id);
+                        if (from < 0 || to < 0) return;
+                        const next = [...wsSessions];
+                        const [moved] = next.splice(from, 1);
+                        next.splice(to, 0, moved);
+                        void reorderSessions(next.map((s) => s.id));
+                        setSessionDragId(null);
+                        setSessionDragOverId(null);
+                      }}
+                      onDragEnd={() => { setSessionDragId(null); setSessionDragOverId(null); }}
                     >
                       {editingSessionId === session.id ? (
                         <div className="inline-edit-row" style={{ flex: 1, padding: "2px 0" }}>
@@ -294,6 +321,18 @@ export function Sidebar() {
                         </div>
                       ) : (
                         <>
+                          <span
+                            className="ws-drag-handle"
+                            title="ドラッグして並べ替え"
+                            draggable
+                            onDragStart={(e) => { setSessionDragId(session.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", session.id); }}
+                          >
+                            <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                              <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
+                              <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
+                            </svg>
+                          </span>
                           <button
                             className="sidebar-session-btn"
                             onClick={() => void selectSession(session.id)}

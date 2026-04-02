@@ -12,6 +12,7 @@ import {
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
   reorderWorkspaces as reorderWorkspacesRequest,
+  reorderSessions as reorderSessionsRequest,
   ejectLlamaModel,
   getLlamaStatus,
   getSession,
@@ -61,6 +62,7 @@ type ChatState = {
   toggleThinking: () => void;
   toggleAutocomplete: () => void;
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
+  reorderSessions: (orderedIds: string[]) => Promise<void>;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
   renameWorkspace: (workspaceId: string, name: string, description: string) => Promise<void>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
@@ -307,6 +309,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .filter((w): w is ApiWorkspace => w != null)
     }));
     await reorderWorkspacesRequest(orderedIds);
+  },
+
+  reorderSessions: async (orderedIds) => {
+    set((state) => ({
+      sessions: [
+        ...orderedIds
+          .map((id) => state.sessions.find((s) => s.id === id))
+          .filter((s): s is ApiSession => s != null),
+        ...state.sessions.filter((s) => !orderedIds.includes(s.id)),
+      ]
+    }));
+    await reorderSessionsRequest(orderedIds);
   },
 
   createWorkspace: async (name, description) => {

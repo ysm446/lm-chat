@@ -33,6 +33,10 @@ class WorkspaceReorderRequest(BaseModel):
     ids: list[str]
 
 
+class SessionReorderRequest(BaseModel):
+    ids: list[str]
+
+
 class Message(BaseModel):
     id: str
     role: Literal["user", "assistant", "system"]
@@ -62,6 +66,7 @@ class Session(BaseModel):
     workspace_id: str
     title: str
     model_name: str = "Qwen3.5-27B"
+    sort_order: int = 0
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
     messages: list[Message] = Field(default_factory=list)

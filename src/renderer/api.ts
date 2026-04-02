@@ -93,6 +93,13 @@ export function reorderWorkspaces(ids: string[]) {
   });
 }
 
+export function reorderSessions(ids: string[]) {
+  return request<{ ok: boolean }>("/history/sessions/reorder", {
+    method: "POST",
+    body: JSON.stringify({ ids })
+  });
+}
+
 export function listSessions(workspaceId: string) {
   return request<ApiSession[]>(`/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}`);
 }

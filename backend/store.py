@@ -91,6 +91,12 @@ class SQLiteStore:
                 conn.commit()
             except Exception:
                 pass  # already exists
+            # sessions sort_order カラムのマイグレーション
+            try:
+                conn.execute("ALTER TABLE sessions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass  # already exists
             # image_data カラムのマイグレーション（既存 DB 対応）
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN image_data TEXT")
@@ -289,10 +295,10 @@ class SQLiteStore:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT id, workspace_id, title, model_name, created_at, updated_at
+                SELECT id, workspace_id, title, model_name, created_at, updated_at, sort_order
                 FROM sessions
                 WHERE workspace_id = ?
-                ORDER BY updated_at DESC
+                ORDER BY sort_order ASC, created_at ASC
                 """,
                 (workspace_id,),
             ).fetchall()
@@ -302,7 +308,7 @@ class SQLiteStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, workspace_id, title, model_name, created_at, updated_at
+                SELECT id, workspace_id, title, model_name, sort_order, created_at, updated_at
                 FROM sessions
                 WHERE id = ?
                 """,
@@ -313,23 +319,35 @@ class SQLiteStore:
             return self._session_from_row(row, conn)
 
     def create_session(self, payload: SessionCreate) -> Session:
-        session = Session(id=self._new_id("session"), **payload.model_dump())
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT MAX(sort_order) AS max_order FROM sessions WHERE workspace_id = ?",
+                (payload.workspace_id,),
+            ).fetchone()
+            next_order = (row["max_order"] or 0) + 1
+        session = Session(id=self._new_id("session"), sort_order=next_order, **payload.model_dump())
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO sessions (id, workspace_id, title, model_name, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sessions (id, workspace_id, title, model_name, sort_order, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session.id,
                     session.workspace_id,
                     session.title,
                     session.model_name,
+                    session.sort_order,
                     session.created_at,
                     session.updated_at,
                 ),
             )
         return session
+
+    def reorder_sessions(self, ids: list[str]) -> None:
+        with self._connect() as conn:
+            for order, session_id in enumerate(ids):
+                conn.execute("UPDATE sessions SET sort_order = ? WHERE id = ?", (order, session_id))
 
     def update_session(self, session_id: str, payload: SessionUpdate) -> Session | None:
         current = self.get_session(session_id)

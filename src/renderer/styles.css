@@ -332,6 +332,9 @@ a { color: var(--accent); }
 }
 .sidebar-ws-group.drag-over { outline: 1px solid var(--accent); background: var(--accent-soft); }
 .sidebar-ws-group.dragging { opacity: 0.4; }
+.sidebar-session-row.drag-over { outline: 1px solid var(--accent-border); background: var(--accent-soft); }
+.sidebar-session-row.dragging { opacity: 0.45; }
+
 .ws-drag-handle {
   display: flex;
   align-items: center;
@@ -343,6 +346,7 @@ a { color: var(--accent); }
   transition: opacity 0.15s;
 }
 .sidebar-ws-row:hover .ws-drag-handle { opacity: 1; }
+.sidebar-session-row:hover .ws-drag-handle { opacity: 1; }
 
 .sidebar-ws-row {
   display: flex;

@@ -38,6 +38,7 @@ from .models import (
     Workspace,
     WorkspaceCreate,
     WorkspaceReorderRequest,
+    SessionReorderRequest,
     WorkspaceUpdate,
 )
 from .search.web_search import search_web
@@ -209,6 +210,12 @@ def delete_workspace(workspace_id: str) -> dict[str, int | bool]:
 @app.post("/workspaces/reorder")
 def reorder_workspaces(payload: WorkspaceReorderRequest) -> dict:
     store.reorder_workspaces(payload.ids)
+    return {"ok": True}
+
+
+@app.post("/history/sessions/reorder")
+def reorder_sessions(payload: SessionReorderRequest) -> dict:
+    store.reorder_sessions(payload.ids)
     return {"ok": True}
 
 
