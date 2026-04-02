@@ -931,6 +931,7 @@ a { color: var(--accent); }
 .message-card.assistant {
   align-self: flex-start;
   align-items: flex-start;
+  max-width: 100%;
 }
 
 .message-card.system {
@@ -964,17 +965,14 @@ a { color: var(--accent); }
 }
 
 .message-card.user p {
-  background: var(--user-bubble);
-  color: #f7f8ff;
-  border: 1px solid var(--user-bubble-border);
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-bottom-right-radius: var(--r-sm);
 }
 
 .message-card.assistant p {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
   color: var(--text);
-  border-bottom-left-radius: var(--r-sm);
 }
 
 /* Markdown body */
@@ -1003,15 +1001,18 @@ a { color: var(--accent); }
   border-bottom-left-radius: var(--r-sm);
 }
 .message-card.assistant .message-body {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  width: 100%;
 }
 .message-card.user .message-body {
   padding: 12px 16px;
   border-radius: var(--r-lg);
   border-bottom-right-radius: var(--r-sm);
-  background: var(--user-bubble);
-  border: 1px solid var(--user-bubble-border);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
 }
 
 .message-card.system p {
