@@ -18,7 +18,8 @@ LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.
 def get_llama_paths() -> dict:
     if _PATHS_FILE.exists():
         try:
-            return json.loads(_PATHS_FILE.read_text("utf-8"))
+            # PowerShell Out-File may emit a UTF-8 BOM on Windows.
+            return json.loads(_PATHS_FILE.read_text("utf-8-sig"))
         except Exception as exc:
             logger.warning("Failed to read llama_paths.json: %s", exc)
     return {}
