@@ -5,7 +5,7 @@
   "description": "Local LLM chat app with workspace-scoped memory",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev": "vite --host 127.0.0.1 --strictPort",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

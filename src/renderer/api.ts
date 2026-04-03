@@ -31,7 +31,6 @@ export type ApiWorkspace = {
   updated_at: string;
 };
 
-
 export type ChatStreamEvent =
   | { type: "token"; content: string }
   | { type: "done"; session: ApiSession }
@@ -43,7 +42,7 @@ export type LocalModel = {
   size_bytes: number;
 };
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -172,7 +171,6 @@ export function switchLlamaModel(modelPath: string) {
     body: JSON.stringify({ model_path: modelPath }),
   });
 }
-
 
 export function createSession(workspaceId: string, title: string, modelName?: string) {
   return request<ApiSession>("/history/sessions", {

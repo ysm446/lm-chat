@@ -25,26 +25,93 @@ if errorlevel 1 (
   exit /b 1
 )
 
-:: llama-server の exe パスを保存（モデルは起動せず空のまま）
+if defined LM_CHAT_BACKEND_PORT (
+  set "BACKEND_PORT=%LM_CHAT_BACKEND_PORT%"
+) else (
+  for /f %%i in ('powershell -NoLogo -NoProfile -Command "$start=8000;$end=8100;for($port=$start;$port -le $end;$port++){try{$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port);$listener.Start();$listener.Stop();Write-Output $port;exit 0}catch{if($listener){$listener.Stop()}}};exit 1"') do set "BACKEND_PORT=%%i"
+)
+
+if defined LM_CHAT_FRONTEND_PORT (
+  set "FRONTEND_PORT=%LM_CHAT_FRONTEND_PORT%"
+) else (
+  for /f %%i in ('powershell -NoLogo -NoProfile -Command "$start=5173;$end=5273;for($port=$start;$port -le $end;$port++){try{$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port);$listener.Start();$listener.Stop();Write-Output $port;exit 0}catch{if($listener){$listener.Stop()}}};exit 1"') do set "FRONTEND_PORT=%%i"
+)
+
+if defined LM_CHAT_LLAMA_PORT (
+  set "LLAMA_PORT=%LM_CHAT_LLAMA_PORT%"
+) else (
+  for /f %%i in ('powershell -NoLogo -NoProfile -Command "$start=8080;$end=8180;for($port=$start;$port -le $end;$port++){try{$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port);$listener.Start();$listener.Stop();Write-Output $port;exit 0}catch{if($listener){$listener.Stop()}}};exit 1"') do set "LLAMA_PORT=%%i"
+)
+
+if not defined BACKEND_PORT (
+  echo ERROR: Failed to choose backend port.
+  pause
+  exit /b 1
+)
+
+if not defined FRONTEND_PORT (
+  echo ERROR: Failed to choose frontend port.
+  pause
+  exit /b 1
+)
+
+if not defined LLAMA_PORT (
+  echo ERROR: Failed to choose llama-server port.
+  pause
+  exit /b 1
+)
+
+if "%BACKEND_PORT%"=="%FRONTEND_PORT%" (
+  echo ERROR: backend and frontend ports resolved to the same value.
+  pause
+  exit /b 1
+)
+
+if "%BACKEND_PORT%"=="%LLAMA_PORT%" (
+  echo ERROR: backend and llama ports resolved to the same value.
+  pause
+  exit /b 1
+)
+
+if "%FRONTEND_PORT%"=="%LLAMA_PORT%" (
+  echo ERROR: frontend and llama ports resolved to the same value.
+  pause
+  exit /b 1
+)
+
+set "BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%"
+set "FRONTEND_URL=http://127.0.0.1:%FRONTEND_PORT%"
+set "LLAMA_BASE_URL=http://127.0.0.1:%LLAMA_PORT%"
+set "BACKEND_TITLE=LM Chat Backend %BACKEND_PORT%"
+set "FRONTEND_TITLE=LM Chat Frontend %FRONTEND_PORT%"
+set "LLAMA_SERVER_BASE_URL=%LLAMA_BASE_URL%"
+set "LLAMA_MODEL=Huihui-Qwen3.5-27B-abliterated"
+set "VITE_API_BASE_URL=%BACKEND_URL%"
+set "LM_CHAT_API_BASE_URL=%BACKEND_URL%"
+
+echo Using backend  : %BACKEND_URL%
+echo Using frontend : %FRONTEND_URL%
+echo Using llama    : %LLAMA_BASE_URL%
+
 mkdir "%CD%\data" 2>nul
-powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1}|ConvertTo-Json|Out-File $p -Encoding ascii -Force"
+powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1;llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'}|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
 
 echo Starting backend...
-start "LM Chat Backend" /min cmd /c "set LLAMA_SERVER_BASE_URL=http://127.0.0.1:8080 && set LLAMA_MODEL=Huihui-Qwen3.5-27B-abliterated && "%CONDA_EXE%" run --no-capture-output -n main python -m uvicorn backend.server:app --reload"
+start "%BACKEND_TITLE%" /min "%CONDA_EXE%" run --no-capture-output -n main python -m uvicorn backend.server:app --reload --host 127.0.0.1 --port %BACKEND_PORT%
 
 echo Starting frontend...
-start "LM Chat Frontend" /min cmd /c "npm run dev"
+start "%FRONTEND_TITLE%" /min cmd /c "call npm run dev -- --port %FRONTEND_PORT%"
 
-echo Waiting for backend on http://127.0.0.1:8000 ...
-powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='http://127.0.0.1:8000/health';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
+echo Waiting for backend on %BACKEND_URL% ...
+powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='%BACKEND_URL%/health';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
 if errorlevel 1 (
   echo ERROR: Backend did not become ready within 60 seconds.
   pause
   exit /b 1
 )
 
-echo Waiting for frontend on http://127.0.0.1:5173 ...
-powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='http://127.0.0.1:5173';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
+echo Waiting for frontend on %FRONTEND_URL% ...
+powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='%FRONTEND_URL%';for($i=0;$i-lt 60;$i++){try{Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2|Out-Null;exit 0}catch{Start-Sleep -Seconds 1}};exit 1"
 if errorlevel 1 (
   echo ERROR: Frontend did not become ready within 60 seconds.
   pause
@@ -52,13 +119,13 @@ if errorlevel 1 (
 )
 
 echo Launching Electron...
-set "VITE_DEV_SERVER_URL=http://127.0.0.1:5173"
+set "VITE_DEV_SERVER_URL=%FRONTEND_URL%"
 call npm run electron:dev
 
-echo Electron closed. Stopping all processes...
-taskkill /fi "WINDOWTITLE eq LM Chat Backend" /f /t >nul 2>nul
-taskkill /fi "WINDOWTITLE eq LM Chat llama-server" /f /t >nul 2>nul
-powershell -NoLogo -NoProfile -Command "try{$p=(Get-NetTCPConnection -LocalPort 5173 -EA Stop).OwningProcess|Select -First 1;if($p){Stop-Process -Id $p -Force -EA SilentlyContinue}}catch{}"
+echo Electron closed. Stopping this app's processes...
+taskkill /fi "WINDOWTITLE eq %BACKEND_TITLE%" /f /t >nul 2>nul
+taskkill /fi "WINDOWTITLE eq %FRONTEND_TITLE%" /f /t >nul 2>nul
 
 endlocal
 exit
+

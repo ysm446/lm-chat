@@ -25,6 +25,8 @@ function createWindow() {
   }
 }
 
+app.commandLine.appendSwitch("disable-gpu-disk-cache");
+
 app.whenReady().then(() => {
   createWindow();
 
