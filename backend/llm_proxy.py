@@ -142,18 +142,21 @@ def autocomplete(text: str, max_tokens: int = 80) -> str:
         return ""
 
 
-def correct(text: str) -> str:
+_DEFAULT_CORRECTION_PROMPT = (
+    "あなたはテキスト校正アシスタントです。"
+    "ユーザーが選択したテキストを校正・改善してください。"
+    "改善後のテキストのみを返してください。説明や前置きは不要です。"
+)
+
+
+def correct(text: str, system_prompt: str | None = None) -> str:
     """選択テキストを校正・改善する"""
     payload = {
         "model": LLAMA_MODEL,
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "あなたはテキスト校正アシスタントです。"
-                    "ユーザーが選択したテキストを校正・改善してください。"
-                    "改善後のテキストのみを返してください。説明や前置きは不要です。"
-                ),
+                "content": system_prompt if system_prompt else _DEFAULT_CORRECTION_PROMPT,
             },
             {"role": "user", "content": text},
         ],

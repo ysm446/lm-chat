@@ -104,7 +104,14 @@ def correct_endpoint(payload: dict) -> dict[str, str]:
     if not text or not is_ready():
         return {"corrected": ""}
     try:
-        return {"corrected": llm_correct(text)}
+        system_prompt: str | None = None
+        correction_prompt_id = get_settings_data().get("correction_prompt_id", "")
+        if correction_prompt_id:
+            all_prompts = get_system_prompts().get("prompts", [])
+            matched = next((p for p in all_prompts if p["id"] == correction_prompt_id), None)
+            if matched:
+                system_prompt = matched["content"]
+        return {"corrected": llm_correct(text, system_prompt)}
     except Exception:
         return {"corrected": ""}
 

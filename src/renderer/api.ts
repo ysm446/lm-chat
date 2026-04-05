@@ -137,11 +137,11 @@ export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; 
 }
 
 export function getSettings() {
-  return request<{ show_left: boolean; show_right: boolean }>("/settings");
+  return request<{ show_left: boolean; show_right: boolean; correction_prompt_id: string }>("/settings");
 }
 
-export function updateSettings(patch: { show_left?: boolean; show_right?: boolean }) {
-  return request<{ show_left: boolean; show_right: boolean }>("/settings", {
+export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; correction_prompt_id?: string }) {
+  return request<{ show_left: boolean; show_right: boolean; correction_prompt_id: string }>("/settings", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

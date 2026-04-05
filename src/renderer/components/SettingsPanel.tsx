@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -38,6 +38,7 @@ export function SettingsPanel() {
   const [namingMode, setNamingMode] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [correctionPromptId, setCorrectionPromptId] = useState("");
 
   useEffect(() => {
     getConfig()
@@ -53,6 +54,9 @@ export function SettingsPanel() {
         setSavedPrompts(data.prompts);
         if (data.active_id) setSelectedPromptId(data.active_id);
       })
+      .catch(() => {});
+    getSettings()
+      .then((s) => { if (s.correction_prompt_id) setCorrectionPromptId(s.correction_prompt_id); })
       .catch(() => {});
   }, []);
 
@@ -279,6 +283,25 @@ export function SettingsPanel() {
               <span className="sys-prompt-token-count">
                 {tokenCount !== null ? `Token count: ${tokenCount}` : ""}
               </span>
+            </div>
+            <div className="sys-prompt-correction-row">
+              <span className="sys-prompt-correction-label" onMouseEnter={onTipEnter("テキスト選択時の校正に使うシステムプロンプト。未選択時はデフォルトの校正プロンプトを使用します。")} onMouseLeave={onTipLeave}>
+                校正プロンプト
+              </span>
+              <select
+                className="sys-prompt-select sys-prompt-correction-select"
+                value={correctionPromptId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setCorrectionPromptId(id);
+                  updateSettings({ correction_prompt_id: id }).catch(() => {});
+                }}
+              >
+                <option value="">-- デフォルト --</option>
+                {savedPrompts.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}
