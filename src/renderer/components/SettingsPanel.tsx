@@ -583,7 +583,6 @@ export function SettingsPanel() {
                   />
                 </div>
               </div>
-              <p className="settings-field-hint">-1 = 全レイヤーをGPUへ。変更は次回モデルロード時に反映されます。</p>
               <input
                 className="settings-slider"
                 type="range"
