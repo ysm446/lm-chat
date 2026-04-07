@@ -5,6 +5,7 @@ import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
+import { applyUIFont } from "./fontOptions";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
 import { useChatStore } from "./stores/chatStore";
 
@@ -52,6 +53,7 @@ export function App() {
     getSettings().then((s) => {
       setShowLeft(s.show_left);
       setShowRight(s.show_right);
+      applyUIFont(s.ui_font);
     }).catch(() => {});
   }, []);
 

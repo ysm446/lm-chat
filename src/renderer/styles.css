@@ -39,7 +39,7 @@
   --r-lg:  14px;
   --r-xl:  18px;
 
-  font-family: "Inter", "Segoe UI", "Noto Sans JP", system-ui, sans-serif;
+  font-family: var(--app-font-family, "Inter", "Segoe UI", "Noto Sans JP", system-ui, sans-serif);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -1973,6 +1973,7 @@ details.thinking-block[open] .thinking-chevron {
   outline: none;
 }
 .sys-prompt-select:focus { border-color: var(--accent); }
+.ui-font-select-custom { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
 
 .sys-prompt-name-input {
   flex: 1;

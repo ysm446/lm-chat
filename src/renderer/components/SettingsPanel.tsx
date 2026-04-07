@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
+import { applyUIFont, DEFAULT_UI_FONT, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -38,6 +39,7 @@ export function SettingsPanel() {
   const [contextOpen, setContextOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
+  const [interfaceOpen, setInterfaceOpen] = useState(false);
   const [completionOpen, setCompletionOpen] = useState(false);
 
   // System prompt state
@@ -52,6 +54,7 @@ export function SettingsPanel() {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [correctionMode, setCorrectionMode] = useState<CorrectionMode>("standard");
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
+  const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
 
   useEffect(() => {
     getConfig()
@@ -70,6 +73,9 @@ export function SettingsPanel() {
       .catch(() => {});
     getSettings()
       .then((s) => {
+        const nextUIFont = s.ui_font || DEFAULT_UI_FONT;
+        setUIFont(nextUIFont);
+        applyUIFont(nextUIFont);
         setCorrectionEnabled(s.correction_enabled ?? true);
         const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
@@ -301,6 +307,49 @@ export function SettingsPanel() {
               <span className="sys-prompt-token-count">
                 {tokenCount !== null ? `Token count: ${tokenCount}` : ""}
               </span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Interface */}
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setInterfaceOpen((v) => !v)} onMouseEnter={onTipEnter("Switch the UI text font for the app.")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
+            </svg>
+          </span>
+          <span>Interface</span>
+          <svg className={`settings-chevron${interfaceOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {interfaceOpen && (
+          <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("Choose the font used for interface text.")} onMouseLeave={onTipLeave}>Text Font</span>
+              </div>
+              <select
+                className={`sys-prompt-select${uiFont !== DEFAULT_UI_FONT ? " ui-font-select-custom" : ""}`}
+                value={uiFont}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const previous = uiFont;
+                  setUIFont(next);
+                  applyUIFont(next);
+                  updateSettings({ ui_font: next }).catch(() => {
+                    setUIFont(previous);
+                    applyUIFont(previous);
+                  });
+                }}
+              >
+                {UI_FONT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}
