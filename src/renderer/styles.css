@@ -1,4 +1,4 @@
-/* ── Design tokens ────────────────────────────────────── */
+﻿/* Design tokens */
 :root {
   color-scheme: dark;
 
@@ -20,7 +20,7 @@
   --text-dim:      #9499b0;
   --text-faint:    #5c6078;
 
-  /* Accent — LM Studio purple */
+  /* Accent 窶・LM Studio purple */
   --accent:        #7c5af7;
   --accent-hover:  #6d4de6;
   --accent-soft:   rgba(124, 90, 247, 0.12);
@@ -44,7 +44,7 @@
   line-height: 1.6;
 }
 
-/* ── Reset ────────────────────────────────────────────── */
+/* Reset */
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
 body { min-height: 100vh; }
@@ -56,13 +56,13 @@ textarea { resize: none; }
 ul { margin: 0; }
 a { color: var(--accent); }
 
-/* ── Scrollbar ────────────────────────────────────────── */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 
-/* ── App Frame ─────────────────────────────────────────── */
+/* App Frame */
 .app-frame {
   display: flex;
   flex-direction: column;
@@ -70,7 +70,7 @@ a { color: var(--accent); }
   overflow: hidden;
 }
 
-/* ── Model Bar ─────────────────────────────────────────── */
+/* Model Bar */
 .model-bar {
   display: flex;
   align-items: center;
@@ -158,7 +158,7 @@ a { color: var(--accent); }
 }
 .model-bar-eject-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* ── Model Picker Modal ───────────────────────────────── */
+/* Model Picker Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -280,7 +280,7 @@ a { color: var(--accent); }
   font-size: 13px;
 }
 
-/* ── App Shell ────────────────────────────────────────── */
+/* App Shell */
 .app-shell {
   display: grid;
   grid-template-columns: 220px 1px 1fr 1px 280px; /* overridden by inline style */
@@ -298,7 +298,7 @@ a { color: var(--accent); }
 .resize-handle::after {
   content: '';
   position: absolute;
-  inset: 0 -5px; /* 11px の当たり判定 */
+  inset: 0 -5px; /* 11px hit area */
   z-index: 20;
 }
 .resize-handle:hover { background: var(--accent); }
@@ -311,7 +311,7 @@ a { color: var(--accent); }
   background: var(--bg-sidebar);
 }
 
-/* ── Sidebar tree ─────────────────────────────────────── */
+/* Sidebar tree */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -513,7 +513,7 @@ a { color: var(--accent); }
   border-left: 1px solid var(--border);
 }
 
-/* ── Center header ────────────────────────────────────── */
+/* Center header */
 .center-header {
   display: flex;
   align-items: center;
@@ -560,7 +560,7 @@ a { color: var(--accent); }
   flex-shrink: 0;
 }
 
-/* ── Typography helpers ───────────────────────────────── */
+/* Typography helpers */
 .eyebrow {
   font-size: 10px;
   font-weight: 600;
@@ -572,7 +572,7 @@ a { color: var(--accent); }
 .muted { color: var(--text-dim); font-size: 13px; }
 .error-text { color: #f87171; font-size: 13px; margin-top: 8px; }
 
-/* ── Panel ────────────────────────────────────────────── */
+/* Panel */
 .panel {
   padding: 16px;
   border-bottom: 1px solid var(--border);
@@ -595,7 +595,7 @@ a { color: var(--accent); }
   margin-top: 4px;
 }
 
-/* ── Workspace panel ──────────────────────────────────── */
+/* Workspace panel */
 .workspace-panel {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -659,7 +659,7 @@ a { color: var(--accent); }
 .inline-form input:focus { border-color: var(--accent-border); }
 .inline-form input::placeholder { color: var(--text-faint); }
 
-/* ── History panel ────────────────────────────────────── */
+/* History panel */
 .history-panel {
   flex: 1 1 0;
   overflow: hidden;
@@ -708,7 +708,7 @@ a { color: var(--accent); }
 .session-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 .session-row.active .session-item { color: var(--text); }
 
-/* ── Row actions (⋯ button) ───────────────────────────── */
+/* Row actions (more button) */
 .row-actions { display: flex; align-items: center; padding: 0 4px; flex-shrink: 0; }
 
 .row-menu-button {
@@ -725,7 +725,7 @@ a { color: var(--accent); }
 
 .row-menu-button:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 
-/* ── Context menu ─────────────────────────────────────── */
+/* Context menu */
 .context-menu {
   position: fixed;
   z-index: 2000;
@@ -752,7 +752,7 @@ a { color: var(--accent); }
 .context-menu-item.danger { color: #f87171; }
 .context-menu-item.danger:hover { background: var(--danger-soft); }
 
-/* ── Inline edit row ──────────────────────────────────── */
+/* Inline edit row */
 .inline-edit-block {
   display: flex;
   flex-direction: column;
@@ -807,7 +807,7 @@ a { color: var(--accent); }
 }
 .inline-edit-cancel:hover { background: rgba(255,255,255,0.12); color: var(--text); }
 
-/* ── Chat search bar ──────────────────────────────────── */
+/* Chat search bar */
 .chat-search-bar {
   position: sticky;
   top: 0;
@@ -870,7 +870,7 @@ a { color: var(--accent); }
 .message-card.search-match { outline: 1px solid rgba(255, 200, 0, 0.2); }
 .message-card.search-current { outline: 1px solid rgba(255, 200, 0, 0.6); }
 
-/* ── Chat view ────────────────────────────────────────── */
+/* Chat view */
 .chat-view {
   overflow-y: auto;
   padding: 24px;
@@ -1023,7 +1023,7 @@ a { color: var(--accent); }
   border-radius: var(--r-md);
 }
 
-/* ── Thinking block ──────────────────────────────────── */
+/* Thinking block */
 .thinking-block {
   margin-bottom: 10px;
   border: 1px solid var(--border);
@@ -1060,7 +1060,7 @@ details.thinking-block[open] .thinking-chevron {
   line-height: 1.6;
 }
 
-/* ── Message stats ───────────────────────────────────── */
+/* Message stats */
 .message-stats {
   display: flex;
   align-items: center;
@@ -1073,7 +1073,7 @@ details.thinking-block[open] .thinking-chevron {
 .message-stats svg { flex-shrink: 0; opacity: 0.6; }
 .message-stats-sep { opacity: 0.35; }
 
-/* ── Message actions ─────────────────────────────────── */
+/* Message actions */
 .message-actions {
   display: flex;
   flex-direction: row;
@@ -1157,7 +1157,7 @@ details.thinking-block[open] .thinking-chevron {
 }
 .message-edit-save:hover { opacity: 0.88; }
 
-/* ── Input shell ──────────────────────────────────────── */
+/* Input shell */
 .input-shell {
   padding: 12px 20px 16px;
   border-top: 1px solid var(--border);
@@ -1347,7 +1347,7 @@ details.thinking-block[open] .thinking-chevron {
 }
 .composer-stop-btn:hover { background: var(--accent-hover, #5558e3); transform: scale(1.06); }
 
-/* ── Token ring ───────────────────────────────────────── */
+/* Token ring */
 .token-ring-wrapper {
   position: relative;
   display: flex;
@@ -1390,7 +1390,7 @@ details.thinking-block[open] .thinking-chevron {
 
 .token-ring-wrapper:hover .token-ring-tooltip { display: block; }
 
-/* ── Buttons ──────────────────────────────────────────── */
+/* Buttons */
 .primary-button {
   background: var(--accent);
   color: #fff;
@@ -1405,7 +1405,7 @@ details.thinking-block[open] .thinking-chevron {
 
 .primary-button.small { padding: 6px 12px; }
 
-/* ── Image attachment ─────────────────────────────────── */
+/* Image attachment */
 .attach-button {
   flex-shrink: 0;
   padding: 6px 10px;
@@ -1474,7 +1474,7 @@ details.thinking-block[open] .thinking-chevron {
   border-color: var(--border-strong);
 }
 
-/* ── Pills & model chip ───────────────────────────────── */
+/* Pills and model chip */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -1546,7 +1546,7 @@ details.thinking-block[open] .thinking-chevron {
   flex-shrink: 0;
 }
 
-/* ── Submit progress bar ──────────────────────────────── */
+/* Submit progress bar */
 .submit-progress-bar {
   position: absolute;
   top: 0;
@@ -1578,7 +1578,7 @@ details.thinking-block[open] .thinking-chevron {
   100% { left: 120%; }
 }
 
-/* ── Model switch overlay ─────────────────────────────── */
+/* Model switch overlay */
 .model-switch-overlay {
   position: fixed;
   inset: 0;
@@ -1621,7 +1621,7 @@ details.thinking-block[open] .thinking-chevron {
   font-weight: 600;
 }
 
-/* ── Form fields ──────────────────────────────────────── */
+/* Form fields */
 .field {
   display: flex;
   flex-direction: column;
@@ -1651,7 +1651,7 @@ details.thinking-block[open] .thinking-chevron {
 .field input::placeholder,
 .field textarea::placeholder { color: var(--text-faint); }
 
-/* ── Token usage bar ──────────────────────────────────── */
+/* Token usage bar */
 .token-usage {
   display: flex;
   flex-direction: column;
@@ -1679,7 +1679,7 @@ details.thinking-block[open] .thinking-chevron {
   font-weight: 500;
 }
 
-/* ── Context input row ────────────────────────────────── */
+/* Context input row */
 .ctx-input-row {
   display: flex;
   gap: 8px;
@@ -1699,7 +1699,7 @@ details.thinking-block[open] .thinking-chevron {
 
 .ctx-input-row input:focus { border-color: var(--accent-border); }
 
-/* ── Empty / Loading state ────────────────────────────── */
+/* Empty / Loading state */
 .empty-shell {
   min-height: 100vh;
   display: grid;
@@ -1725,13 +1725,13 @@ details.thinking-block[open] .thinking-chevron {
 
 .empty-card .muted { margin-bottom: 4px; }
 
-/* ── Settings panel ───────────────────────────────────── */
+/* Settings panel */
 .settings-stack {
   display: flex;
   flex-direction: column;
 }
 
-/* ── Settings sections (collapsible) ─────────────────── */
+/* Settings sections (collapsible) */
 .settings-section {
   border-bottom: 1px solid var(--border);
 }
@@ -1780,7 +1780,7 @@ details.thinking-block[open] .thinking-chevron {
   color: var(--text-dim);
 }
 
-/* ── Tooltip ──────────────────────────────────────────── */
+/* Tooltip */
 .settings-tooltip {
   position: fixed;
   max-width: 240px;
@@ -1899,7 +1899,7 @@ details.thinking-block[open] .thinking-chevron {
   text-align: right;
 }
 
-/* ── System Prompt ────────────────────────────────────── */
+/* System Prompt */
 .sys-prompt-toolbar {
   display: flex;
   align-items: center;
@@ -2003,10 +2003,22 @@ details.thinking-block[open] .thinking-chevron {
   min-width: 0;
 }
 
-/* ── Responsive ───────────────────────────────────────── */
+.sys-prompt-correction-custom {
+  margin-top: 10px;
+}
+
+.sys-prompt-correction-textarea {
+  min-height: 108px;
+}
+
+/* Responsive */
 @media (max-width: 960px) {
   .right-pane { display: none; }
 }
+
+
+
+
 
 
 

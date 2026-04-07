@@ -1,4 +1,4 @@
-export type MessageRole = "user" | "assistant" | "system";
+﻿export type MessageRole = "user" | "assistant" | "system";
 
 export type ApiMessage = {
   id: string;
@@ -137,11 +137,11 @@ export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; 
 }
 
 export function getSettings() {
-  return request<{ show_left: boolean; show_right: boolean; correction_prompt_id: string }>("/settings");
+  return request<{ show_left: boolean; show_right: boolean; correction_prompt_mode: string; correction_custom_prompt: string }>("/settings");
 }
 
-export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; correction_prompt_id?: string }) {
-  return request<{ show_left: boolean; show_right: boolean; correction_prompt_id: string }>("/settings", {
+export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; correction_prompt_mode?: string; correction_custom_prompt?: string }) {
+  return request<{ show_left: boolean; show_right: boolean; correction_prompt_mode: string; correction_custom_prompt: string }>("/settings", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
@@ -431,3 +431,6 @@ export async function streamChatMessage(
     }
   }
 }
+
+
+

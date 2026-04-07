@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
@@ -7,6 +7,15 @@ type MemoryStats = {
   session_count: number;
   memory_chunk_count: number;
 };
+
+type CorrectionMode = "light" | "standard" | "aggressive" | "custom";
+
+const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> = [
+  { value: "light", label: "軽め" },
+  { value: "standard", label: "標準" },
+  { value: "aggressive", label: "しっかり" },
+  { value: "custom", label: "カスタム" },
+];
 
 const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1, completion_length: 80 } as const;
 
@@ -38,7 +47,8 @@ export function SettingsPanel() {
   const [namingMode, setNamingMode] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const [correctionPromptId, setCorrectionPromptId] = useState("");
+  const [correctionMode, setCorrectionMode] = useState<CorrectionMode>("standard");
+  const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
 
   useEffect(() => {
     getConfig()
@@ -56,7 +66,11 @@ export function SettingsPanel() {
       })
       .catch(() => {});
     getSettings()
-      .then((s) => { if (s.correction_prompt_id) setCorrectionPromptId(s.correction_prompt_id); })
+      .then((s) => {
+        const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
+        setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
+        setCustomCorrectionPrompt(s.correction_custom_prompt || "");
+      })
       .catch(() => {});
   }, []);
 
@@ -155,7 +169,7 @@ export function SettingsPanel() {
 
   const handleTextareaChange = (value: string) => {
     setSystemPromptText(value);
-    // テキストが別の保存済みプロンプトと一致すれば選択を切り替え、どれとも一致しなければ現在の選択を維持
+    // テキストが保存済みプロンプトと一致したら、その選択状態に切り替える
     const match = savedPrompts.find((p) => p.content === value);
     if (match && match.id !== selectedPromptId) {
       setSelectedPromptId(match.id);
@@ -185,7 +199,7 @@ export function SettingsPanel() {
     <div className="settings-stack">
       {/* System Prompt */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setSystemPromptOpen((v) => !v)} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存・呼び出しも可能です。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => setSystemPromptOpen((v) => !v)} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存や呼び出しもできます。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -285,31 +299,47 @@ export function SettingsPanel() {
               </span>
             </div>
             <div className="sys-prompt-correction-row">
-              <span className="sys-prompt-correction-label" onMouseEnter={onTipEnter("テキスト選択時の校正に使うシステムプロンプト。未選択時はデフォルトの校正プロンプトを使用します。")} onMouseLeave={onTipLeave}>
+              <span className="sys-prompt-correction-label" onMouseEnter={onTipEnter("テキスト選択時の校正の強さを選びます。カスタムでは校正専用のプロンプトを自由に保存できます。")} onMouseLeave={onTipLeave}>
                 校正プロンプト
               </span>
               <select
                 className="sys-prompt-select sys-prompt-correction-select"
-                value={correctionPromptId}
+                value={correctionMode}
                 onChange={(e) => {
-                  const id = e.target.value;
-                  setCorrectionPromptId(id);
-                  updateSettings({ correction_prompt_id: id }).catch(() => {});
+                  const mode = e.target.value as CorrectionMode;
+                  setCorrectionMode(mode);
+                  updateSettings({ correction_prompt_mode: mode }).catch(() => {});
                 }}
               >
-                <option value="">-- デフォルト --</option>
-                {savedPrompts.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                {CORRECTION_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
             </div>
+            {correctionMode === "custom" && (
+              <div className="sys-prompt-correction-custom">
+                <textarea
+                  className="sys-prompt-textarea sys-prompt-correction-textarea"
+                  value={customCorrectionPrompt}
+                  onChange={(e) => setCustomCorrectionPrompt(e.target.value)}
+                  onBlur={() => {
+                    updateSettings({ correction_custom_prompt: customCorrectionPrompt }).catch(() => {});
+                  }}
+                  placeholder="校正用のカスタムプロンプトを入力してください…"
+                  spellCheck={false}
+                />
+                <div className="sys-prompt-footer">
+                  <span className="sys-prompt-token-count">カスタム校正プロンプトは自動保存されます</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </section>
 
       {/* Context and Offload */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("推論パラメータの設定。Temperatureはすぐに反映。Context Length と GPU Offload は次回モデルロード時に反映されます。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("Temperature、Context Length、GPU Offload などの生成設定です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>
@@ -325,10 +355,9 @@ export function SettingsPanel() {
 
         {contextOpen && (
           <div className="settings-section-body">
-            {/* Temperature */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("生成のランダム性。低いほど一貫した回答、高いほど多様・創造的な表現になります。（範囲: 0〜2、デフォルト: 0.8）")} onMouseLeave={onTipLeave}>Temperature</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("生成のランダム性です。低いほど安定し、高いほど多様になります。")} onMouseLeave={onTipLeave}>Temperature</span>
                 <div className="settings-field-controls">
                   {temperature !== DEFAULTS.temperature && (
                     <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setTemperature(DEFAULTS.temperature); void handleSave({ temperature: DEFAULTS.temperature }); }}>
@@ -362,10 +391,9 @@ export function SettingsPanel() {
               />
             </div>
 
-            {/* Completion Length */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("自動補完で生成するテキストの最大トークン数。短いほど速く表示されます。（範囲: 10〜300、デフォルト: 80）")} onMouseLeave={onTipLeave}>Completion Length</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("自動補完で生成する最大トークン数です。大きいほど長い候補を返します。")} onMouseLeave={onTipLeave}>Completion Length</span>
                 <div className="settings-field-controls">
                   {completionLength !== DEFAULTS.completion_length && (
                     <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCompletionLength(DEFAULTS.completion_length); void handleSave({ completion_length: DEFAULTS.completion_length }); }}>
@@ -399,10 +427,9 @@ export function SettingsPanel() {
               />
             </div>
 
-            {/* Context Length */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("一度に扱える最大トークン数。長い会話や長文処理には大きな値が必要ですが、VRAMを多く消費します。次回モデルロード時に反映。")} onMouseLeave={onTipLeave}>Context Length</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("一度に扱える最大トークン数です。大きいほど長い会話を保持できますが、メモリ使用量も増えます。")} onMouseLeave={onTipLeave}>Context Length</span>
                 <div className="settings-field-controls">
                   {ctxSize !== DEFAULTS.ctx_size && (
                     <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCtxSize(DEFAULTS.ctx_size); void handleSave({ ctx_size: DEFAULTS.ctx_size }); }}>
@@ -441,10 +468,9 @@ export function SettingsPanel() {
               />
             </div>
 
-            {/* GPU Offload */}
             <div className="settings-field">
               <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("GPUに転送するレイヤー数。-1で全レイヤーをGPUへオフロード（最速）。VRAMが不足する場合は値を下げてください。次回モデルロード時に反映。")} onMouseLeave={onTipLeave}>GPU Offload</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("GPUにオフロードするレイヤー数です。-1 で全レイヤー対象になります。VRAMが足りない場合は値を下げてください。")} onMouseLeave={onTipLeave}>GPU Offload</span>
                 <div className="settings-field-controls">
                   {nGpuLayers !== DEFAULTS.n_gpu_layers && (
                     <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setNGpuLayers(DEFAULTS.n_gpu_layers); void handleSave({ n_gpu_layers: DEFAULTS.n_gpu_layers }); }}>
@@ -465,7 +491,7 @@ export function SettingsPanel() {
                   />
                 </div>
               </div>
-              <p className="settings-field-hint">-1 = 全レイヤーをGPUへ。次回モデルロード時に反映</p>
+              <p className="settings-field-hint">-1 = 全レイヤーをGPUへ。変更は次回モデルロード時に反映されます。</p>
               <input
                 className="settings-slider"
                 type="range"
@@ -482,10 +508,9 @@ export function SettingsPanel() {
           </div>
         )}
       </section>
-
       {/* Advanced */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)} onMouseEnter={onTipEnter("推論エンジン・埋め込みモデル・記憶システムの情報と統計を表示します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="4 6 20 6"/><polyline points="4 12 20 12"/><polyline points="4 18 14 18"/>
@@ -500,15 +525,15 @@ export function SettingsPanel() {
         {advancedOpen && (
           <div className="settings-section-body">
             <div className="stat-list">
-              <div className="stat-row"><span>推論サーバー</span><code>llama-server</code></div>
+              <div className="stat-row"><span>補完サーバー</span><code>llama-server</code></div>
               <div className="stat-row"><span>埋め込みモデル</span><code>ruri-v3-310m</code></div>
-              <div className="stat-row"><span>記憶検索</span><strong>FTS5 + ベクトル</strong></div>
+              <div className="stat-row"><span>検索方式</span><strong>FTS5 + ベクトル</strong></div>
             </div>
             {stats && (
               <div className="stat-list" style={{ marginTop: 8 }}>
                 <div className="stat-row"><span>ワークスペース</span><strong>{stats.workspace_count}</strong></div>
                 <div className="stat-row"><span>セッション</span><strong>{stats.session_count}</strong></div>
-                <div className="stat-row"><span>記憶チャンク</span><strong>{stats.memory_chunk_count}</strong></div>
+                <div className="stat-row"><span>検索チャンク</span><strong>{stats.memory_chunk_count}</strong></div>
               </div>
             )}
           </div>
@@ -526,3 +551,14 @@ export function SettingsPanel() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

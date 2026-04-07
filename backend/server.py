@@ -6,6 +6,21 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+CORRECTION_PROMPT_MODES = {"light", "standard", "aggressive", "custom"}
+
+
+def _resolve_correction_prompt(settings: dict) -> str | None:
+    mode = settings.get("correction_prompt_mode", "standard")
+    if mode not in CORRECTION_PROMPT_MODES:
+        mode = "standard"
+    if mode == "light":
+        return _LIGHT_CORRECTION_PROMPT
+    if mode == "aggressive":
+        return _AGGRESSIVE_CORRECTION_PROMPT
+    if mode == "custom":
+        custom_prompt = (settings.get("correction_custom_prompt") or "").strip()
+        return custom_prompt or _STANDARD_CORRECTION_PROMPT
+    return _STANDARD_CORRECTION_PROMPT
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
@@ -18,7 +33,7 @@ from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
+from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .models import (
@@ -56,7 +71,7 @@ app.add_middleware(
 store = SQLiteStore()
 memory_engine = MemoryEngine(store)
 
-# 埋め込みモデルをバックグラウンドでウォームアップ（初回リクエストの遅延を防ぐ）
+# 蝓九ａ霎ｼ縺ｿ繝｢繝・Ν繧偵ヰ繝・け繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒繧ｦ繧ｩ繝ｼ繝繧｢繝・・・亥・蝗槭Μ繧ｯ繧ｨ繧ｹ繝医・驕・ｻｶ繧帝亟縺撰ｼ・
 import threading
 threading.Thread(target=warmup_embedder, daemon=True).start()
 
@@ -104,13 +119,7 @@ def correct_endpoint(payload: dict) -> dict[str, str]:
     if not text or not is_ready():
         return {"corrected": ""}
     try:
-        system_prompt: str | None = None
-        correction_prompt_id = get_settings_data().get("correction_prompt_id", "")
-        if correction_prompt_id:
-            all_prompts = get_system_prompts().get("prompts", [])
-            matched = next((p for p in all_prompts if p["id"] == correction_prompt_id), None)
-            if matched:
-                system_prompt = matched["content"]
+        system_prompt = _resolve_correction_prompt(get_settings_data())
         return {"corrected": llm_correct(text, system_prompt)}
     except Exception:
         return {"corrected": ""}
@@ -581,3 +590,6 @@ def llama_switch_model(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info("Model switch initiated successfully")
     return {"status": "restarting", "model_path": model_path}
+
+
+

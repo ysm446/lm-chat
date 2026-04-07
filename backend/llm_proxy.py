@@ -148,6 +148,22 @@ _DEFAULT_CORRECTION_PROMPT = (
     "改善後のテキストのみを返してください。説明や前置きは不要です。"
 )
 
+_LIGHT_CORRECTION_PROMPT = (
+    "あなたはテキスト校正アシスタントです。"
+    "ユーザーが選択した文章の意味や文体はなるべく維持したまま、"
+    "明らかな誤字脱字や不自然な表現だけを軽く整えてください。"
+    "説明は不要で、校正後の本文のみを返してください。"
+)
+
+_STANDARD_CORRECTION_PROMPT = _DEFAULT_CORRECTION_PROMPT
+
+_AGGRESSIVE_CORRECTION_PROMPT = (
+    "あなたはテキスト校正アシスタントです。"
+    "ユーザーが選択した文章を、意味を保ちながらより自然で読みやすく、"
+    "分かりやすい表現へ積極的に改善してください。"
+    "必要に応じて語順や言い回しも整えてください。"
+    "説明は不要で、校正後の本文のみを返してください。"
+)
 
 def correct(text: str, system_prompt: str | None = None) -> str:
     """選択テキストを校正・改善する"""
@@ -287,3 +303,7 @@ def stream_chat_completion(session: Session, memory_context: str = "", thinking_
     if not thinking_enabled:
         payload["thinking"] = {"type": "disabled"}
     yield from _iter_stream(payload)
+
+
+
+
