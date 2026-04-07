@@ -36,6 +36,7 @@ export function SettingsPanel() {
   const [contextOpen, setContextOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
+  const [completionOpen, setCompletionOpen] = useState(false);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -298,6 +299,61 @@ export function SettingsPanel() {
                 {tokenCount !== null ? `Token count: ${tokenCount}` : ""}
               </span>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* Completion */}
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setCompletionOpen((v) => !v)} onMouseEnter={onTipEnter("インライン補完の長さと、テキスト選択時の校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </span>
+          <span>Completion</span>
+          <svg className={`settings-chevron${completionOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {completionOpen && (
+          <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("自動補完で生成する最大トークン数です。大きいほど長い候補を返します。")} onMouseLeave={onTipLeave}>Completion Length</span>
+                <div className="settings-field-controls">
+                  {completionLength !== DEFAULTS.completion_length && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCompletionLength(DEFAULTS.completion_length); void handleSave({ completion_length: DEFAULTS.completion_length }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <input
+                    className="settings-number-input"
+                    type="number"
+                    min={10}
+                    max={300}
+                    step={10}
+                    value={completionLength}
+                    onChange={(e) => setCompletionLength(Number(e.target.value))}
+                    onBlur={() => void handleSave({ completion_length: completionLength })}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ completion_length: completionLength }); }}
+                  />
+                </div>
+              </div>
+              <input
+                className="settings-slider"
+                type="range"
+                min={10}
+                max={300}
+                step={10}
+                value={completionLength}
+                onChange={(e) => setCompletionLength(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ completion_length: completionLength })}
+              />
+            </div>
             <div className="sys-prompt-correction-row">
               <span className="sys-prompt-correction-label" onMouseEnter={onTipEnter("テキスト選択時の校正の強さを選びます。カスタムでは校正専用のプロンプトを自由に保存できます。")} onMouseLeave={onTipLeave}>
                 校正プロンプト
@@ -388,42 +444,6 @@ export function SettingsPanel() {
                 value={temperature}
                 onChange={(e) => setTemperature(Number(e.target.value))}
                 onMouseUp={() => void handleSave({ temperature })}
-              />
-            </div>
-
-            <div className="settings-field">
-              <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("自動補完で生成する最大トークン数です。大きいほど長い候補を返します。")} onMouseLeave={onTipLeave}>Completion Length</span>
-                <div className="settings-field-controls">
-                  {completionLength !== DEFAULTS.completion_length && (
-                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCompletionLength(DEFAULTS.completion_length); void handleSave({ completion_length: DEFAULTS.completion_length }); }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  )}
-                  <input
-                    className="settings-number-input"
-                    type="number"
-                    min={10}
-                    max={300}
-                    step={10}
-                    value={completionLength}
-                    onChange={(e) => setCompletionLength(Number(e.target.value))}
-                    onBlur={() => void handleSave({ completion_length: completionLength })}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ completion_length: completionLength }); }}
-                  />
-                </div>
-              </div>
-              <input
-                className="settings-slider"
-                type="range"
-                min={10}
-                max={300}
-                step={10}
-                value={completionLength}
-                onChange={(e) => setCompletionLength(Number(e.target.value))}
-                onMouseUp={() => void handleSave({ completion_length: completionLength })}
               />
             </div>
 
