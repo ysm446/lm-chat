@@ -41,6 +41,8 @@ export function SettingsPanel() {
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [interfaceOpen, setInterfaceOpen] = useState(false);
   const [completionOpen, setCompletionOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugPromptLog, setDebugPromptLog] = useState(false);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -80,6 +82,7 @@ export function SettingsPanel() {
         const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
         setCustomCorrectionPrompt(s.correction_custom_prompt || "");
+        setDebugPromptLog(s.debug_prompt_log ?? false);
       })
       .catch(() => {});
   }, []);
@@ -627,6 +630,49 @@ export function SettingsPanel() {
                 <div className="stat-row"><span>検索チャンク</span><strong>{stats.memory_chunk_count}</strong></div>
               </div>
             )}
+          </div>
+        )}
+      </section>
+      {/* Debug */}
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setDebugOpen((v) => !v)} onMouseEnter={onTipEnter("デバッグ用の設定です。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+              <path d="M12 8v4"/><path d="M12 16h.01"/>
+            </svg>
+          </span>
+          <span>Debug</span>
+          {debugPromptLog && (
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", marginLeft: 4, flexShrink: 0 }} />
+          )}
+          <svg className={`settings-chevron${debugOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {debugOpen && (
+          <div className="settings-section-body">
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("llama-server に送信するプロンプト全文をバックエンドのログに出力します。uvicorn のコンソールで確認できます。")} onMouseLeave={onTipLeave}>プロンプトログ出力</span>
+                <span className="settings-field-hint">llama-server への送信内容をログに表示</span>
+              </div>
+              <button
+                type="button"
+                className={`settings-toggle-btn${debugPromptLog ? " active" : ""}`}
+                aria-pressed={debugPromptLog}
+                onClick={() => {
+                  const next = !debugPromptLog;
+                  setDebugPromptLog(next);
+                  updateSettings({ debug_prompt_log: next }).catch(() => {
+                    setDebugPromptLog(!next);
+                  });
+                }}
+              >
+                <span className="settings-toggle-thumb" />
+              </button>
+            </div>
           </div>
         )}
       </section>

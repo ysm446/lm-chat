@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Iterator
 from typing import TypedDict
 from urllib import error, request
+
+from .settings_store import get as get_settings_data
+
+logger = logging.getLogger(__name__)
 
 
 class GenerationStats(TypedDict):
@@ -67,6 +72,14 @@ def _build_messages(session: Session, memory_context: str = "", system_prompt: s
             messages.append({"role": message.role, "content": content})
         else:
             messages.append({"role": message.role, "content": message.content})
+    if get_settings_data().get("debug_prompt_log", False):
+        sep = "-" * 60
+        lines = [f"_build_messages ({len(messages)} msgs)", sep]
+        for i, m in enumerate(messages):
+            role = m["role"]
+            content = m["content"] if isinstance(m["content"], str) else "[image content]"
+            lines.append(f"[{i}] {role}:\n{content}\n{sep}")
+        logger.debug("\n".join(lines))
     return messages
 
 

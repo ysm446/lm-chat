@@ -11,6 +11,7 @@ _DEFAULTS: dict = {
     "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",
+    "debug_prompt_log": False,
 }
 
 
