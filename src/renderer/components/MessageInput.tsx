@@ -60,6 +60,7 @@ export function MessageInput() {
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
   const toggleThinking = useChatStore((state) => state.toggleThinking);
   const autocompleteEnabled = useChatStore((state) => state.autocompleteEnabled);
+  const correctionEnabled = useChatStore((state) => state.correctionEnabled);
   const toggleAutocomplete = useChatStore((state) => state.toggleAutocomplete);
 
   const [tokenCount, setTokenCount] = useState<number | null>(null);
@@ -69,11 +70,12 @@ export function MessageInput() {
   const [selStart, setSelStart] = useState(0);
   const [selEnd, setSelEnd] = useState(0);
   const [correction, setCorrection] = useState("");
+  const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const correctionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteRequestIdRef = useRef(0);
+  const correctionRequestIdRef = useRef(0);
 
   useEffect(() => {
     getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
@@ -140,21 +142,46 @@ export function MessageInput() {
   useEffect(() => {
     setCorrection("");
     setCorrectionPos(null);
-    if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current);
-    if (selStart === selEnd || !activeModelPath || isComposing) return;
+    setIsCorrectionLoading(false);
+    correctionRequestIdRef.current += 1;
+    if (!correctionEnabled || selStart === selEnd || !activeModelPath || isComposing) return;
     const selected = value.slice(selStart, selEnd);
     if (!selected.trim()) return;
     if (textareaRef.current) {
       const rect = textareaRef.current.getBoundingClientRect();
       setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
     }
-    correctionTimerRef.current = setTimeout(() => {
-      fetchCorrect(selected)
-        .then((r) => { if (r.corrected && r.corrected !== selected) setCorrection(r.corrected); })
-        .catch(() => {});
-    }, 700);
-    return () => { if (correctionTimerRef.current) clearTimeout(correctionTimerRef.current); };
-  }, [selStart, selEnd, value, activeModelPath, isComposing]);
+  }, [selStart, selEnd, value, activeModelPath, correctionEnabled, isComposing]);
+
+  const handleCorrectionRequest = async () => {
+    if (!correctionEnabled || !activeModelPath || isComposing) return;
+    const selected = value.slice(selStart, selEnd);
+    if (!selected.trim()) return;
+
+    if (textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+
+    const requestId = correctionRequestIdRef.current + 1;
+    correctionRequestIdRef.current = requestId;
+    setIsCorrectionLoading(true);
+    setCorrection("");
+
+    try {
+      const r = await fetchCorrect(selected);
+      if (requestId !== correctionRequestIdRef.current) return;
+      if (r.corrected && r.corrected !== selected) {
+        setCorrection(r.corrected);
+      }
+    } catch {
+      // ignore
+    } finally {
+      if (requestId === correctionRequestIdRef.current) {
+        setIsCorrectionLoading(false);
+      }
+    }
+  };
 
   const usagePct = tokenCount !== null ? Math.min((tokenCount / ctxSize) * 100, 100) : null;
   const ringColor =
@@ -177,6 +204,28 @@ export function MessageInput() {
     } catch { /* ignore */ }
   };
 
+  const applyCorrection = () => {
+    const ta = textareaRef.current;
+    if (!ta || !correction) return;
+
+    ta.focus();
+    ta.setSelectionRange(selStart, selEnd);
+    const ok = document.execCommand("insertText", false, correction);
+    if (!ok) {
+      const newValue = value.slice(0, selStart) + correction + value.slice(selEnd);
+      setValue(newValue);
+    }
+    const newCursor = selStart + correction.length;
+    setCursorPos(newCursor);
+    setSelStart(newCursor);
+    setSelEnd(newCursor);
+    setCorrection("");
+  };
+
+  const cancelCorrection = () => {
+    setCorrection("");
+  };
+
   const handleSend = async () => {
     if (!value.trim() && !imageData) return;
     const text = value.trim();
@@ -195,11 +244,24 @@ export function MessageInput() {
   };
 
   const modelReady = !!activeModelPath;
+  const hasSelectedText = correctionEnabled && selStart !== selEnd && !!value.slice(selStart, selEnd).trim();
   const showGhost = !!suggestion && !correction && !isComposing;
   const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageData && !tempChatMode));
 
   return (
     <>
+    {!correction && correctionPos && hasSelectedText && (
+      <button
+        type="button"
+        className="composer-correction-trigger"
+        style={{ top: correctionPos.top, left: correctionPos.left + correctionPos.width - 76 }}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => void handleCorrectionRequest()}
+        disabled={isCorrectionLoading}
+      >
+        {isCorrectionLoading ? "校正中..." : "校正"}
+      </button>
+    )}
     {correction && correctionPos && (
       <div
         className="composer-correction-popup"
@@ -207,7 +269,24 @@ export function MessageInput() {
         aria-live="polite"
       >
         <span className="composer-correction-text">{correction}</span>
-        <span className="composer-correction-hint">Tab で置換 · Esc でキャンセル</span>
+        <div className="composer-correction-actions">
+          <button
+            type="button"
+            className="composer-correction-action primary"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={applyCorrection}
+          >
+            置換
+          </button>
+          <button
+            type="button"
+            className="composer-correction-action"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={cancelCorrection}
+          >
+            キャンセル
+          </button>
+        </div>
       </div>
     )}
     <section className="input-shell">
@@ -267,26 +346,12 @@ export function MessageInput() {
             onKeyDown={(e) => {
               if (e.key === "Tab" && correction) {
                 e.preventDefault();
-                const ta = textareaRef.current;
-                if (ta) {
-                  ta.focus();
-                  ta.setSelectionRange(selStart, selEnd);
-                  const ok = document.execCommand("insertText", false, correction);
-                  if (!ok) {
-                    const newValue = value.slice(0, selStart) + correction + value.slice(selEnd);
-                    setValue(newValue);
-                  }
-                  const newCursor = selStart + correction.length;
-                  setCursorPos(newCursor);
-                  setSelStart(newCursor);
-                  setSelEnd(newCursor);
-                }
-                setCorrection("");
+                applyCorrection();
                 return;
               }
               if (e.key === "Escape" && correction) {
                 e.preventDefault();
-                setCorrection("");
+                cancelCorrection();
                 return;
               }
               if (e.key === "Tab" && suggestion) {

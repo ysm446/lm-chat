@@ -1,4 +1,4 @@
-﻿/* Design tokens */
+/* Design tokens */
 :root {
   color-scheme: dark;
 
@@ -1210,20 +1210,43 @@ details.thinking-block[open] .thinking-chevron {
   color: var(--text-faint);
 }
 
+.composer-correction-trigger {
+  position: fixed;
+  transform: translateY(-100%);
+  margin-top: -8px;
+  min-width: 64px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(160, 120, 255, 0.45);
+  background: rgba(42, 44, 58, 0.96);
+  color: rgba(190, 150, 255, 0.98);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 21;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.composer-correction-trigger:hover:not(:disabled) {
+  background: rgba(58, 61, 81, 0.98);
+  border-color: rgba(190, 150, 255, 0.7);
+  color: #d8c1ff;
+}
+
 .composer-correction-popup {
   position: fixed;
   transform: translateY(-100%);
   margin-top: -8px;
-  background: #2a2c3a;
+  background: #1d1f2b;
   border: 1px solid rgba(160, 120, 255, 0.45);
   border-radius: 6px;
-  padding: 7px 10px;
+  padding: 10px 12px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 20;
-  pointer-events: none;
 }
 
 .composer-correction-text {
@@ -1235,11 +1258,42 @@ details.thinking-block[open] .thinking-chevron {
   word-break: break-word;
 }
 
-.composer-correction-hint {
-  color: var(--text-faint);
-  font-size: 0.72rem;
-  white-space: nowrap;
+.composer-correction-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.composer-correction-action {
+  min-width: 74px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.composer-correction-action:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(190, 150, 255, 0.4);
+  color: var(--text);
+}
+
+.composer-correction-action.primary {
+  border-color: rgba(160, 120, 255, 0.5);
+  background: rgba(124, 90, 247, 0.18);
+  color: rgba(220, 205, 255, 0.98);
+}
+
+.composer-correction-action.primary:hover {
+  background: rgba(124, 90, 247, 0.26);
+  border-color: rgba(190, 150, 255, 0.75);
+  color: #f1e8ff;
 }
 
 .composer-textarea.ghost-active {
@@ -1314,7 +1368,7 @@ details.thinking-block[open] .thinking-chevron {
 
 .composer-divider {
   width: 1px;
-  height: 20px;
+  height: 18px;
   background: var(--border-strong);
   flex-shrink: 0;
 }
@@ -1979,6 +2033,54 @@ details.thinking-block[open] .thinking-chevron {
 .sys-prompt-token-count {
   font-size: 11px;
   color: var(--text-faint);
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-toggle-btn {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-toggle-btn.active {
+  background: rgba(124, 90, 247, 0.28);
+  border-color: rgba(160, 120, 255, 0.5);
+}
+
+.settings-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s ease;
+}
+
+.settings-toggle-btn.active .settings-toggle-thumb {
+  transform: translateX(14px);
 }
 
 .sys-prompt-correction-row {

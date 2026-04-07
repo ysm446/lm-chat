@@ -15,6 +15,7 @@ import {
   reorderSessions as reorderSessionsRequest,
   ejectLlamaModel,
   getLlamaStatus,
+  getSettings,
   getSession,
   listLocalModels,
   listSessions,
@@ -48,6 +49,7 @@ type ChatState = {
   memoryEnabled: boolean;
   thinkingEnabled: boolean;
   autocompleteEnabled: boolean;
+  correctionEnabled: boolean;
   systemPromptText: string;
   setSystemPromptText: (text: string) => void;
   tempChatMode: boolean;
@@ -61,6 +63,7 @@ type ChatState = {
   toggleMemory: () => void;
   toggleThinking: () => void;
   toggleAutocomplete: () => void;
+  setCorrectionEnabled: (enabled: boolean) => void;
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
   reorderSessions: (orderedIds: string[]) => Promise<void>;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
@@ -112,6 +115,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   memoryEnabled: true,
   thinkingEnabled: false,
   autocompleteEnabled: false,
+  correctionEnabled: true,
   systemPromptText: "",
   tempChatMode: false,
   tempMessages: [],
@@ -152,11 +156,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ availableModels: models, selectedModel: null });
       } catch { /* ignore */ }
     }
-    // システムプロンプトの active_text を読み込む
+    // ???????????????????
     try {
-      const sp = await listSystemPrompts();
-      set({ systemPromptText: sp.active_text });
-    } catch { /* ignore */ }
+      const [sp, settings] = await Promise.all([listSystemPrompts(), getSettings()]);
+      set({
+        systemPromptText: sp.active_text,
+        correctionEnabled: settings.correction_enabled ?? true,
+      });
+    } catch {
+      try {
+        const sp = await listSystemPrompts();
+        set({ systemPromptText: sp.active_text });
+      } catch { /* ignore */ }
+    }
   },
 
   setSelectedModel: (modelId) => set({ selectedModel: modelId }),
@@ -301,6 +313,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
   toggleAutocomplete: () => set((state) => ({ autocompleteEnabled: !state.autocompleteEnabled })),
+  setCorrectionEnabled: (enabled) => set({ correctionEnabled: enabled }),
 
   reorderWorkspaces: async (orderedIds) => {
     set((state) => ({

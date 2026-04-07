@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
@@ -24,6 +24,8 @@ export function SettingsPanel() {
   const activeModelPath = useChatStore((state) => state.activeModelPath);
   const systemPromptText = useChatStore((state) => state.systemPromptText);
   const setSystemPromptText = useChatStore((state) => state.setSystemPromptText);
+  const correctionEnabled = useChatStore((state) => state.correctionEnabled);
+  const setCorrectionEnabled = useChatStore((state) => state.setCorrectionEnabled);
 
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [ctxSize, setCtxSize] = useState(32768);
@@ -68,6 +70,7 @@ export function SettingsPanel() {
       .catch(() => {});
     getSettings()
       .then((s) => {
+        setCorrectionEnabled(s.correction_enabled ?? true);
         const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
         setCustomCorrectionPrompt(s.correction_custom_prompt || "");
@@ -305,7 +308,7 @@ export function SettingsPanel() {
 
       {/* Completion */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setCompletionOpen((v) => !v)} onMouseEnter={onTipEnter("インライン補完の長さと、テキスト選択時の校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => setCompletionOpen((v) => !v)} onMouseEnter={onTipEnter("インライン補完の長さと、校正機能・校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
@@ -353,6 +356,26 @@ export function SettingsPanel() {
                 onChange={(e) => setCompletionLength(Number(e.target.value))}
                 onMouseUp={() => void handleSave({ completion_length: completionLength })}
               />
+            </div>
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("テキスト選択時の校正ボタンと校正ポップアップを有効にします。補完とは独立して切り替えられます。")} onMouseLeave={onTipLeave}>校正</span>
+                <span className="settings-field-hint">補完とは独立して動作します</span>
+              </div>
+              <button
+                type="button"
+                className={`settings-toggle-btn${correctionEnabled ? " active" : ""}`}
+                aria-pressed={correctionEnabled}
+                onClick={() => {
+                  const next = !correctionEnabled;
+                  setCorrectionEnabled(next);
+                  updateSettings({ correction_enabled: next }).catch(() => {
+                    setCorrectionEnabled(!next);
+                  });
+                }}
+              >
+                <span className="settings-toggle-thumb" />
+              </button>
             </div>
             <div className="sys-prompt-correction-row">
               <span className="sys-prompt-correction-label" onMouseEnter={onTipEnter("テキスト選択時の校正の強さを選びます。カスタムでは校正専用のプロンプトを自由に保存できます。")} onMouseLeave={onTipLeave}>

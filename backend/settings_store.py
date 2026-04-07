@@ -7,6 +7,7 @@ _PATH = Path(__file__).resolve().parent.parent / "data" / "settings.json"
 _DEFAULTS: dict = {
     "show_left": True,
     "show_right": True,
+    "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",
 }
