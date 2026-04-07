@@ -321,10 +321,10 @@ class SQLiteStore:
     def create_session(self, payload: SessionCreate) -> Session:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT MAX(sort_order) AS max_order FROM sessions WHERE workspace_id = ?",
+                "SELECT MIN(sort_order) AS min_order FROM sessions WHERE workspace_id = ?",
                 (payload.workspace_id,),
             ).fetchone()
-            next_order = (row["max_order"] or 0) + 1
+            next_order = (row["min_order"] or 0) - 1
         session = Session(id=self._new_id("session"), sort_order=next_order, **payload.model_dump())
         with self._connect() as conn:
             conn.execute(
