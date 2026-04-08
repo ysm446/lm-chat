@@ -92,6 +92,7 @@ export function ChatView() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Search ───────────────────────────────────────────
@@ -149,6 +150,15 @@ export function ChatView() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [session?.messages.length, isSubmitting]);
+
+  useEffect(() => {
+    if (!expandedImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpandedImage(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [expandedImage]);
 
   useEffect(() => {
     if (!editingId) return;
@@ -241,7 +251,14 @@ export function ChatView() {
 
             <div className="message-body">
               {message.image_data && (
-                <img src={message.image_data} alt="添付画像" className="message-image" />
+                <button
+                  type="button"
+                  className="message-image-button"
+                  onClick={() => setExpandedImage(message.image_data)}
+                  title="クリックで拡大"
+                >
+                  <img src={message.image_data} alt="添付画像" className="message-image" />
+                </button>
               )}
               {editingId === message.id ? (
                 <textarea
@@ -387,6 +404,24 @@ export function ChatView() {
           </div>
         )}
         <div ref={bottomRef} />
+      {expandedImage && (
+        <div className="image-lightbox" onClick={() => setExpandedImage(null)} role="dialog" aria-modal="true" aria-label="画像の拡大表示">
+          <button
+            type="button"
+            className="image-lightbox-close"
+            onClick={() => setExpandedImage(null)}
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+          <img
+            src={expandedImage}
+            alt="拡大画像"
+            className="image-lightbox-content"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       </div>
     </section>
   );

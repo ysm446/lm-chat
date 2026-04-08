@@ -1550,13 +1550,67 @@ details.thinking-block[open] .thinking-chevron {
 }
 .image-preview-remove:hover { color: var(--danger); background: var(--danger-soft); }
 
+.message-image-button {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  cursor: zoom-in;
+  margin-bottom: 6px;
+}
+
 .message-image {
   max-width: min(480px, 100%);
   max-height: 360px;
   border-radius: var(--r-sm);
   object-fit: contain;
   display: block;
-  margin-bottom: 6px;
+  transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.message-image-button:hover .message-image {
+  transform: scale(1.01);
+  filter: brightness(1.04);
+}
+
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(5, 7, 10, 0.86);
+  backdrop-filter: blur(8px);
+}
+
+.image-lightbox-content {
+  max-width: min(92vw, 1400px);
+  max-height: 88vh;
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  object-fit: contain;
+}
+
+.image-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.image-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 
