@@ -58,6 +58,10 @@ export function SettingsPanel() {
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
 
+  const emitSettingsUpdate = useCallback((patch: { debug_prompt_log?: boolean }) => {
+    window.dispatchEvent(new CustomEvent("lm-chat:settings-updated", { detail: patch }));
+  }, []);
+
   useEffect(() => {
     getConfig()
       .then((cfg) => {
@@ -83,6 +87,7 @@ export function SettingsPanel() {
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
         setCustomCorrectionPrompt(s.correction_custom_prompt || "");
         setDebugPromptLog(s.debug_prompt_log ?? false);
+        emitSettingsUpdate({ debug_prompt_log: s.debug_prompt_log ?? false });
       })
       .catch(() => {});
   }, []);
@@ -665,8 +670,10 @@ export function SettingsPanel() {
                 onClick={() => {
                   const next = !debugPromptLog;
                   setDebugPromptLog(next);
+                  emitSettingsUpdate({ debug_prompt_log: next });
                   updateSettings({ debug_prompt_log: next }).catch(() => {
                     setDebugPromptLog(!next);
+                    emitSettingsUpdate({ debug_prompt_log: !next });
                   });
                 }}
               >

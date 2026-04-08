@@ -1,4 +1,4 @@
-﻿export type MessageRole = "user" | "assistant" | "system";
+export type MessageRole = "user" | "assistant" | "system";
 
 export type ApiMessage = {
   id: string;
@@ -40,6 +40,13 @@ export type LocalModel = {
   id: string;
   path: string;
   size_bytes: number;
+};
+
+export type DebugPromptLogEntry = {
+  id: number;
+  label: string;
+  content: string;
+  created_at: string;
 };
 
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -145,6 +152,14 @@ export function updateSettings(patch: { show_left?: boolean; show_right?: boolea
     method: "PATCH",
     body: JSON.stringify(patch),
   });
+}
+
+export function getDebugPromptLogs(limit = 100) {
+  return request<{ items: DebugPromptLogEntry[] }>(`/debug/prompt-logs?limit=${limit}`);
+}
+
+export function clearDebugPromptLogs() {
+  return request<{ cleared: number }>("/debug/prompt-logs", { method: "DELETE" });
 }
 
 export function getLlamaProps() {

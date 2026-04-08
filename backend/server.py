@@ -29,6 +29,7 @@ from fastapi.responses import StreamingResponse
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
+from .debug_store import clear_prompt_logs, list_prompt_logs
 from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, get_all as get_system_prompts, set_active_text, set_active_id
@@ -541,6 +542,16 @@ def get_settings() -> dict:
 @app.patch("/settings")
 def patch_settings(payload: dict) -> dict:
     return update_settings_data(payload)
+
+
+@app.get("/debug/prompt-logs")
+def get_debug_prompt_logs(limit: int = Query(100, ge=1, le=200)) -> dict[str, list[dict]]:
+    return {"items": list_prompt_logs(limit)}
+
+
+@app.delete("/debug/prompt-logs")
+def clear_debug_prompt_logs() -> dict[str, int]:
+    return {"cleared": clear_prompt_logs()}
 
 
 @app.get("/history/sessions/{session_id}/token_count")

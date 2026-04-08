@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from typing import TypedDict
 from urllib import error, request
 
+from .debug_store import append_prompt_log
 from .settings_store import get as get_settings_data
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,9 @@ def _build_messages(session: Session, memory_context: str = "", system_prompt: s
             role = m["role"]
             content = m["content"] if isinstance(m["content"], str) else "[image content]"
             lines.append(f"[{i}] {role}:\n{content}\n{sep}")
-        logger.debug("\n".join(lines))
+        prompt_log = "\n".join(lines)
+        append_prompt_log(label="Prompt", lines=lines)
+        logger.debug(prompt_log)
     return messages
 
 

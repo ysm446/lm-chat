@@ -270,7 +270,7 @@ export function ChatView() {
                     resizeTextareaToContent(e.currentTarget);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void commitEdit(session.id, message.id); }
+                    if (e.key === "Enter" && e.ctrlKey && session?.id) { e.preventDefault(); void commitEdit(session.id, message.id); }
                     if (e.key === "Escape") setEditingId(null);
                   }}
                   rows={1}
@@ -336,7 +336,7 @@ export function ChatView() {
             {editingId === message.id && (
               <div className="message-edit-buttons">
                 <button className="message-edit-discard" onClick={() => setEditingId(null)}>Discard (Esc)</button>
-                <button className="message-edit-save" onClick={() => void commitEdit(session.id, message.id)}>Save (Ctrl + Enter)</button>
+                <button className="message-edit-save" onClick={() => { if (session?.id) void commitEdit(session.id, message.id); }}>Save (Ctrl + Enter)</button>
               </div>
             )}
 
@@ -346,7 +346,7 @@ export function ChatView() {
                 <button
                   className="msg-action-btn"
                   title="ここで分岐"
-                  onClick={() => void branchSession(session.id, message.id)}
+                  onClick={() => { if (session?.id) void branchSession(session.id, message.id); }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
@@ -379,7 +379,7 @@ export function ChatView() {
                 <button
                   className="msg-action-btn danger"
                   title="削除"
-                  onClick={() => void deleteMessage(session.id, message.id)}
+                  onClick={() => { if (session?.id) void deleteMessage(session.id, message.id); }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
