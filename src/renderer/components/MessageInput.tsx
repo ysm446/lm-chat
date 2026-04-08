@@ -193,16 +193,34 @@ export function MessageInput() {
   const circumference = 2 * Math.PI * radius;
   const dashOffset = usagePct !== null ? circumference * (1 - usagePct / 100) : circumference;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
+  const handleAttachFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
     try {
       const dataUrl = await resizeImageToDataUrl(file);
       setImageData(dataUrl);
       setImageFileName(file.name);
-    } catch { /* ignore */ }
+    } catch {
+      // ignore
+    }
   };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    await handleAttachFile(file);
+  };
+
+  useEffect(() => {
+    const handleDroppedImage = (event: Event) => {
+      const customEvent = event as CustomEvent<File>;
+      if (!customEvent.detail) return;
+      void handleAttachFile(customEvent.detail);
+    };
+
+    window.addEventListener("lm-chat:attach-image", handleDroppedImage as EventListener);
+    return () => window.removeEventListener("lm-chat:attach-image", handleDroppedImage as EventListener);
+  }, []);
 
   const applyCorrection = () => {
     const ta = textareaRef.current;

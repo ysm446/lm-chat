@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSettings, updateSettings } from "./api";
 import { ChatView } from "./components/ChatView";
 import { MessageInput } from "./components/MessageInput";
@@ -24,6 +24,15 @@ export function App() {
   const [rightWidth, setRightWidth] = useState(280);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(false);
+  const [isImageDragOver, setIsImageDragOver] = useState(false);
+  const dragDepthRef = useRef(0);
+
+  const hasImageFile = (dataTransfer: DataTransfer | null) =>
+    !!dataTransfer && Array.from(dataTransfer.items).some((item) => item.kind === "file" && item.type.startsWith("image/"));
+
+  const dispatchDroppedImage = (file: File) => {
+    window.dispatchEvent(new CustomEvent("lm-chat:attach-image", { detail: file }));
+  };
 
   const makeResizeHandler = (
     getCurrent: () => number,
@@ -96,7 +105,35 @@ export function App() {
 
         <div className="resize-handle" style={{ pointerEvents: showLeft ? undefined : "none" }} onMouseDown={makeResizeHandler(() => sidebarWidth, setSidebarWidth, 180, 480, "left")} />
 
-        <main className="center-pane">
+        <main
+          className={`center-pane${isImageDragOver ? " drag-over" : ""}`}
+          onDragEnter={(e) => {
+            if (!hasImageFile(e.dataTransfer)) return;
+            e.preventDefault();
+            dragDepthRef.current += 1;
+            setIsImageDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (!hasImageFile(e.dataTransfer)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (!isImageDragOver) setIsImageDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (!hasImageFile(e.dataTransfer)) return;
+            e.preventDefault();
+            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+            if (dragDepthRef.current === 0) setIsImageDragOver(false);
+          }}
+          onDrop={(e) => {
+            if (!hasImageFile(e.dataTransfer)) return;
+            e.preventDefault();
+            dragDepthRef.current = 0;
+            setIsImageDragOver(false);
+            const file = Array.from(e.dataTransfer.files).find((entry) => entry.type.startsWith("image/"));
+            if (file) dispatchDroppedImage(file);
+          }}
+        >
           <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
           <header className="center-header">
             <h1 className="center-header-title">
@@ -116,6 +153,14 @@ export function App() {
           </header>
           <ChatView />
           <MessageInput />
+          {isImageDragOver && (
+            <div className="chat-drop-overlay" aria-hidden="true">
+              <div className="chat-drop-card">
+                <strong>画像をドロップして添付</strong>
+                <span>会話に送る画像をここへ追加できます</span>
+              </div>
+            </div>
+          )}
         </main>
 
         <div className="resize-handle" style={{ pointerEvents: showRight ? undefined : "none" }} onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
