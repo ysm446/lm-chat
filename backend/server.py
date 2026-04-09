@@ -530,6 +530,11 @@ def delete_workspace_memory(workspace_id: str) -> dict[str, int]:
     return {"deleted": store.delete_workspace_memory(workspace_id)}
 
 
+@app.post("/memory/cleanup")
+def cleanup_memory() -> dict[str, int]:
+    return store.cleanup_memory()
+
+
 @app.get("/memory/stats")
 def memory_stats() -> dict[str, int]:
     return {

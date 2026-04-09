@@ -671,3 +671,71 @@ class SQLiteStore:
                 conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
             cursor = conn.execute("DELETE FROM memory_chunks WHERE session_id = ?", (session_id,))
         return cursor.rowcount
+
+    def cleanup_memory(self) -> dict[str, int]:
+        with self._connect() as conn:
+            orphan_chunk_ids = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT mc.id
+                    FROM memory_chunks mc
+                    LEFT JOIN sessions s ON s.id = mc.session_id
+                    LEFT JOIN workspaces w ON w.id = mc.workspace_id
+                    WHERE s.id IS NULL
+                       OR w.id IS NULL
+                       OR s.workspace_id != mc.workspace_id
+                    """
+                ).fetchall()
+            ]
+
+            deleted_chunks = 0
+            if orphan_chunk_ids:
+                placeholders = ",".join("?" * len(orphan_chunk_ids))
+                conn.execute(f"DELETE FROM memory_fts WHERE id IN ({placeholders})", orphan_chunk_ids)
+                conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", orphan_chunk_ids)
+                deleted_chunks = conn.execute(
+                    f"DELETE FROM memory_chunks WHERE id IN ({placeholders})", orphan_chunk_ids
+                ).rowcount
+
+            orphan_fts_ids = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT mf.id
+                    FROM memory_fts mf
+                    LEFT JOIN memory_chunks mc ON mc.id = mf.id
+                    WHERE mc.id IS NULL
+                    """
+                ).fetchall()
+            ]
+            deleted_fts = 0
+            if orphan_fts_ids:
+                placeholders = ",".join("?" * len(orphan_fts_ids))
+                deleted_fts = conn.execute(
+                    f"DELETE FROM memory_fts WHERE id IN ({placeholders})", orphan_fts_ids
+                ).rowcount
+
+            orphan_vec_ids = [
+                row["chunk_id"]
+                for row in conn.execute(
+                    """
+                    SELECT mv.chunk_id
+                    FROM memory_vec mv
+                    LEFT JOIN memory_chunks mc ON mc.id = mv.chunk_id
+                    WHERE mc.id IS NULL
+                    """
+                ).fetchall()
+            ]
+            deleted_vec = 0
+            if orphan_vec_ids:
+                placeholders = ",".join("?" * len(orphan_vec_ids))
+                deleted_vec = conn.execute(
+                    f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", orphan_vec_ids
+                ).rowcount
+
+        return {
+            "deleted_chunks": deleted_chunks,
+            "deleted_fts": deleted_fts,
+            "deleted_vec": deleted_vec,
+        }

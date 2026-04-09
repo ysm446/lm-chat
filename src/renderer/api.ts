@@ -125,6 +125,12 @@ export function fetchMemoryStats() {
   return request<{ workspace_count: number; session_count: number; memory_chunk_count: number }>("/memory/stats");
 }
 
+export function cleanupMemory() {
+  return request<{ deleted_chunks: number; deleted_fts: number; deleted_vec: number }>("/memory/cleanup", {
+    method: "POST",
+  });
+}
+
 export function fetchAutocomplete(text: string) {
   return request<{ completion: string }>("/autocomplete", {
     method: "POST",
@@ -453,5 +459,4 @@ export async function streamChatMessage(
     }
   }
 }
-
 

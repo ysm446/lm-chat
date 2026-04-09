@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, cleanupMemory, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
 import { applyUIFont, DEFAULT_UI_FONT, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -43,6 +43,8 @@ export function SettingsPanel() {
   const [completionOpen, setCompletionOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugPromptLog, setDebugPromptLog] = useState(false);
+  const [memoryCleanupBusy, setMemoryCleanupBusy] = useState(false);
+  const [memoryCleanupResult, setMemoryCleanupResult] = useState<string | null>(null);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -60,6 +62,10 @@ export function SettingsPanel() {
 
   const emitSettingsUpdate = useCallback((patch: { debug_prompt_log?: boolean }) => {
     window.dispatchEvent(new CustomEvent("lm-chat:settings-updated", { detail: patch }));
+  }, []);
+
+  const loadMemoryStats = useCallback(() => {
+    fetchMemoryStats().then(setStats).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -99,8 +105,8 @@ export function SettingsPanel() {
   }, [activeModelPath]);
 
   useEffect(() => {
-    fetchMemoryStats().then(setStats).catch(() => {});
-  }, [currentWorkspace?.id]);
+    loadMemoryStats();
+  }, [currentWorkspace?.id, loadMemoryStats]);
 
   // トークンカウントをデバウンス更新
   useEffect(() => {
@@ -131,6 +137,26 @@ export function SettingsPanel() {
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
       setSaving(false);
+    }
+  };
+
+  const handleMemoryCleanup = async () => {
+    if (memoryCleanupBusy) return;
+    setMemoryCleanupBusy(true);
+    setMemoryCleanupResult(null);
+    try {
+      const result = await cleanupMemory();
+      const total = result.deleted_chunks + result.deleted_fts + result.deleted_vec;
+      setMemoryCleanupResult(
+        total > 0
+          ? `掃除完了: chunks ${result.deleted_chunks}件 / FTS ${result.deleted_fts}件 / vectors ${result.deleted_vec}件`
+          : "掃除対象は見つかりませんでした"
+      );
+      loadMemoryStats();
+    } catch (error) {
+      setMemoryCleanupResult(error instanceof Error ? error.message : "記憶クリーンアップに失敗しました");
+    } finally {
+      setMemoryCleanupBusy(false);
     }
   };
 
@@ -678,6 +704,24 @@ export function SettingsPanel() {
                 }}
               >
                 <span className="settings-toggle-thumb" />
+              </button>
+            </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("セッションやワークスペースと紐づかない孤立した記憶チャンク、全文検索行、ベクトル行を掃除します。")} onMouseLeave={onTipLeave}>記憶クリーンアップ</span>
+                <span className="settings-field-hint">孤立した記憶データだけを安全に削除</span>
+                {memoryCleanupResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{memoryCleanupResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleMemoryCleanup()}
+                disabled={memoryCleanupBusy}
+                style={{ minWidth: 96 }}
+              >
+                {memoryCleanupBusy ? "掃除中..." : "実行"}
               </button>
             </div>
           </div>
