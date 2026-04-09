@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { resolveApiUrl } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function escapeRegex(s: string) {
@@ -219,6 +220,7 @@ export function ChatView() {
         {messages.map((message) => {
           const isMatch = matchedIds.includes(message.id);
           const isCurrent = matchedIds[matchIndex] === message.id;
+          const imageSrc = resolveApiUrl(message.image_data);
           return (
           <article
             key={message.id}
@@ -254,10 +256,10 @@ export function ChatView() {
                 <button
                   type="button"
                   className="message-image-button"
-                  onClick={() => setExpandedImage(message.image_data)}
+                  onClick={() => setExpandedImage(imageSrc)}
                   title="クリックで拡大"
                 >
-                  <img src={message.image_data} alt="添付画像" className="message-image" />
+                  <img src={imageSrc} alt="添付画像" className="message-image" />
                 </button>
               )}
               {editingId === message.id ? (

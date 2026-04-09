@@ -50,9 +50,16 @@ export type DebugPromptLogEntry = {
 };
 
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_ROOT = API_BASE.replace(/\/$/, "");
+
+export function resolveApiUrl(path: string | null | undefined) {
+  if (!path) return "";
+  if (/^(data:|https?:\/\/)/i.test(path)) return path;
+  return path.startsWith("/") ? `${API_ROOT}${path}` : `${API_ROOT}/${path.replace(/^\/+/, "")}`;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_ROOT}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {})
@@ -310,7 +317,7 @@ export async function streamTempChatMessage(
   },
   signal?: AbortSignal
 ) {
-  const response = await fetch(`${API_BASE}/chat/temp/stream`, {
+  const response = await fetch(`${API_ROOT}/chat/temp/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt }),
@@ -351,7 +358,7 @@ export async function streamContinueMessage(
   signal?: AbortSignal,
   systemPrompt?: string | null
 ) {
-  const response = await fetch(`${API_BASE}/chat/continue/stream`, {
+  const response = await fetch(`${API_ROOT}/chat/continue/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null }),
@@ -404,7 +411,7 @@ export async function streamChatMessage(
   signal?: AbortSignal,
   systemPrompt?: string | null
 ) {
-  const response = await fetch(`${API_BASE}/chat/send/stream`, {
+  const response = await fetch(`${API_ROOT}/chat/send/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -446,6 +453,5 @@ export async function streamChatMessage(
     }
   }
 }
-
 
 

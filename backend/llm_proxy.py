@@ -25,11 +25,20 @@ from .models import Session
 
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")
 LLAMA_MODEL = os.environ.get("LLAMA_MODEL", "Qwen3.5-27B")
+BACKEND_PUBLIC_BASE = os.environ.get("LM_CHAT_PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 SYSTEM_PROMPT = (
     "あなたは親切なローカルアシスタントです。"
     "ユーザーの質問に明確かつ簡潔に答えてください。"
     "内部の推論過程は出力せず、最終的な回答を直接述べてください。"
 )
+
+
+def _resolve_image_url(image_ref: str) -> str:
+    if image_ref.startswith(("data:", "http://", "https://")):
+        return image_ref
+    if image_ref.startswith("/"):
+        return f"{BACKEND_PUBLIC_BASE}{image_ref}"
+    return f"{BACKEND_PUBLIC_BASE}/{image_ref.lstrip('/')}"
 
 
 def count_tokens(text: str) -> int:
@@ -69,7 +78,7 @@ def _build_messages(session: Session, memory_context: str = "", system_prompt: s
             content: list[dict] = []
             if message.content:
                 content.append({"type": "text", "text": message.content})
-            content.append({"type": "image_url", "image_url": {"url": message.image_data}})
+            content.append({"type": "image_url", "image_url": {"url": _resolve_image_url(message.image_data)}})
             messages.append({"role": message.role, "content": content})
         else:
             messages.append({"role": message.role, "content": message.content})

@@ -26,6 +26,7 @@ class SQLiteStore:
         base_dir = Path(__file__).resolve().parent.parent / "data"
         base_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = Path(db_path) if db_path is not None else base_dir / "lm_chat.db"
+        self.image_root = base_dir / "assets" / "images"
         self._init_db()
         self._seed_if_empty()
 
@@ -182,6 +183,57 @@ class SQLiteStore:
         data.setdefault("model_name", None)
         return Message(**data)
 
+    def _collect_image_paths_for_message_ids(
+        self, conn: sqlite3.Connection, message_ids: list[str]
+    ) -> set[str]:
+        if not message_ids:
+            return set()
+        placeholders = ",".join("?" * len(message_ids))
+        rows = conn.execute(
+            f"SELECT DISTINCT image_data FROM messages WHERE id IN ({placeholders}) AND image_data IS NOT NULL",
+            message_ids,
+        ).fetchall()
+        return {str(row["image_data"]) for row in rows if row["image_data"]}
+
+    def _collect_image_paths_for_session_ids(
+        self, conn: sqlite3.Connection, session_ids: list[str]
+    ) -> set[str]:
+        if not session_ids:
+            return set()
+        placeholders = ",".join("?" * len(session_ids))
+        rows = conn.execute(
+            f"SELECT DISTINCT image_data FROM messages WHERE session_id IN ({placeholders}) AND image_data IS NOT NULL",
+            session_ids,
+        ).fetchall()
+        return {str(row["image_data"]) for row in rows if row["image_data"]}
+
+    def _cleanup_unreferenced_images(self, conn: sqlite3.Connection, image_paths: set[str]) -> None:
+        for image_path in image_paths:
+            if not image_path.startswith("/assets/images/"):
+                continue
+            row = conn.execute(
+                "SELECT 1 FROM messages WHERE image_data = ? LIMIT 1",
+                (image_path,),
+            ).fetchone()
+            if row is not None:
+                continue
+
+            relative_path = image_path.removeprefix("/assets/images/").replace("/", "\\")
+            file_path = self.image_root / relative_path
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+            except OSError:
+                continue
+
+            for parent in file_path.parents:
+                if parent == self.image_root or self.image_root not in parent.parents:
+                    break
+                try:
+                    parent.rmdir()
+                except OSError:
+                    break
+
     def _memory_from_row(self, row: sqlite3.Row) -> MemoryChunk:
         return MemoryChunk(**dict(row))
 
@@ -283,7 +335,14 @@ class SQLiteStore:
 
     def delete_workspace(self, workspace_id: str) -> bool:
         with self._connect() as conn:
+            session_rows = conn.execute(
+                "SELECT id FROM sessions WHERE workspace_id = ?",
+                (workspace_id,),
+            ).fetchall()
+            session_ids = [str(row["id"]) for row in session_rows]
+            image_paths = self._collect_image_paths_for_session_ids(conn, session_ids)
             cursor = conn.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
+            self._cleanup_unreferenced_images(conn, image_paths)
         return cursor.rowcount > 0
 
     def reorder_workspaces(self, ids: list[str]) -> None:
@@ -391,7 +450,9 @@ class SQLiteStore:
 
     def delete_message(self, message_id: str) -> bool:
         with self._connect() as conn:
+            image_paths = self._collect_image_paths_for_message_ids(conn, [message_id])
             cursor = conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+            self._cleanup_unreferenced_images(conn, image_paths)
         return cursor.rowcount > 0
 
     def update_message(self, message_id: str, content: str) -> Message | None:
@@ -433,6 +494,7 @@ class SQLiteStore:
 
     def delete_session(self, session_id: str, delete_memory: bool) -> bool:
         with self._connect() as conn:
+            image_paths = self._collect_image_paths_for_session_ids(conn, [session_id])
             if delete_memory:
                 chunk_ids = [
                     row["id"]
@@ -446,6 +508,7 @@ class SQLiteStore:
                     conn.execute(f"DELETE FROM memory_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
                 conn.execute("DELETE FROM memory_chunks WHERE session_id = ?", (session_id,))
             cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            self._cleanup_unreferenced_images(conn, image_paths)
         return cursor.rowcount > 0
 
     def save_memory(self, session_id: str, messages: list[MessageCreate]) -> list[MemoryChunk] | None:

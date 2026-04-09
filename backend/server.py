@@ -23,6 +23,7 @@ def _resolve_correction_prompt(settings: dict) -> str | None:
     return _STANDARD_CORRECTION_PROMPT
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -59,6 +60,7 @@ from .models import (
 )
 from .search.web_search import search_web
 from .store import SQLiteStore
+from .utils.image_utils import save_data_url_image
 
 app = FastAPI(title="LM Chat Backend", version="0.1.0")
 app.add_middleware(
@@ -71,6 +73,10 @@ app.add_middleware(
 
 store = SQLiteStore()
 memory_engine = MemoryEngine(store)
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+_IMAGE_DIR = _DATA_DIR / "assets" / "images"
+_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/assets/images", StaticFiles(directory=_IMAGE_DIR), name="chat-images")
 
 # 蝓九ａ霎ｼ縺ｿ繝｢繝・Ν繧偵ヰ繝・け繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒繧ｦ繧ｩ繝ｼ繝繧｢繝・・・亥・蝗槭Μ繧ｯ繧ｨ繧ｹ繝医・驕・ｻｶ繧帝亟縺撰ｼ・
 import threading
@@ -95,6 +101,18 @@ def save_turn_memory(session_id: str, user_content: str, assistant_content: str)
             MessageCreate(role="assistant", content=assistant_content),
         ],
     )
+
+
+def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
+    if not image_data:
+        return None
+    if not image_data.startswith("data:"):
+        return image_data
+
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return save_data_url_image(_IMAGE_DIR, session.workspace_id, session.id, image_data)
 
 
 @app.get("/health")
@@ -340,7 +358,8 @@ def chat_temp_stream(payload: TempChatRequest) -> StreamingResponse:
 
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=payload.image_data))
+    stored_image_data = _prepare_image_data(payload.session_id, payload.image_data)
+    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=stored_image_data))
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -369,7 +388,8 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
 
 @app.post("/chat/send/stream")
 def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=payload.image_data))
+    stored_image_data = _prepare_image_data(payload.session_id, payload.image_data)
+    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=stored_image_data))
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
