@@ -41,6 +41,26 @@ def _resolve_image_url(image_ref: str) -> str:
     return f"{BACKEND_PUBLIC_BASE}/{image_ref.lstrip('/')}"
 
 
+def _format_debug_content(content: str | list[dict]) -> str:
+    if isinstance(content, str):
+        return content
+
+    parts: list[str] = []
+    for item in content:
+        item_type = item.get("type")
+        if item_type == "text":
+            parts.append(f"[text]\n{item.get('text', '')}")
+        elif item_type == "image_url":
+            image = item.get("image_url", {})
+            if isinstance(image, dict):
+                parts.append(f"[image_url]\n{image.get('url', '')}")
+            else:
+                parts.append(f"[image_url]\n{image}")
+        else:
+            parts.append(json.dumps(item, ensure_ascii=False, indent=2))
+    return "\n".join(parts)
+
+
 def count_tokens(text: str) -> int:
     payload = {"content": text}
     req = request.Request(
@@ -87,7 +107,7 @@ def _build_messages(session: Session, memory_context: str = "", system_prompt: s
         lines = [f"_build_messages ({len(messages)} msgs)", sep]
         for i, m in enumerate(messages):
             role = m["role"]
-            content = m["content"] if isinstance(m["content"], str) else "[image content]"
+            content = _format_debug_content(m["content"])
             lines.append(f"[{i}] {role}:\n{content}\n{sep}")
         prompt_log = "\n".join(lines)
         append_prompt_log(label="Prompt", lines=lines)

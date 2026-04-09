@@ -99,6 +99,29 @@ POST http://127.0.0.1:8000/chat/send/stream
 - llama-server の `/v1/chat/completions` に `stream: true` でリクエストを送信
 - `thinking_enabled` に応じて `chat_template_kwargs.enable_thinking` と `thinking.type` を制御
 
+#### プロンプトはどうまとめられ、どの順序で送られるか
+
+`_build_messages()` は llama-server に送る `messages` を次の順序で組み立てる。
+
+1. `system`
+   - ベースのシステムプロンプト
+   - `memory_enabled=true` の場合は、その末尾に記憶コンテキストを連結
+2. セッション内の過去メッセージを古い順にすべて
+   - `user`
+   - `assistant`
+   - `user`
+   - `assistant`
+   - ...という保存順
+3. 最後に今回送った最新の `user` メッセージ
+
+画像付きユーザーメッセージは 1 メッセージの中でさらに次の順にまとめられる。
+
+1. 添えたテキストがあれば `{"type": "text", "text": "..."}`
+2. 画像本体を指す `{"type": "image_url", ...}`
+
+つまり、画像付きメッセージは「画像だけ」ではなく「テキスト → 画像」の順で同じ `content` 配列に入って送られる。
+また、会話の続きを生成するときも履歴全体から再度 `messages` を組み立てるため、過去の画像付きメッセージも再び入力に含まれる。
+
 ```python
 # 送信ペイロードの例
 {
@@ -149,6 +172,14 @@ data: {"type": "token", "content": "今日は..."}
 3. **記憶を保存**
    - 今回の Q&A ペアを `memory_engine.save_session_messages()` でベクトル化して保存
 4. セッション全体を返す
+
+#### embedding は何をベクトル化しているか
+
+- 基本単位は、連続する `user` + `assistant` の 1 往復
+- 保存前に `Q: ユーザー文\nA: アシスタント文` という 1 本の文字列へまとめる
+- その「Q&A ひとまとまりの文章」に対して embedding を計算する
+- 長すぎる場合だけ 4000 文字単位で分割して複数チャンクにする
+- `user` と `assistant` が対になっていない単独メッセージは、その単独文をそのままベクトル化する
 
 ```
 data: {"type": "done", "session": { ...セッション全体... }}
