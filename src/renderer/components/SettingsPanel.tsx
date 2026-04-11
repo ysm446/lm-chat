@@ -575,7 +575,7 @@ export function SettingsPanel() {
         {advancedOpen && (
           <div className="settings-section-body">
             <div className="stat-list">
-              <div className="stat-row"><span>補完サーバー</span><code>llama-server</code></div>
+              <div className="stat-row"><span>推論サーバー</span><code>llama-server</code></div>
               <div className="stat-row"><span>埋め込みモデル</span><code>ruri-v3-310m</code></div>
               <div className="stat-row"><span>検索方式</span><strong>FTS5 + ベクトル</strong></div>
             </div>
