@@ -2625,7 +2625,7 @@ details.thinking-block[open] .thinking-chevron {
   border: none;
   border-top: none;
   color: var(--text);
-  font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-family: var(--app-font-family);
   font-size: 13.5px;
   line-height: 1.75;
   padding: 18px 24px;

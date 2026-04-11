@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, countTokens, saveActiveSystemPrompt, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, countTokens, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type Props = {
@@ -11,7 +11,6 @@ type Props = {
 
 export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsChange }: Props) {
   const systemPromptText = useChatStore((s) => s.systemPromptText);
-  const setSystemPromptText = useChatStore((s) => s.setSystemPromptText);
 
   const [content, setContent] = useState("");
   const [tokenCount, setTokenCount] = useState<number | null>(null);
@@ -48,8 +47,6 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
 
   const handleContentChange = (value: string) => {
     setContent(value);
-    setSystemPromptText(value);
-    saveActiveSystemPrompt(value, selectedId || "").catch(() => {});
   };
 
   const handleOverwrite = async () => {
@@ -57,7 +54,6 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
     try {
       const updated = await updateSystemPrompt(selectedId, content);
       onPromptsChange(prompts.map((p) => (p.id === updated.id ? updated : p)));
-      saveActiveSystemPrompt(content, selectedId).catch(() => {});
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 2000);
     } catch { /* ignore */ }

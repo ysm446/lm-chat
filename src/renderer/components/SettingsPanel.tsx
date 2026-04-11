@@ -111,6 +111,19 @@ export function SettingsPanel() {
     const handler = (e: Event) => {
       const prompts = (e as CustomEvent<SavedSystemPrompt[]>).detail;
       setSavedPrompts(prompts);
+      setSelectedPromptId((prev) => {
+        if (!prev) return prev;
+        const found = prompts.find((p) => p.id === prev);
+        if (!found) {
+          // 選択中プロンプトが削除された → active をリセット
+          setSystemPromptText("");
+          saveActiveSystemPrompt("", "").catch(() => {});
+          return "";
+        }
+        // 内容が保存されたら systemPromptText を同期
+        setSystemPromptText(found.content);
+        return prev;
+      });
     };
     window.addEventListener("lm-chat:prompts-updated", handler as EventListener);
     return () => window.removeEventListener("lm-chat:prompts-updated", handler as EventListener);

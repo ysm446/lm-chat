@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, createSystemPrompt, deleteSystemPrompt, reorderSystemPrompts, saveActiveSystemPrompt, updateSystemPrompt } from "../api";
-import { useChatStore } from "../stores/chatStore";
+import { SavedSystemPrompt, createSystemPrompt, deleteSystemPrompt, reorderSystemPrompts, updateSystemPrompt } from "../api";
 
 type ItemMenu = { id: string; name: string; x: number; y: number };
 
@@ -12,7 +11,6 @@ type Props = {
 };
 
 export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsChange }: Props) {
-  const setSystemPromptText = useChatStore((s) => s.setSystemPromptText);
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
@@ -54,8 +52,6 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
       const created = await createSystemPrompt(name, "");
       onPromptsChange([...prompts, created]);
       onSelect(created.id);
-      setSystemPromptText("");
-      saveActiveSystemPrompt("", created.id).catch(() => {});
     } catch { /* ignore */ }
     setShowNew(false);
     setNewName("");
@@ -63,8 +59,6 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
 
   const handleSelectPrompt = (p: SavedSystemPrompt) => {
     onSelect(p.id);
-    setSystemPromptText(p.content);
-    saveActiveSystemPrompt(p.content, p.id).catch(() => {});
   };
 
   const handleDrop = (targetId: string) => {
@@ -94,17 +88,9 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
       await deleteSystemPrompt(item.id);
       const next = prompts.filter((p) => p.id !== item.id);
       onPromptsChange(next);
+      // エディタ側の選択だけ更新（active の変更は SettingsPanel が担う）
       if (selectedId === item.id) {
-        const fallback = next[0] ?? null;
-        if (fallback) {
-          onSelect(fallback.id);
-          setSystemPromptText(fallback.content);
-          saveActiveSystemPrompt(fallback.content, fallback.id).catch(() => {});
-        } else {
-          onSelect("");
-          setSystemPromptText("");
-          saveActiveSystemPrompt("", "").catch(() => {});
-        }
+        onSelect(next[0]?.id ?? "");
       }
     } catch { /* ignore */ }
   };
