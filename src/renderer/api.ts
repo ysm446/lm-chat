@@ -36,6 +36,14 @@ export type ChatStreamEvent =
   | { type: "done"; session: ApiSession }
   | { type: "error"; detail: string };
 
+type StreamHandlers<TDone> = {
+  onToken: (chunk: string) => void;
+  onDone: (payload: TDone) => void;
+  onError: (detail: string) => void;
+};
+
+type StreamDoneEvent = Extract<ChatStreamEvent, { type: "done" }>;
+
 export type LocalModel = {
   id: string;
   path: string;
@@ -73,6 +81,53 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+async function streamEvents<TDone>(
+  path: string,
+  body: unknown,
+  handlers: StreamHandlers<TDone>,
+  getDonePayload: (payload: StreamDoneEvent) => TDone,
+  signal?: AbortSignal
+) {
+  const response = await fetch(`${API_ROOT}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal
+  });
+
+  if (!response.ok || !response.body) {
+    const text = await response.text();
+    throw new Error(text || `Request failed: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const event of events) {
+      const line = event.split("\n").find((entry) => entry.startsWith("data: "));
+      if (!line) continue;
+      const payload = JSON.parse(line.slice(6)) as ChatStreamEvent;
+
+      if (payload.type === "token") {
+        handlers.onToken(payload.content ?? "");
+      } else if (payload.type === "done") {
+        handlers.onDone(getDonePayload(payload));
+      } else if (payload.type === "error") {
+        handlers.onError(payload.detail ?? "Unknown error");
+      }
+    }
+  }
 }
 
 export function listWorkspaces() {
@@ -323,91 +378,32 @@ export async function streamTempChatMessage(
   messages: TempMessage[],
   thinkingEnabled: boolean,
   systemPrompt: string | null,
-  handlers: {
-    onToken: (chunk: string) => void;
-    onDone: () => void;
-    onError: (detail: string) => void;
-  },
+  handlers: StreamHandlers<void>,
   signal?: AbortSignal
 ) {
-  const response = await fetch(`${API_ROOT}/chat/temp/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt }),
-    signal,
-  });
-  if (!response.ok || !response.body) {
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-    for (const event of events) {
-      const line = event.split("\n").find((l) => l.startsWith("data: "));
-      if (!line) continue;
-      const payload = JSON.parse(line.slice(6)) as { type: string; content?: string; detail?: string };
-      if (payload.type === "token") handlers.onToken(payload.content ?? "");
-      else if (payload.type === "done") handlers.onDone();
-      else if (payload.type === "error") handlers.onError(payload.detail ?? "Unknown error");
-    }
-  }
+  await streamEvents(
+    "/chat/temp/stream",
+    { messages, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt },
+    handlers,
+    () => undefined,
+    signal
+  );
 }
 
 export async function streamContinueMessage(
   sessionId: string,
   thinkingEnabled: boolean,
-  handlers: {
-    onToken: (chunk: string) => void;
-    onDone: (session: ApiSession) => void;
-    onError: (detail: string) => void;
-  },
+  handlers: StreamHandlers<ApiSession>,
   signal?: AbortSignal,
   systemPrompt?: string | null
 ) {
-  const response = await fetch(`${API_ROOT}/chat/continue/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null }),
+  await streamEvents(
+    "/chat/continue/stream",
+    { session_id: sessionId, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null },
+    handlers,
+    (payload) => payload.session,
     signal
-  });
-
-  if (!response.ok || !response.body) {
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-
-    for (const event of events) {
-      const line = event.split("\n").find((entry) => entry.startsWith("data: "));
-      if (!line) continue;
-      const payload = JSON.parse(line.slice(6)) as ChatStreamEvent;
-      if (payload.type === "token") {
-        handlers.onToken(payload.content);
-      } else if (payload.type === "done") {
-        handlers.onDone(payload.session);
-      } else if (payload.type === "error") {
-        handlers.onError(payload.detail);
-      }
-    }
-  }
+  );
 }
 
 export async function streamChatMessage(
@@ -416,54 +412,22 @@ export async function streamChatMessage(
   imageData: string | null,
   memoryEnabled: boolean,
   thinkingEnabled: boolean,
-  handlers: {
-    onToken: (chunk: string) => void;
-    onDone: (session: ApiSession) => void;
-    onError: (detail: string) => void;
-  },
+  handlers: StreamHandlers<ApiSession>,
   signal?: AbortSignal,
   systemPrompt?: string | null
 ) {
-  const response = await fetch(`${API_ROOT}/chat/send/stream`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
+  await streamEvents(
+    "/chat/send/stream",
+    {
+      session_id: sessionId,
+      content,
+      image_data: imageData ?? null,
+      memory_enabled: memoryEnabled,
+      thinking_enabled: thinkingEnabled,
+      system_prompt: systemPrompt ?? null
     },
-    body: JSON.stringify({ session_id: sessionId, content, image_data: imageData ?? null, memory_enabled: memoryEnabled, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null }),
+    handlers,
+    (payload) => payload.session,
     signal
-  });
-
-  if (!response.ok || !response.body) {
-    const text = await response.text();
-    throw new Error(text || `Request failed: ${response.status}`);
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() ?? "";
-
-    for (const event of events) {
-      const line = event
-        .split("\n")
-        .find((entry) => entry.startsWith("data: "));
-      if (!line) continue;
-      const payload = JSON.parse(line.slice(6)) as ChatStreamEvent;
-      if (payload.type === "token") {
-        handlers.onToken(payload.content);
-      } else if (payload.type === "done") {
-        handlers.onDone(payload.session);
-      } else if (payload.type === "error") {
-        handlers.onError(payload.detail);
-      }
-    }
-  }
+  );
 }
-

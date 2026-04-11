@@ -98,6 +98,25 @@ const optimisticMessage = (role: ApiMessage["role"], content: string, imageData?
   model_name: null,
 });
 
+async function persistStoppedMessage(
+  sessionId: string,
+  content: string,
+  tokenCount: number,
+  streamStartTime: number
+) {
+  const elapsedSeconds = (Date.now() - streamStartTime) / 1000;
+  const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
+
+  await appendSessionMessageRequest(sessionId, {
+    role: "assistant",
+    content,
+    finish_reason: "user_stopped",
+    completion_tokens: tokenCount,
+    tokens_per_second: tokensPerSecond,
+    elapsed_seconds: elapsedSeconds
+  });
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   sessions: [],
@@ -238,22 +257,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendTempMessage: async (content) => {
     const { tempMessages, systemPromptText, thinkingEnabled } = get();
-
-    const makeMsg = (role: ApiMessage["role"], text: string): ApiMessage => ({
-      id: `tmp-${crypto.randomUUID()}`,
-      role,
-      content: text,
-      image_data: null,
-      created_at: new Date().toISOString(),
-      completion_tokens: null,
-      tokens_per_second: null,
-      elapsed_seconds: null,
-      finish_reason: null,
-      model_name: null,
-    });
-
-    const userMsg = makeMsg("user", content);
-    const assistantMsg = makeMsg("assistant", "");
+    const userMsg = optimisticMessage("user", content);
+    const assistantMsg = optimisticMessage("assistant", "");
     const controller = new AbortController();
 
     set((state) => ({
@@ -341,7 +346,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       workspaces: [...state.workspaces, workspace],
       currentWorkspaceId: workspace.id,
-      sessions: state.sessions,
       currentSessionId: null,
       error: null
     }));
@@ -541,18 +545,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (error instanceof Error && error.name === "AbortError") {
         const partialText = get().sessions.find((s) => s.id === sessionId)
           ?.messages.find((m) => m.id === assistant.id)?.content ?? "";
-        const elapsedSeconds = (Date.now() - streamStartTime) / 1000;
-        const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
         set({ isSubmitting: false, abortController: null, streamingText: "" });
         try {
-          await appendSessionMessageRequest(sessionId, {
-            role: "assistant",
-            content: partialText,
-            finish_reason: "user_stopped",
-            completion_tokens: tokenCount,
-            tokens_per_second: tokensPerSecond,
-            elapsed_seconds: elapsedSeconds
-          });
+          await persistStoppedMessage(sessionId, partialText, tokenCount, streamStartTime);
           // セッション全体を再取得してユーザー・アシスタント両メッセージのIDを本物に差し替える
           const refreshed = await getSession(sessionId);
           set((state) => ({
@@ -640,18 +635,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         const partialText = get().sessions.find((s) => s.id === sessionId)?.messages.find((m) => m.id === assistant.id)?.content ?? "";
-        const elapsedSeconds = (Date.now() - streamStartTime) / 1000;
-        const tokensPerSecond = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : 0;
         set({ isSubmitting: false, abortController: null, streamingText: "" });
         try {
-          await appendSessionMessageRequest(sessionId, {
-            role: "assistant",
-            content: partialText,
-            finish_reason: "user_stopped",
-            completion_tokens: tokenCount,
-            tokens_per_second: tokensPerSecond,
-            elapsed_seconds: elapsedSeconds
-          });
+          await persistStoppedMessage(sessionId, partialText, tokenCount, streamStartTime);
           const refreshed = await getSession(sessionId);
           set((state) => ({ sessions: state.sessions.map((s) => (s.id === sessionId ? refreshed : s)) }));
         } catch { /* ignore */ }
