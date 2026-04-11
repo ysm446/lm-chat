@@ -157,11 +157,11 @@ export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; 
 }
 
 export function getSettings() {
-  return request<{ show_left: boolean; show_right: boolean; ui_font: string; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings");
+  return request<{ show_left: boolean; show_right: boolean; ui_font: string; ui_font_size: number; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings");
 }
 
-export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; ui_font?: string; correction_enabled?: boolean; correction_prompt_mode?: string; correction_custom_prompt?: string; debug_prompt_log?: boolean }) {
-  return request<{ show_left: boolean; show_right: boolean; ui_font: string; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings", {
+export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; ui_font?: string; ui_font_size?: number; correction_enabled?: boolean; correction_prompt_mode?: string; correction_custom_prompt?: string; debug_prompt_log?: boolean }) {
+  return request<{ show_left: boolean; show_right: boolean; ui_font: string; ui_font_size: number; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

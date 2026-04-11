@@ -8,6 +8,7 @@ _DEFAULTS: dict = {
     "show_left": True,
     "show_right": True,
     "ui_font": "default-sans",
+    "ui_font_size": 14,
     "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",

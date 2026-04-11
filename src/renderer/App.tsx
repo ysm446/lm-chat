@@ -9,7 +9,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { SystemPromptEditor } from "./components/SystemPromptEditor";
 import { SystemPromptSidebar } from "./components/SystemPromptSidebar";
-import { applyUIFont } from "./fontOptions";
+import { applyFontSize, applyUIFont } from "./fontOptions";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
 import { useChatStore } from "./stores/chatStore";
 
@@ -73,6 +73,7 @@ export function App() {
       setShowRight(s.show_right);
       setDebugPromptLogEnabled(s.debug_prompt_log ?? false);
       applyUIFont(s.ui_font);
+      applyFontSize(s.ui_font_size);
     }).catch(() => {});
   }, []);
 
@@ -86,6 +87,11 @@ export function App() {
     window.addEventListener("lm-chat:settings-updated", handleSettingsUpdated as EventListener);
     return () => window.removeEventListener("lm-chat:settings-updated", handleSettingsUpdated as EventListener);
   }, []);
+
+  const handlePromptsChange = (prompts: SavedSystemPrompt[]) => {
+    setSpPrompts(prompts);
+    window.dispatchEvent(new CustomEvent("lm-chat:prompts-updated", { detail: prompts }));
+  };
 
   const handleSetAppMode = async (mode: AppMode) => {
     setAppMode(mode);
@@ -143,7 +149,7 @@ export function App() {
               prompts={spPrompts}
               selectedId={spSelectedId}
               onSelect={setSpSelectedId}
-              onPromptsChange={setSpPrompts}
+              onPromptsChange={handlePromptsChange}
             />
           ) : (
             <Sidebar />
@@ -158,7 +164,7 @@ export function App() {
               prompts={spPrompts}
               selectedId={spSelectedId}
               onSelect={setSpSelectedId}
-              onPromptsChange={setSpPrompts}
+              onPromptsChange={handlePromptsChange}
             />
           </main>
         ) : (

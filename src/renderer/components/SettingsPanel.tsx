@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { SavedSystemPrompt, cleanupMemory, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
-import { applyUIFont, DEFAULT_UI_FONT, UI_FONT_OPTIONS } from "../fontOptions";
+import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
 type MemoryStats = {
@@ -54,6 +54,7 @@ export function SettingsPanel() {
   const [correctionMode, setCorrectionMode] = useState<CorrectionMode>("standard");
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
+  const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
 
   const emitSettingsUpdate = useCallback((patch: { debug_prompt_log?: boolean }) => {
     window.dispatchEvent(new CustomEvent("lm-chat:settings-updated", { detail: patch }));
@@ -83,6 +84,9 @@ export function SettingsPanel() {
         const nextUIFont = s.ui_font || DEFAULT_UI_FONT;
         setUIFont(nextUIFont);
         applyUIFont(nextUIFont);
+        const nextSize = s.ui_font_size ?? DEFAULT_FONT_SIZE;
+        setUIFontSize(nextSize);
+        applyFontSize(nextSize);
         setCorrectionEnabled(s.correction_enabled ?? true);
         const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
@@ -102,6 +106,15 @@ export function SettingsPanel() {
   useEffect(() => {
     loadMemoryStats();
   }, [currentWorkspace?.id, loadMemoryStats]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const prompts = (e as CustomEvent<SavedSystemPrompt[]>).detail;
+      setSavedPrompts(prompts);
+    };
+    window.addEventListener("lm-chat:prompts-updated", handler as EventListener);
+    return () => window.removeEventListener("lm-chat:prompts-updated", handler as EventListener);
+  }, []);
 
   const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) => {
     setSaving(true);
@@ -245,6 +258,44 @@ export function SettingsPanel() {
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
+            </div>
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("UIのベースフォントサイズを変更します。")} onMouseLeave={onTipLeave}>Font Size</span>
+                <div className="settings-field-controls">
+                  {uiFontSize !== DEFAULT_FONT_SIZE && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => {
+                      setUIFontSize(DEFAULT_FONT_SIZE);
+                      applyFontSize(DEFAULT_FONT_SIZE);
+                      void updateSettings({ ui_font_size: DEFAULT_FONT_SIZE });
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{uiFontSize}px</span>
+                </div>
+              </div>
+              <input
+                className="settings-slider"
+                type="range"
+                min={FONT_SIZE_MIN}
+                max={FONT_SIZE_MAX}
+                step={1}
+                value={uiFontSize}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setUIFontSize(next);
+                  applyFontSize(next);
+                }}
+                onMouseUp={() => void updateSettings({ ui_font_size: uiFontSize })}
+                onKeyUp={() => void updateSettings({ ui_font_size: uiFontSize })}
+              />
+              <div className="settings-slider-labels">
+                <span>小 ({FONT_SIZE_MIN}px)</span>
+                <span>大 ({FONT_SIZE_MAX}px)</span>
+              </div>
             </div>
           </div>
         )}

@@ -2186,6 +2186,14 @@ details.thinking-block[open] .thinking-chevron {
 }
 .settings-slider:focus::-webkit-slider-thumb { background: var(--accent); }
 
+.settings-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
 .settings-saved-msg {
   font-size: 11px;
   color: var(--accent);
