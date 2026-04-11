@@ -2527,6 +2527,14 @@ details.thinking-block[open] .thinking-chevron {
   white-space: nowrap;
 }
 
+.sp-sidebar-item-actions {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.sp-sidebar-item-wrap:hover .sp-sidebar-item-actions,
+.sp-sidebar-item-wrap:has(.sp-sidebar-item.active) .sp-sidebar-item-actions { opacity: 1; }
+
 /* ─── System Prompt Editor ─── */
 .sp-editor-pane {
   display: flex;

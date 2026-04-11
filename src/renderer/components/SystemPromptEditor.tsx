@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, countTokens, deleteSystemPrompt, saveActiveSystemPrompt, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, countTokens, saveActiveSystemPrompt, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type Props = {
@@ -63,26 +63,6 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
     } catch { /* ignore */ }
   };
 
-  const handleDelete = async () => {
-    if (!selectedId || !selectedPrompt) return;
-    if (!window.confirm(`「${selectedPrompt.name}」を削除しますか？`)) return;
-    try {
-      await deleteSystemPrompt(selectedId);
-      const next = prompts.filter((p) => p.id !== selectedId);
-      onPromptsChange(next);
-      const fallback = next[0] ?? null;
-      if (fallback) {
-        onSelect(fallback.id);
-        setSystemPromptText(fallback.content);
-        saveActiveSystemPrompt(fallback.content, fallback.id).catch(() => {});
-      } else {
-        onSelect("");
-        setContent("");
-        setSystemPromptText("");
-        saveActiveSystemPrompt("", "").catch(() => {});
-      }
-    } catch { /* ignore */ }
-  };
 
   const handleRenameStart = () => {
     setRenamePending(selectedPrompt?.name ?? "");
@@ -155,24 +135,17 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
 
       {selectedId && (
         <div className="sp-editor-footer">
-          <div className="sp-editor-actions">
-            <button
-              className={`sp-editor-btn primary${savedFlash ? " saved" : ""}`}
-              onClick={() => void handleOverwrite()}
-              disabled={!isModified && !savedFlash}
-            >
-              {savedFlash ? "保存しました" : "上書き保存"}
-            </button>
-            <button
-              className="sp-editor-btn danger"
-              onClick={() => void handleDelete()}
-            >
-              削除
-            </button>
-          </div>
           {isModified && (
             <span className="sp-editor-unsaved-badge">未保存の変更</span>
           )}
+          <div style={{ flex: 1 }} />
+          <button
+            className={`sp-editor-btn primary${savedFlash ? " saved" : ""}`}
+            onClick={() => void handleOverwrite()}
+            disabled={!isModified && !savedFlash}
+          >
+            {savedFlash ? "保存しました" : "上書き保存"}
+          </button>
         </div>
       )}
     </div>

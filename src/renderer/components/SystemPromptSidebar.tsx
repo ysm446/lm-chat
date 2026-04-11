@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
-import { SavedSystemPrompt, createSystemPrompt, reorderSystemPrompts, saveActiveSystemPrompt } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { SavedSystemPrompt, createSystemPrompt, deleteSystemPrompt, reorderSystemPrompts, saveActiveSystemPrompt, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
+
+type ItemMenu = { id: string; name: string; x: number; y: number };
 
 type Props = {
   prompts: SavedSystemPrompt[];
@@ -17,6 +19,27 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
 
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const [menu, setMenu] = useState<ItemMenu | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+
+  // コンテキストメニューの外側クリック / Esc で閉じる
+  useEffect(() => {
+    if (!menu) return undefined;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
+  }, [menu]);
+
+  useEffect(() => { if (editingId) { editInputRef.current?.focus(); editInputRef.current?.select(); } }, [editingId]);
 
   const handleNewClick = () => {
     setShowNew(true);
@@ -56,6 +79,45 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
     void reorderSystemPrompts(next.map((p) => p.id));
     setDragId(null);
     setDragOverId(null);
+  };
+
+  const startRename = (item: ItemMenu) => {
+    setMenu(null);
+    setEditingId(item.id);
+    setEditingName(item.name);
+  };
+
+  const handleDelete = async (item: ItemMenu) => {
+    setMenu(null);
+    if (!window.confirm(`「${item.name}」を削除しますか？`)) return;
+    try {
+      await deleteSystemPrompt(item.id);
+      const next = prompts.filter((p) => p.id !== item.id);
+      onPromptsChange(next);
+      if (selectedId === item.id) {
+        const fallback = next[0] ?? null;
+        if (fallback) {
+          onSelect(fallback.id);
+          setSystemPromptText(fallback.content);
+          saveActiveSystemPrompt(fallback.content, fallback.id).catch(() => {});
+        } else {
+          onSelect("");
+          setSystemPromptText("");
+          saveActiveSystemPrompt("", "").catch(() => {});
+        }
+      }
+    } catch { /* ignore */ }
+  };
+
+  const commitRename = async (id: string) => {
+    const name = editingName.trim();
+    if (name) {
+      try {
+        const updated = await updateSystemPrompt(id, undefined, name);
+        onPromptsChange(prompts.map((p) => (p.id === id ? updated : p)));
+      } catch { /* ignore */ }
+    }
+    setEditingId(null);
   };
 
   return (
@@ -108,35 +170,79 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
             onDrop={(e) => { e.preventDefault(); handleDrop(p.id); }}
             onDragEnd={() => { setDragId(null); setDragOverId(null); }}
           >
-            <span
-              className="sp-sidebar-drag-handle"
-              title="ドラッグして並べ替え"
-              draggable
-              onDragStart={(e) => {
-                setDragId(p.id);
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", p.id);
-              }}
-            >
-              <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
-                <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
-              </svg>
-            </span>
-            <button
-              className={`sp-sidebar-item${p.id === selectedId ? " active" : ""}`}
-              onClick={() => handleSelectPrompt(p)}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.6 }}>
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-              </svg>
-              <span className="sp-sidebar-item-name">{p.name}</span>
-            </button>
+            {editingId === p.id ? (
+              <div className="inline-edit-row" style={{ flex: 1, padding: "3px 4px" }}>
+                <input
+                  ref={editInputRef}
+                  className="inline-edit-input"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void commitRename(p.id);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                />
+                <button className="inline-edit-confirm" onClick={() => void commitRename(p.id)}>✓</button>
+                <button className="inline-edit-cancel" onClick={() => setEditingId(null)}>✕</button>
+              </div>
+            ) : (
+              <>
+                <span
+                  className="sp-sidebar-drag-handle"
+                  title="ドラッグして並べ替え"
+                  draggable
+                  onDragStart={(e) => {
+                    setDragId(p.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", p.id);
+                  }}
+                >
+                  <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                    <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
+                    <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
+                    <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
+                  </svg>
+                </span>
+                <button
+                  className={`sp-sidebar-item${p.id === selectedId ? " active" : ""}`}
+                  onClick={() => handleSelectPrompt(p)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.6 }}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  <span className="sp-sidebar-item-name">{p.name}</span>
+                </button>
+                <div className="sp-sidebar-item-actions">
+                  <button
+                    className="sidebar-icon-btn"
+                    title="メニュー"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenu({ id: p.id, name: p.name, x: rect.right - 8, y: rect.bottom + 6 });
+                    }}
+                  >
+                    •••
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
+
+      {menu && (
+        <div
+          ref={menuRef}
+          className="context-menu"
+          style={{ left: `${menu.x}px`, top: `${menu.y}px` }}
+          role="menu"
+        >
+          <button className="context-menu-item" onClick={() => startRename(menu)}>名前を変更</button>
+          <button className="context-menu-item danger" onClick={() => void handleDelete(menu)}>削除</button>
+        </div>
+      )}
     </div>
   );
 }
