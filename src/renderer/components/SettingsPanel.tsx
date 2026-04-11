@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, cleanupMemory, countTokens, createSystemPrompt, deleteSystemPrompt, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, cleanupMemory, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyUIFont, DEFAULT_UI_FONT, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -49,13 +49,8 @@ export function SettingsPanel() {
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
   const [selectedPromptId, setSelectedPromptId] = useState<string>("");
-  const [tokenCount, setTokenCount] = useState<number | null>(null);
-  const tokenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
-  const [namingMode, setNamingMode] = useState(false);
-  const [pendingName, setPendingName] = useState("");
-  const nameInputRef = useRef<HTMLInputElement>(null);
   const [correctionMode, setCorrectionMode] = useState<CorrectionMode>("standard");
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
@@ -108,23 +103,6 @@ export function SettingsPanel() {
     loadMemoryStats();
   }, [currentWorkspace?.id, loadMemoryStats]);
 
-  // トークンカウントをデバウンス更新
-  useEffect(() => {
-    if (tokenDebounceRef.current) clearTimeout(tokenDebounceRef.current);
-    if (!systemPromptText) {
-      setTokenCount(null);
-      return;
-    }
-    tokenDebounceRef.current = setTimeout(() => {
-      countTokens(systemPromptText)
-        .then((r) => setTokenCount(r.token_count))
-        .catch(() => setTokenCount(Math.round(systemPromptText.length / 2)));
-    }, 500);
-    return () => {
-      if (tokenDebounceRef.current) clearTimeout(tokenDebounceRef.current);
-    };
-  }, [systemPromptText]);
-
   const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) => {
     setSaving(true);
     try {
@@ -174,53 +152,6 @@ export function SettingsPanel() {
     }
   };
 
-  const handleStartNaming = () => {
-    setPendingName("");
-    setNamingMode(true);
-    setTimeout(() => nameInputRef.current?.focus(), 0);
-  };
-
-  const handleConfirmName = async () => {
-    if (!pendingName.trim()) { setNamingMode(false); return; }
-    try {
-      const newPrompt = await createSystemPrompt(pendingName.trim(), systemPromptText);
-      setSavedPrompts((prev) => [...prev, newPrompt]);
-      setSelectedPromptId(newPrompt.id);
-      saveActiveSystemPrompt(systemPromptText, newPrompt.id).catch(() => {});
-    } catch { /* ignore */ }
-    setNamingMode(false);
-    setPendingName("");
-  };
-
-  const handleOverwritePrompt = async () => {
-    if (!selectedPromptId) return;
-    try {
-      const updated = await updateSystemPrompt(selectedPromptId, systemPromptText);
-      setSavedPrompts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      saveActiveSystemPrompt(systemPromptText, selectedPromptId).catch(() => {});
-    } catch { /* ignore */ }
-  };
-
-  const handleDeletePrompt = async () => {
-    if (!selectedPromptId) return;
-    try {
-      await deleteSystemPrompt(selectedPromptId);
-      setSavedPrompts((prev) => prev.filter((p) => p.id !== selectedPromptId));
-      setSelectedPromptId("");
-      saveActiveSystemPrompt(systemPromptText, "").catch(() => {});
-    } catch { /* ignore */ }
-  };
-
-  const handleTextareaChange = (value: string) => {
-    setSystemPromptText(value);
-    // テキストが保存済みプロンプトと一致したら、その選択状態に切り替える
-    const match = savedPrompts.find((p) => p.content === value);
-    if (match && match.id !== selectedPromptId) {
-      setSelectedPromptId(match.id);
-      saveActiveSystemPrompt(value, match.id).catch(() => {});
-    }
-  };
-
   const onTipEnter = useCallback((text: string) => (e: React.MouseEvent) => {
     const el = e.currentTarget as HTMLElement;
     if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
@@ -260,87 +191,17 @@ export function SettingsPanel() {
 
         {systemPromptOpen && (
           <div className="settings-section-body">
-            {namingMode ? (
-              <div className="sys-prompt-toolbar">
-                <input
-                  ref={nameInputRef}
-                  className="sys-prompt-name-input"
-                  type="text"
-                  placeholder="プロンプト名"
-                  value={pendingName}
-                  onChange={(e) => setPendingName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleConfirmName();
-                    if (e.key === "Escape") { setNamingMode(false); setPendingName(""); }
-                  }}
-                />
-                <button className="sys-prompt-icon-btn" title="保存" onClick={() => void handleConfirmName()}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                </button>
-                <button className="sys-prompt-icon-btn" title="キャンセル" onClick={() => { setNamingMode(false); setPendingName(""); }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <div className="sys-prompt-toolbar">
-                <select
-                  className="sys-prompt-select"
-                  value={selectedPromptId}
-                  onChange={(e) => handleSelectPrompt(e.target.value)}
-                >
-                  <option value="">-- プロンプトを選択 --</option>
-                  {savedPrompts.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <button
-                  className="sys-prompt-icon-btn"
-                  title="現在のテキストを保存"
-                  onClick={handleStartNaming}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                </button>
-                <button
-                  className="sys-prompt-icon-btn"
-                  title="選択中のプロンプトに上書き保存"
-                  onClick={() => void handleOverwritePrompt()}
-                  disabled={!selectedPromptId || savedPrompts.find((p) => p.id === selectedPromptId)?.content === systemPromptText}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                    <polyline points="17 21 17 13 7 13 7 21"/>
-                    <polyline points="7 3 7 8 15 8"/>
-                  </svg>
-                </button>
-                <button
-                  className="sys-prompt-icon-btn danger"
-                  title="選択中のプロンプトを削除"
-                  onClick={() => void handleDeletePrompt()}
-                  disabled={!selectedPromptId}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                  </svg>
-                </button>
-              </div>
-            )}
-            <textarea
-              className="sys-prompt-textarea"
-              value={systemPromptText}
-              onChange={(e) => handleTextareaChange(e.target.value)}
-              placeholder="システムプロンプトを入力してください…"
-              spellCheck={false}
-            />
-            <div className="sys-prompt-footer">
-              <span className="sys-prompt-token-count">
-                {tokenCount !== null ? `Token count: ${tokenCount}` : ""}
-              </span>
+            <div className="sys-prompt-toolbar">
+              <select
+                className="sys-prompt-select"
+                value={selectedPromptId}
+                onChange={(e) => handleSelectPrompt(e.target.value)}
+              >
+                <option value="">-- なし --</option>
+                {savedPrompts.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}

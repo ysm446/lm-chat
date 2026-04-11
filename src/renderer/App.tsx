@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { getSettings, updateSettings } from "./api";
+import { SavedSystemPrompt, getSettings, listSystemPrompts, updateSettings } from "./api";
+import { ActivityBar, AppMode } from "./components/ActivityBar";
 import { ChatView } from "./components/ChatView";
 import { DebugPromptView } from "./components/DebugPromptView";
 import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
+import { SystemPromptEditor } from "./components/SystemPromptEditor";
+import { SystemPromptSidebar } from "./components/SystemPromptSidebar";
 import { applyUIFont } from "./fontOptions";
 import { WorkspaceEmptyState } from "./components/WorkspaceEmptyState";
 import { useChatStore } from "./stores/chatStore";
@@ -29,6 +32,9 @@ export function App() {
   const [debugPromptLogEnabled, setDebugPromptLogEnabled] = useState(false);
   const [isImageDragOver, setIsImageDragOver] = useState(false);
   const dragDepthRef = useRef(0);
+  const [appMode, setAppMode] = useState<AppMode>("chat");
+  const [spPrompts, setSpPrompts] = useState<SavedSystemPrompt[]>([]);
+  const [spSelectedId, setSpSelectedId] = useState<string>("");
 
   const hasImageFile = (dataTransfer: DataTransfer | null) =>
     !!dataTransfer && Array.from(dataTransfer.items).some((item) => item.kind === "file" && item.type.startsWith("image/"));
@@ -81,6 +87,21 @@ export function App() {
     return () => window.removeEventListener("lm-chat:settings-updated", handleSettingsUpdated as EventListener);
   }, []);
 
+  const handleSetAppMode = async (mode: AppMode) => {
+    setAppMode(mode);
+    if (mode === "system-prompt") {
+      if (!showLeft) {
+        setShowLeft(true);
+        void updateSettings({ show_left: true });
+      }
+      try {
+        const data = await listSystemPrompts();
+        setSpPrompts(data.prompts);
+        setSpSelectedId(data.active_id || "");
+      } catch { /* ignore */ }
+    }
+  };
+
   if (isBootstrapping) {
     return (
       <div className="empty-shell">
@@ -113,89 +134,111 @@ export function App() {
         onToggleLeft={() => { const n = !showLeft; setShowLeft(n); void updateSettings({ show_left: n }); }}
         onToggleRight={() => { const n = !showRight; setShowRight(n); void updateSettings({ show_right: n }); }}
       />
+      <div className="app-body">
+        <ActivityBar mode={appMode} onSetMode={(m) => void handleSetAppMode(m)} />
       <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
         <aside className="left-pane" style={{ overflow: "hidden" }}>
-          <Sidebar />
+          {appMode === "system-prompt" ? (
+            <SystemPromptSidebar
+              prompts={spPrompts}
+              selectedId={spSelectedId}
+              onSelect={setSpSelectedId}
+              onPromptsChange={setSpPrompts}
+            />
+          ) : (
+            <Sidebar />
+          )}
         </aside>
 
         <div className="resize-handle" style={{ pointerEvents: showLeft ? undefined : "none" }} onMouseDown={makeResizeHandler(() => sidebarWidth, setSidebarWidth, 180, 480, "left")} />
 
-        <main
-          className={`center-pane${isImageDragOver ? " drag-over" : ""}`}
-          onDragEnter={(e) => {
-            if (!hasImageFile(e.dataTransfer)) return;
-            e.preventDefault();
-            dragDepthRef.current += 1;
-            setIsImageDragOver(true);
-          }}
-          onDragOver={(e) => {
-            if (!hasImageFile(e.dataTransfer)) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "copy";
-            if (!isImageDragOver) setIsImageDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            if (!hasImageFile(e.dataTransfer)) return;
-            e.preventDefault();
-            dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-            if (dragDepthRef.current === 0) setIsImageDragOver(false);
-          }}
-          onDrop={(e) => {
-            if (!hasImageFile(e.dataTransfer)) return;
-            e.preventDefault();
-            dragDepthRef.current = 0;
-            setIsImageDragOver(false);
-            const file = Array.from(e.dataTransfer.files).find((entry) => entry.type.startsWith("image/"));
-            if (file) dispatchDroppedImage(file);
-          }}
-        >
-          <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
-          <header className="center-header">
-            <h1 className="center-header-title">
-              {tempChatMode ? "一時チャット" : (currentSession?.title ?? "New chat")}
-            </h1>
-            <div style={{ flex: 1 }} />
-            {error ? <p className="error-text" style={{ margin: 0 }}>{error}</p> : null}
-            <button
-              className={`center-header-btn${debugViewOpen ? " active" : ""}`}
-              onClick={() => setDebugViewOpen((value) => !value)}
-              title={debugViewOpen ? "デバッグビューを閉じる" : "デバッグビューを開く"}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 3h6l1 2h3a1 1 0 0 1 1 1v3h-2" />
-                <path d="M6 5H5a1 1 0 0 0-1 1v3h2" />
-                <path d="M8 13h8" />
-                <path d="M9 17h6" />
-                <rect x="7" y="9" width="10" height="10" rx="2" />
-              </svg>
-            </button>
-            <button
-              className={`center-header-btn${tempChatMode ? " active" : ""}`}
-              onClick={toggleTempChat}
-              title={tempChatMode ? "一時チャットを終了（履歴に戻る）" : "一時チャット（保存されません）"}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeDasharray="3 2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-            </button>
-          </header>
-          {debugViewOpen ? (
-            <DebugPromptView active={debugViewOpen} enabled={debugPromptLogEnabled} />
-          ) : (
-            <>
-              <ChatView />
-              <MessageInput />
-            </>
-          )}
-          {isImageDragOver && (
-            <div className="chat-drop-overlay" aria-hidden="true">
-              <div className="chat-drop-card">
-                <strong>画像をドロップして添付</strong>
-                <span>会話に送る画像をここへ追加できます</span>
+        {appMode === "system-prompt" ? (
+          <main className="center-pane sp-editor-pane">
+            <SystemPromptEditor
+              prompts={spPrompts}
+              selectedId={spSelectedId}
+              onSelect={setSpSelectedId}
+              onPromptsChange={setSpPrompts}
+            />
+          </main>
+        ) : (
+          <main
+            className={`center-pane${isImageDragOver ? " drag-over" : ""}`}
+            onDragEnter={(e) => {
+              if (!hasImageFile(e.dataTransfer)) return;
+              e.preventDefault();
+              dragDepthRef.current += 1;
+              setIsImageDragOver(true);
+            }}
+            onDragOver={(e) => {
+              if (!hasImageFile(e.dataTransfer)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              if (!isImageDragOver) setIsImageDragOver(true);
+            }}
+            onDragLeave={(e) => {
+              if (!hasImageFile(e.dataTransfer)) return;
+              e.preventDefault();
+              dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+              if (dragDepthRef.current === 0) setIsImageDragOver(false);
+            }}
+            onDrop={(e) => {
+              if (!hasImageFile(e.dataTransfer)) return;
+              e.preventDefault();
+              dragDepthRef.current = 0;
+              setIsImageDragOver(false);
+              const file = Array.from(e.dataTransfer.files).find((entry) => entry.type.startsWith("image/"));
+              if (file) dispatchDroppedImage(file);
+            }}
+          >
+            <div className={`submit-progress-bar ${isSubmitting ? "active" : ""}`} />
+            <header className="center-header">
+              <h1 className="center-header-title">
+                {tempChatMode ? "一時チャット" : (currentSession?.title ?? "New chat")}
+              </h1>
+              <div style={{ flex: 1 }} />
+              {error ? <p className="error-text" style={{ margin: 0 }}>{error}</p> : null}
+              <button
+                className={`center-header-btn${debugViewOpen ? " active" : ""}`}
+                onClick={() => setDebugViewOpen((value) => !value)}
+                title={debugViewOpen ? "デバッグビューを閉じる" : "デバッグビューを開く"}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 3h6l1 2h3a1 1 0 0 1 1 1v3h-2" />
+                  <path d="M6 5H5a1 1 0 0 0-1 1v3h2" />
+                  <path d="M8 13h8" />
+                  <path d="M9 17h6" />
+                  <rect x="7" y="9" width="10" height="10" rx="2" />
+                </svg>
+              </button>
+              <button
+                className={`center-header-btn${tempChatMode ? " active" : ""}`}
+                onClick={toggleTempChat}
+                title={tempChatMode ? "一時チャットを終了（履歴に戻る）" : "一時チャット（保存されません）"}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeDasharray="3 2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </button>
+            </header>
+            {debugViewOpen ? (
+              <DebugPromptView active={debugViewOpen} enabled={debugPromptLogEnabled} />
+            ) : (
+              <>
+                <ChatView />
+                <MessageInput />
+              </>
+            )}
+            {isImageDragOver && (
+              <div className="chat-drop-overlay" aria-hidden="true">
+                <div className="chat-drop-card">
+                  <strong>画像をドロップして添付</strong>
+                  <span>会話に送る画像をここへ追加できます</span>
+                </div>
               </div>
-            </div>
-          )}
-        </main>
+            )}
+          </main>
+        )}
 
         <div className="resize-handle" style={{ pointerEvents: showRight ? undefined : "none" }} onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
 
@@ -213,6 +256,7 @@ export function App() {
             </div>
           </div>
         ) : null}
+      </div>
       </div>
     </div>
   );

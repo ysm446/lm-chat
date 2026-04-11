@@ -56,6 +56,13 @@ def delete_prompt(prompt_id: str) -> bool:
     return True
 
 
+def reorder_prompts(ids: list[str]) -> None:
+    data = _load()
+    order_map = {pid: i for i, pid in enumerate(ids)}
+    data["prompts"].sort(key=lambda p: order_map.get(p["id"], len(ids)))
+    _save(data)
+
+
 def set_active_text(text: str) -> None:
     data = _load()
     data["active_text"] = text

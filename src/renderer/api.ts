@@ -290,16 +290,23 @@ export function createSystemPrompt(name: string, content: string) {
   });
 }
 
-export function updateSystemPrompt(id: string, content: string) {
+export function updateSystemPrompt(id: string, content?: string, name?: string) {
   return request<SavedSystemPrompt>(`/system-prompts/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ ...(content !== undefined ? { content } : {}), ...(name !== undefined ? { name } : {}) }),
   });
 }
 
 export function deleteSystemPrompt(id: string) {
   return request<{ deleted: boolean }>(`/system-prompts/${encodeURIComponent(id)}`, {
     method: "DELETE",
+  });
+}
+
+export function reorderSystemPrompts(ids: string[]) {
+  return request<{ ok: boolean }>("/system-prompts/reorder", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
   });
 }
 
