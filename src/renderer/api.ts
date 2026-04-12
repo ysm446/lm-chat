@@ -431,3 +431,23 @@ export async function streamChatMessage(
     signal
   );
 }
+
+export type GpuInfo = {
+  name: string;
+  gpu_percent: number;
+  vram_used_gb: number;
+  vram_total_gb: number;
+  vram_percent: number;
+};
+
+export type SystemResources = {
+  cpu_percent: number;
+  ram_used_gb: number;
+  ram_total_gb: number;
+  ram_percent: number;
+  gpus: GpuInfo[];
+};
+
+export async function fetchSystemResources(): Promise<SystemResources> {
+  return request<SystemResources>("/system/resources");
+}

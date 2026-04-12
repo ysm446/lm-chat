@@ -27,6 +27,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+import psutil
+try:
+    import pynvml as nvml
+    nvml.nvmlInit()
+    _NVML_AVAILABLE = True
+except Exception:
+    _NVML_AVAILABLE = False
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
@@ -633,6 +640,42 @@ def llama_switch_model(payload: dict) -> dict:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     logger.info("Model switch initiated successfully")
     return {"status": "restarting", "model_path": model_path}
+
+
+@app.get("/system/resources")
+def system_resources() -> dict:
+    cpu_percent = psutil.cpu_percent(interval=None)
+    vm = psutil.virtual_memory()
+    ram_used_gb = vm.used / (1024 ** 3)
+    ram_total_gb = vm.total / (1024 ** 3)
+    ram_percent = vm.percent
+
+    gpus: list[dict] = []
+    if _NVML_AVAILABLE:
+        try:
+            device_count = nvml.nvmlDeviceGetCount()
+            for i in range(device_count):
+                handle = nvml.nvmlDeviceGetHandleByIndex(i)
+                name = nvml.nvmlDeviceGetName(handle)
+                util = nvml.nvmlDeviceGetUtilizationRates(handle)
+                mem = nvml.nvmlDeviceGetMemoryInfo(handle)
+                gpus.append({
+                    "name": name if isinstance(name, str) else name.decode(),
+                    "gpu_percent": util.gpu,
+                    "vram_used_gb": mem.used / (1024 ** 3),
+                    "vram_total_gb": mem.total / (1024 ** 3),
+                    "vram_percent": round(mem.used / mem.total * 100, 1) if mem.total else 0,
+                })
+        except Exception:
+            pass
+
+    return {
+        "cpu_percent": cpu_percent,
+        "ram_used_gb": round(ram_used_gb, 2),
+        "ram_total_gb": round(ram_total_gb, 2),
+        "ram_percent": ram_percent,
+        "gpus": gpus,
+    }
 
 
 

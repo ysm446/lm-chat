@@ -1013,7 +1013,7 @@ a { color: var(--accent); }
   flex-shrink: 0;
   padding: 6px 12px;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: 5px;
   background: rgba(255,255,255,0.04);
   color: var(--text-dim);
   font-size: 12px;
@@ -1029,6 +1029,72 @@ a { color: var(--accent); }
 .debug-clear-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* System Resources panel */
+.sysres-panel {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sysres-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sysres-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.sysres-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sysres-value {
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.sysres-track {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.sysres-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.sysres-gpu-name {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sysres-no-gpu {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.sysres-loading {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .debug-view-status.loading {

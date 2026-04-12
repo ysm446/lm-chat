@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, cleanupMemory, fetchMemoryStats, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, SystemResources, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -45,6 +45,9 @@ export function SettingsPanel() {
   const [debugPromptLog, setDebugPromptLog] = useState(false);
   const [memoryCleanupBusy, setMemoryCleanupBusy] = useState(false);
   const [memoryCleanupResult, setMemoryCleanupResult] = useState<string | null>(null);
+  const [sysResOpen, setSysResOpen] = useState(false);
+  const [sysRes, setSysRes] = useState<SystemResources | null>(null);
+  const sysResIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -128,6 +131,27 @@ export function SettingsPanel() {
     window.addEventListener("lm-chat:prompts-updated", handler as EventListener);
     return () => window.removeEventListener("lm-chat:prompts-updated", handler as EventListener);
   }, []);
+
+  useEffect(() => {
+    if (sysResOpen) {
+      fetchSystemResources().then(setSysRes).catch(() => {});
+      sysResIntervalRef.current = setInterval(() => {
+        fetchSystemResources().then(setSysRes).catch(() => {});
+      }, 1000);
+    } else {
+      if (sysResIntervalRef.current) {
+        clearInterval(sysResIntervalRef.current);
+        sysResIntervalRef.current = null;
+      }
+      setSysRes(null);
+    }
+    return () => {
+      if (sysResIntervalRef.current) {
+        clearInterval(sysResIntervalRef.current);
+        sysResIntervalRef.current = null;
+      }
+    };
+  }, [sysResOpen]);
 
   const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) => {
     setSaving(true);
@@ -649,6 +673,50 @@ export function SettingsPanel() {
                 {memoryCleanupBusy ? "掃除中..." : "実行"}
               </button>
             </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10 }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label">システムリソース</span>
+                <span className="settings-field-hint">CPU・RAM・GPU・VRAMの使用状況（1秒更新）</span>
+              </div>
+              <button
+                type="button"
+                className={`settings-toggle-btn${sysResOpen ? " active" : ""}`}
+                aria-pressed={sysResOpen}
+                onClick={() => setSysResOpen((v) => !v)}
+              >
+                <span className="settings-toggle-thumb" />
+              </button>
+            </div>
+            {sysResOpen && (
+              <div className="sysres-panel">
+                {sysRes ? (
+                  <>
+                    <SysResBar label="CPU" percent={sysRes.cpu_percent} valueLabel={`${sysRes.cpu_percent.toFixed(1)}%`} />
+                    <SysResBar
+                      label="RAM"
+                      percent={sysRes.ram_percent}
+                      valueLabel={`${sysRes.ram_used_gb.toFixed(1)} / ${sysRes.ram_total_gb.toFixed(1)} GB`}
+                    />
+                    {sysRes.gpus.length === 0 && (
+                      <div className="sysres-no-gpu">GPU: N/A</div>
+                    )}
+                    {sysRes.gpus.map((gpu, i) => (
+                      <div key={i}>
+                        {sysRes.gpus.length > 1 && <div className="sysres-gpu-name">{gpu.name}</div>}
+                        <SysResBar label="GPU" percent={gpu.gpu_percent} valueLabel={`${gpu.gpu_percent.toFixed(1)}%`} />
+                        <SysResBar
+                          label="VRAM"
+                          percent={gpu.vram_percent}
+                          valueLabel={`${gpu.vram_used_gb.toFixed(1)} / ${gpu.vram_total_gb.toFixed(1)} GB`}
+                        />
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="sysres-loading">読み込み中...</div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -665,7 +733,26 @@ export function SettingsPanel() {
   );
 }
 
+function sysResColor(percent: number): string {
+  if (percent < 50) return "#4a9eff";
+  if (percent < 80) return "#e8814a";
+  return "#e84a4a";
+}
 
+function SysResBar({ label, percent, valueLabel }: { label: string; percent: number; valueLabel: string }) {
+  const clamped = Math.min(100, Math.max(0, percent));
+  return (
+    <div className="sysres-row">
+      <div className="sysres-row-header">
+        <span className="sysres-label">{label}</span>
+        <span className="sysres-value">{valueLabel}</span>
+      </div>
+      <div className="sysres-track">
+        <div className="sysres-fill" style={{ width: `${clamped}%`, background: sysResColor(clamped) }} />
+      </div>
+    </div>
+  );
+}
 
 
 
