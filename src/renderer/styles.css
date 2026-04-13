@@ -2467,33 +2467,24 @@ details.thinking-block[open] .thinking-chevron {
   background: var(--bg-sidebar);
 }
 .sp-sidebar-header {
-  display: flex;
-  align-items: center;
-  padding: 10px 10px 10px 12px;
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  gap: 6px;
-}
-.sp-sidebar-title {
-  flex: 1;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
 }
 .sp-sidebar-new-btn {
-  width: 24px;
-  height: 24px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
   border-radius: var(--r-sm);
-  color: var(--text-faint);
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 .sp-sidebar-new-btn:hover { background: rgba(255,255,255,0.07); color: var(--text); }
+.sp-sidebar-new-btn:disabled { opacity: 0.55; cursor: default; }
 
 .sp-sidebar-new-row {
   display: flex;

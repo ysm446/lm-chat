@@ -11,10 +11,6 @@ type Props = {
 };
 
 export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsChange }: Props) {
-  const [showNew, setShowNew] = useState(false);
-  const [newName, setNewName] = useState("");
-  const newInputRef = useRef<HTMLInputElement>(null);
-
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
@@ -24,6 +20,7 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // コンテキストメニューの外側クリック / Esc で閉じる
   useEffect(() => {
@@ -39,22 +36,17 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
 
   useEffect(() => { if (editingId) { editInputRef.current?.focus(); editInputRef.current?.select(); } }, [editingId]);
 
-  const handleNewClick = () => {
-    setShowNew(true);
-    setNewName("");
-    setTimeout(() => newInputRef.current?.focus(), 0);
-  };
-
-  const handleCreate = async () => {
-    const name = newName.trim();
-    if (!name) return;
+  const handleNewClick = async () => {
+    if (isCreating) return;
+    setIsCreating(true);
     try {
-      const created = await createSystemPrompt(name, "");
+      const created = await createSystemPrompt("新しいプロンプト", "");
       onPromptsChange([...prompts, created]);
       onSelect(created.id);
+      setEditingId(created.id);
+      setEditingName(created.name);
     } catch { /* ignore */ }
-    setShowNew(false);
-    setNewName("");
+    setIsCreating(false);
   };
 
   const handleSelectPrompt = (p: SavedSystemPrompt) => {
@@ -109,36 +101,19 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
   return (
     <div className={`sp-sidebar${dragId ? " sp-dragging" : ""}`}>
       <div className="sp-sidebar-header">
-        <span className="sp-sidebar-title">システムプロンプト</span>
-        {!showNew && (
-          <button className="sp-sidebar-new-btn" onClick={handleNewClick} title="新規作成">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-        )}
+        <button className="sp-sidebar-new-btn" onClick={() => void handleNewClick()} title="新しいシステムプロンプト" disabled={isCreating}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+          新しいシステムプロンプト
+        </button>
       </div>
 
-      {showNew && (
-        <div className="sp-sidebar-new-row">
-          <input
-            ref={newInputRef}
-            className="sp-sidebar-new-input"
-            placeholder="プロンプト名"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleCreate();
-              if (e.key === "Escape") { setShowNew(false); setNewName(""); }
-            }}
-          />
-          <button className="sp-sidebar-new-confirm" onClick={() => void handleCreate()} title="作成">✓</button>
-          <button className="sp-sidebar-new-cancel" onClick={() => { setShowNew(false); setNewName(""); }} title="キャンセル">✕</button>
-        </div>
-      )}
-
       <div className="sp-sidebar-list">
-        {prompts.length === 0 && !showNew && (
+        {prompts.length === 0 && !isCreating && (
           <p className="sp-sidebar-empty">保存済みのプロンプトはありません<br />「＋」から新規作成できます</p>
         )}
         {prompts.map((p) => (
