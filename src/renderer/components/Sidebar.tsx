@@ -526,6 +526,12 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                     <div
                       key={session.id}
                       className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
+                      draggable
+                      onDragStart={(e) => {
+                        setSessionDragId(session.id);
+                        e.dataTransfer.effectAllowed = "move";
+                        e.dataTransfer.setData("text/plain", session.id);
+                      }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
@@ -578,18 +584,6 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                         </div>
                       ) : (
                         <>
-                          <span
-                            className="ws-drag-handle"
-                            title="ドラッグして並べ替え"
-                            draggable
-                            onDragStart={(e) => { setSessionDragId(session.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", session.id); }}
-                          >
-                            <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                              <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                              <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
-                              <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
-                            </svg>
-                          </span>
                           <button
                             className="sidebar-session-btn"
                             onClick={() => void selectSession(session.id)}
