@@ -44,10 +44,8 @@ export function SettingsPanel() {
   const [completionOpen, setCompletionOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugPromptLog, setDebugPromptLog] = useState(false);
-  const [memoryCleanupBusy, setMemoryCleanupBusy] = useState(false);
-  const [memoryCleanupResult, setMemoryCleanupResult] = useState<string | null>(null);
-  const [documentCleanupBusy, setDocumentCleanupBusy] = useState(false);
-  const [documentCleanupResult, setDocumentCleanupResult] = useState<string | null>(null);
+  const [databaseCleanupBusy, setDatabaseCleanupBusy] = useState(false);
+  const [databaseCleanupResult, setDatabaseCleanupResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
   const [sysRes, setSysRes] = useState<SystemResources | null>(null);
   const sysResIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -174,42 +172,25 @@ export function SettingsPanel() {
     }
   };
 
-  const handleMemoryCleanup = async () => {
-    if (memoryCleanupBusy) return;
-    setMemoryCleanupBusy(true);
-    setMemoryCleanupResult(null);
+  const handleDatabaseCleanup = async () => {
+    if (databaseCleanupBusy) return;
+    setDatabaseCleanupBusy(true);
+    setDatabaseCleanupResult(null);
     try {
-      const result = await cleanupMemory();
-      const total = result.deleted_chunks + result.deleted_fts + result.deleted_vec;
-      setMemoryCleanupResult(
+      const [memoryResult, documentResult] = await Promise.all([cleanupMemory(), cleanupDocuments()]);
+      const memoryTotal = memoryResult.deleted_chunks + memoryResult.deleted_fts + memoryResult.deleted_vec;
+      const documentIndexTotal = documentResult.deleted_chunks + documentResult.deleted_fts + documentResult.deleted_vec;
+      const total = memoryTotal + documentIndexTotal + documentResult.deleted_files + documentResult.deleted_dirs;
+      setDatabaseCleanupResult(
         total > 0
-          ? `掃除完了: chunks ${result.deleted_chunks}件 / FTS ${result.deleted_fts}件 / vectors ${result.deleted_vec}件`
+          ? `掃除完了: memory ${memoryTotal}件 / document indexes ${documentIndexTotal}件 / files ${documentResult.deleted_files}件 / dirs ${documentResult.deleted_dirs}件`
           : "掃除対象は見つかりませんでした"
       );
       loadMemoryStats();
     } catch (error) {
-      setMemoryCleanupResult(error instanceof Error ? error.message : "記憶クリーンアップに失敗しました");
+      setDatabaseCleanupResult(error instanceof Error ? error.message : "データベースのクリーンナップに失敗しました");
     } finally {
-      setMemoryCleanupBusy(false);
-    }
-  };
-
-  const handleDocumentCleanup = async () => {
-    if (documentCleanupBusy) return;
-    setDocumentCleanupBusy(true);
-    setDocumentCleanupResult(null);
-    try {
-      const result = await cleanupDocuments();
-      const total = result.deleted_chunks + result.deleted_fts + result.deleted_vec + result.deleted_files + result.deleted_dirs;
-      setDocumentCleanupResult(
-        total > 0
-          ? `掃除完了: chunks ${result.deleted_chunks}件 / FTS ${result.deleted_fts}件 / vectors ${result.deleted_vec}件 / files ${result.deleted_files}件 / dirs ${result.deleted_dirs}件`
-          : "掃除対象は見つかりませんでした"
-      );
-    } catch (error) {
-      setDocumentCleanupResult(error instanceof Error ? error.message : "ドキュメントクリーンアップに失敗しました");
-    } finally {
-      setDocumentCleanupBusy(false);
+      setDatabaseCleanupBusy(false);
     }
   };
 
@@ -682,38 +663,20 @@ export function SettingsPanel() {
             </div>
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("セッションやワークスペースと紐づかない孤立した記憶チャンク、全文検索行、ベクトル行を掃除します。")} onMouseLeave={onTipLeave}>記憶クリーンアップ</span>
-                <span className="settings-field-hint">孤立した記憶データだけを安全に削除</span>
-                {memoryCleanupResult ? (
-                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{memoryCleanupResult}</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("セッション・ワークスペース・documents と紐づかない孤立データをまとめて掃除します。記憶チャンク、資料チャンク、全文検索行、ベクトル行、未参照ファイルが対象です。")} onMouseLeave={onTipLeave}>データベースのクリーンナップ</span>
+                <span className="settings-field-hint">孤立した記憶データ、資料インデックス、未参照ファイルをまとめて安全に削除</span>
+                {databaseCleanupResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{databaseCleanupResult}</span>
                 ) : null}
               </div>
               <button
                 type="button"
                 className="debug-clear-btn"
-                onClick={() => void handleMemoryCleanup()}
-                disabled={memoryCleanupBusy}
+                onClick={() => void handleDatabaseCleanup()}
+                disabled={databaseCleanupBusy}
                 style={{ minWidth: 96 }}
               >
-                {memoryCleanupBusy ? "掃除中..." : "実行"}
-              </button>
-            </div>
-            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
-              <div className="settings-toggle-copy">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("documents と紐づかない孤立した資料チャンク、全文検索行、ベクトル行、および DB に参照されない資料ファイルを掃除します。")} onMouseLeave={onTipLeave}>ドキュメントクリーンアップ</span>
-                <span className="settings-field-hint">孤立した資料インデックスと未参照ファイルだけを安全に削除</span>
-                {documentCleanupResult ? (
-                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{documentCleanupResult}</span>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="debug-clear-btn"
-                onClick={() => void handleDocumentCleanup()}
-                disabled={documentCleanupBusy}
-                style={{ minWidth: 96 }}
-              >
-                {documentCleanupBusy ? "掃除中..." : "実行"}
+                {databaseCleanupBusy ? "掃除中..." : "実行"}
               </button>
             </div>
             <div className="settings-toggle-row" style={{ marginTop: 10 }}>
