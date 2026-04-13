@@ -371,19 +371,6 @@ a { color: var(--accent); }
 .sidebar-session-row.drag-over { outline: 1px solid var(--accent-border); background: var(--accent-soft); }
 .sidebar-session-row.dragging { opacity: 0.45; }
 
-.ws-drag-handle {
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
-  color: var(--text-faint);
-  opacity: 0;
-  cursor: grab;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-}
-.sidebar-ws-row:hover .ws-drag-handle { opacity: 1; }
-.sidebar-session-row:hover .ws-drag-handle { opacity: 1; }
-
 .sidebar-ws-row {
   display: flex;
   align-items: center;
@@ -391,6 +378,7 @@ a { color: var(--accent); }
   padding: 3px 6px 3px 2px;
   border-radius: var(--r-sm);
   margin: 0 4px;
+  cursor: grab;
 }
 
 .sidebar-ws-row:hover { background: rgba(255,255,255,0.04); }

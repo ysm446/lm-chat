@@ -383,14 +383,15 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                   </div>
                 </div>
               ) : (
-                <div className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}>
-                  <span className="ws-drag-handle" title="ドラッグして並べ替え" draggable onDragStart={(e) => { setDragId(ws.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ws.id); }}>
-                    <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                      <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                      <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
-                      <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
-                    </svg>
-                  </span>
+                <div
+                  className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragId(ws.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", ws.id);
+                  }}
+                >
                   <button
                     className="sidebar-ws-label"
                     onClick={() => void handleWorkspaceRowClick(ws.id)}
