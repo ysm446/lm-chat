@@ -82,7 +82,7 @@ start.bat
 - `npm` が PATH に通っていること
 - `C:\Users\kenyo\miniconda3\Scripts\conda.exe` が存在すること
 - `main` という名前の conda 環境があること
-- `bin\llama-server\llama-b8648-bin-win-cuda-13.1-x64\llama-server.exe` が存在すること
+- `bin\llama-server\llama-b8781-bin-win-cuda-13.1-x64\llama-server.exe` が存在すること
 - GGUF モデルファイルを `models/` 配下に置くこと
 
 初回セットアップ時は、必要に応じて以下も用意してください。

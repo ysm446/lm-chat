@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -34,6 +34,7 @@ export function SettingsPanel() {
   const [temperature, setTemperature] = useState(0.8);
   const [completionLength, setCompletionLength] = useState(80);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
+  const [llamaServerVersion, setLlamaServerVersion] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
@@ -103,8 +104,11 @@ export function SettingsPanel() {
   }, []);
 
   useEffect(() => {
-    getLlamaProps()
-      .then((props) => { if (props.n_ctx) setModelMaxCtx(props.n_ctx); })
+    Promise.all([getLlamaProps(), getLlamaStatus()])
+      .then(([props, status]) => {
+        if (props.n_ctx) setModelMaxCtx(props.n_ctx);
+        setLlamaServerVersion(status.version || "");
+      })
       .catch(() => {});
   }, [activeModelPath]);
 
@@ -620,7 +624,7 @@ export function SettingsPanel() {
         {advancedOpen && (
           <div className="settings-section-body">
             <div className="stat-list">
-              <div className="stat-row"><span>推論サーバー</span><code>llama-server</code></div>
+              <div className="stat-row"><span>推論サーバー</span><code>{llamaServerVersion ? `llama-server (${llamaServerVersion})` : "llama-server"}</code></div>
               <div className="stat-row"><span>埋め込みモデル</span><code>ruri-v3-310m</code></div>
               <div className="stat-row"><span>検索方式</span><strong>FTS5 + ベクトル</strong></div>
             </div>

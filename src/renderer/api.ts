@@ -247,7 +247,7 @@ export function getSessionTokenCount(sessionId: string) {
 }
 
 export function getLlamaStatus() {
-  return request<{ ready: boolean; active_model_path: string }>("/llama/status");
+  return request<{ ready: boolean; active_model_path: string; version?: string }>("/llama/status");
 }
 
 export function ejectLlamaModel() {

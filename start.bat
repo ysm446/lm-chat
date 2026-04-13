@@ -4,7 +4,7 @@ setlocal
 cd /d "%~dp0"
 
 set "CONDA_EXE=C:\Users\kenyo\miniconda3\Scripts\conda.exe"
-set "LLAMA_SERVER_EXE=%CD%\bin\llama-server\llama-b8648-bin-win-cuda-13.1-x64\llama-server.exe"
+set "LLAMA_SERVER_EXE=%CD%\bin\llama-server\llama-b8781-bin-win-cuda-13.1-x64\llama-server.exe"
 
 if not exist "%CONDA_EXE%" (
   echo ERROR: conda.exe not found: %CONDA_EXE%

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -92,6 +93,26 @@ def get_model_props() -> dict:
             return json.loads(resp.read().decode("utf-8"))
     except Exception:
         return {}
+
+
+def get_llama_server_version(paths: dict | None = None, props: dict | None = None) -> str:
+    current = paths if paths is not None else get_llama_paths()
+    metadata = props if props is not None else {}
+
+    for key in ("version", "build", "build_number"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, int):
+            return str(value)
+
+    exe = current.get("llama_exe", "")
+    if not exe:
+        return ""
+
+    parent_name = Path(exe).parent.name
+    match = re.search(r"(b\d{3,})", parent_name, re.IGNORECASE)
+    return match.group(1) if match else ""
 
 
 def switch_model(model_path: str, ctx_size: int = 32768, n_gpu_layers: int = -1) -> None:

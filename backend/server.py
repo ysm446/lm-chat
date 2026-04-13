@@ -41,7 +41,7 @@ from .debug_store import clear_prompt_logs, list_prompt_logs
 from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, reorder_prompts, get_all as get_system_prompts, set_active_text, set_active_id
-from .llama_manager import eject_model, get_llama_paths, get_model_props, is_ready, switch_model
+from .llama_manager import eject_model, get_llama_paths, get_llama_server_version, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
@@ -842,6 +842,7 @@ def llama_status() -> dict:
     return {
         "ready": is_ready(),
         "active_model_path": paths.get("active_model_path", ""),
+        "version": get_llama_server_version(paths=paths),
     }
 
 
