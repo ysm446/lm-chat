@@ -175,7 +175,18 @@ export function DocumentEditor({ docId, onClose }: Props) {
               {isSaving ? "保存中…" : "保存して再インデックス"}
             </button>
           )}
-          <button className="doc-editor-btn danger" onClick={() => void handleDelete()}>削除</button>
+          <button className="doc-editor-btn danger" onClick={() => void handleDelete()}>
+            <span className="doc-editor-btn-icon" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </span>
+            削除
+          </button>
           <button className="doc-editor-btn" onClick={onClose} title="チャットに戻る">✕</button>
         </div>
         <div className="doc-editor-meta">

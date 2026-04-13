@@ -1000,18 +1000,18 @@ a { color: var(--accent); }
 .debug-clear-btn {
   flex-shrink: 0;
   padding: 6px 12px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--accent-border);
   border-radius: 5px;
-  background: rgba(255,255,255,0.04);
-  color: var(--text-dim);
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 12px;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .debug-clear-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.08);
-  color: var(--text);
-  border-color: var(--danger);
+  background: rgba(124, 90, 247, 0.18);
+  color: #cbbdff;
+  border-color: var(--accent);
 }
 
 .debug-clear-btn:disabled {
@@ -2949,21 +2949,38 @@ details.thinking-block[open] .thinking-chevron {
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .doc-editor-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: var(--text); }
 .doc-editor-btn:disabled { opacity: 0.5; cursor: default; }
+.doc-editor-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 .doc-editor-btn.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
 .doc-editor-btn.primary:hover:not(:disabled) { background: var(--accent-hover, var(--accent)); filter: brightness(1.1); }
-.doc-editor-btn.danger { color: var(--danger); }
-.doc-editor-btn.danger:hover:not(:disabled) { background: var(--danger-soft); border-color: rgba(239,68,68,0.4); }
+.doc-editor-btn.danger {
+  color: var(--text-faint);
+  border-color: rgba(239,68,68,0.18);
+  background: rgba(239,68,68,0.04);
+}
+.doc-editor-btn.danger:hover:not(:disabled) {
+  color: #f3b0b0;
+  background: rgba(239,68,68,0.1);
+  border-color: rgba(239,68,68,0.3);
+}
 
 
 
