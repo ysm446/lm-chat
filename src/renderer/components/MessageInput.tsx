@@ -57,6 +57,8 @@ export function MessageInput() {
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const memoryEnabled = useChatStore((state) => state.memoryEnabled);
   const toggleMemory = useChatStore((state) => state.toggleMemory);
+  const docRagEnabled = useChatStore((state) => state.docRagEnabled);
+  const toggleDocRag = useChatStore((state) => state.toggleDocRag);
   const thinkingEnabled = useChatStore((state) => state.thinkingEnabled);
   const toggleThinking = useChatStore((state) => state.toggleThinking);
   const autocompleteEnabled = useChatStore((state) => state.autocompleteEnabled);
@@ -440,6 +442,14 @@ export function MessageInput() {
               title={memoryEnabled ? "記憶をオフにする" : "記憶をオンにする"}
             >
               記憶
+            </button>
+
+            <button
+              className={`composer-chip${docRagEnabled ? " active" : ""}`}
+              onClick={toggleDocRag}
+              title={docRagEnabled ? "資料参照をオフにする" : "資料参照をオンにする"}
+            >
+              資料
             </button>
 
             <button

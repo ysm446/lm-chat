@@ -1,16 +1,20 @@
 import { create } from "zustand";
 import {
+  ApiDocument,
   ApiMessage,
   ApiSession,
   ApiWorkspace,
   LocalModel,
   appendSessionMessage as appendSessionMessageRequest,
   branchSession as branchSessionRequest,
+  createDocument as createDocumentRequest,
   createSession as createSessionRequest,
   createWorkspace as createWorkspaceRequest,
+  deleteDocument as deleteDocumentRequest,
   deleteMessage as deleteMessageRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
+  listDocuments as listDocumentsRequest,
   reorderWorkspaces as reorderWorkspacesRequest,
   reorderSessions as reorderSessionsRequest,
   ejectLlamaModel,
@@ -26,6 +30,7 @@ import {
   streamContinueMessage,
   streamTempChatMessage,
   switchLlamaModel,
+  updateDocument as updateDocumentRequest,
   updateMessage as updateMessageRequest,
   generateSessionTitle as generateSessionTitleRequest,
   updateSession as updateSessionRequest,
@@ -36,8 +41,10 @@ import {
 type ChatState = {
   workspaces: ApiWorkspace[];
   sessions: ApiSession[];
+  documents: ApiDocument[];
   currentWorkspaceId: string | null;
   currentSessionId: string | null;
+  currentDocumentId: string | null;
   isBootstrapping: boolean;
   isSubmitting: boolean;
   abortController: AbortController | null;
@@ -48,6 +55,7 @@ type ChatState = {
   activeModelPath: string | null;
   isSwitchingModel: boolean;
   memoryEnabled: boolean;
+  docRagEnabled: boolean;
   thinkingEnabled: boolean;
   autocompleteEnabled: boolean;
   correctionEnabled: boolean;
@@ -62,6 +70,7 @@ type ChatState = {
   applyModelSwitch: () => Promise<void>;
   ejectModel: () => Promise<void>;
   toggleMemory: () => void;
+  toggleDocRag: () => void;
   toggleThinking: () => void;
   toggleAutocomplete: () => void;
   setCorrectionEnabled: (enabled: boolean) => void;
@@ -76,6 +85,13 @@ type ChatState = {
   removeSession: (sessionId: string) => Promise<void>;
   moveSession: (sessionId: string, targetWorkspaceId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
+  loadDocuments: (workspaceId: string) => Promise<void>;
+  addDocument: (workspaceId: string, fileName: string, content: string) => Promise<ApiDocument>;
+  removeDocument: (docId: string) => Promise<void>;
+  updateDocument: (docId: string, content: string) => Promise<void>;
+  renameDocument: (docId: string, fileName: string) => Promise<void>;
+  selectDocument: (docId: string | null) => void;
+  documentsForWorkspace: (workspaceId: string) => ApiDocument[];
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
@@ -122,8 +138,10 @@ async function persistStoppedMessage(
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   sessions: [],
+  documents: [],
   currentWorkspaceId: null,
   currentSessionId: null,
+  currentDocumentId: null,
   isBootstrapping: false,
   isSubmitting: false,
   abortController: null,
@@ -134,6 +152,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeModelPath: null,
   isSwitchingModel: false,
   memoryEnabled: true,
+  docRagEnabled: true,
   thinkingEnabled: false,
   autocompleteEnabled: false,
   correctionEnabled: true,
@@ -318,6 +337,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   toggleMemory: () => set((state) => ({ memoryEnabled: !state.memoryEnabled })),
+  toggleDocRag: () => set((state) => ({ docRagEnabled: !state.docRagEnabled })),
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
   toggleAutocomplete: () => set((state) => ({ autocompleteEnabled: !state.autocompleteEnabled })),
   setCorrectionEnabled: (enabled) => set({ correctionEnabled: enabled }),
@@ -438,8 +458,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  loadDocuments: async (workspaceId) => {
+    try {
+      const docs = await listDocumentsRequest(workspaceId);
+      set((state) => ({
+        documents: [
+          ...state.documents.filter((d) => d.workspace_id !== workspaceId),
+          ...docs,
+        ],
+      }));
+    } catch { /* ignore */ }
+  },
+
+  addDocument: async (workspaceId, fileName, content) => {
+    const doc = await createDocumentRequest({ workspace_id: workspaceId, file_name: fileName, content });
+    set((state) => ({ documents: [doc, ...state.documents] }));
+    return doc;
+  },
+
+  removeDocument: async (docId) => {
+    await deleteDocumentRequest(docId);
+    set((state) => ({
+      documents: state.documents.filter((d) => d.id !== docId),
+      currentDocumentId: state.currentDocumentId === docId ? null : state.currentDocumentId,
+    }));
+  },
+
+  updateDocument: async (docId, content) => {
+    const updated = await updateDocumentRequest(docId, { content });
+    set((state) => ({
+      documents: state.documents.map((d) => (d.id === docId ? updated : d)),
+    }));
+  },
+
+  renameDocument: async (docId, fileName) => {
+    const updated = await updateDocumentRequest(docId, { file_name: fileName });
+    set((state) => ({
+      documents: state.documents.map((d) => (d.id === docId ? updated : d)),
+    }));
+  },
+
+  selectDocument: (docId) => {
+    set({ currentDocumentId: docId });
+  },
+
+  documentsForWorkspace: (workspaceId) =>
+    get().documents.filter((d) => d.workspace_id === workspaceId),
+
   selectSession: async (sessionId) => {
-    set({ currentSessionId: sessionId, error: null, streamingText: "" });
+    set({ currentSessionId: sessionId, currentDocumentId: null, error: null, streamingText: "" });
     try {
       const session = await getSession(sessionId);
       set((state) => ({
@@ -504,7 +571,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamChatMessage(sessionId, content, imageData ?? null, get().memoryEnabled, get().thinkingEnabled, {
+      await streamChatMessage(sessionId, content, imageData ?? null, get().memoryEnabled, get().docRagEnabled, get().thinkingEnabled, {
         onToken: (chunk) => {
           tokenCount++;
           set((state) => ({
@@ -680,4 +747,4 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().sessions.filter((session) => session.workspace_id === get().currentWorkspaceId)
 }));
 
-export type { ApiMessage, ApiSession, ApiWorkspace, LocalModel };
+export type { ApiDocument, ApiMessage, ApiSession, ApiWorkspace, LocalModel };

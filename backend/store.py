@@ -7,6 +7,9 @@ from uuid import uuid4
 import sqlite_vec
 
 from .models import (
+    Document,
+    DocumentChunk,
+    DocumentCreate,
     MemoryChunk,
     Message,
     MessageCreate,
@@ -27,6 +30,8 @@ class SQLiteStore:
         base_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = Path(db_path) if db_path is not None else base_dir / "lm_chat.db"
         self.image_root = base_dir / "assets" / "images"
+        self.document_root = base_dir / "assets" / "documents"
+        self.document_root.mkdir(parents=True, exist_ok=True)
         self._init_db()
         self._seed_if_empty()
 
@@ -80,6 +85,39 @@ class SQLiteStore:
                 );
 
                 CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+                    id UNINDEXED,
+                    content,
+                    tokenize='trigram'
+                );
+
+                CREATE TABLE IF NOT EXISTS documents (
+                    id TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL,
+                    session_id TEXT,
+                    scope TEXT NOT NULL DEFAULT 'workspace',
+                    file_name TEXT NOT NULL,
+                    mime_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_size INTEGER NOT NULL DEFAULT 0,
+                    file_hash TEXT NOT NULL DEFAULT '',
+                    embed_model TEXT NOT NULL DEFAULT 'ruri-v3-310m',
+                    created_at TEXT NOT NULL,
+                    indexed_at TEXT,
+                    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS document_chunks (
+                    id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL,
+                    workspace_id TEXT NOT NULL,
+                    session_id TEXT,
+                    chunk_index INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+                );
+
+                CREATE VIRTUAL TABLE IF NOT EXISTS document_fts USING fts5(
                     id UNINDEXED,
                     content,
                     tokenize='trigram'
@@ -139,6 +177,19 @@ class SQLiteStore:
                     "CREATE VIRTUAL TABLE memory_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[768])"
                 )
                 conn.commit()
+            if "document_vec" not in tables:
+                conn.execute(
+                    "CREATE VIRTUAL TABLE document_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[768])"
+                )
+                conn.commit()
+            # document_chunks インデックス
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks(document_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_document_chunks_workspace ON document_chunks(workspace_id)"
+            )
+            conn.commit()
 
     def _seed_if_empty(self) -> None:
         if self.workspace_count() > 0:
@@ -753,3 +804,230 @@ class SQLiteStore:
             "deleted_fts": deleted_fts,
             "deleted_vec": deleted_vec,
         }
+
+    # ──────────────────────────────────────────────
+    # Document CRUD
+    # ──────────────────────────────────────────────
+
+    def _document_from_row(self, row: sqlite3.Row) -> Document:
+        data = dict(row)
+        data.setdefault("session_id", None)
+        data.setdefault("indexed_at", None)
+        return Document(**data)
+
+    def create_document(self, payload: DocumentCreate) -> Document:
+        doc = Document(id=self._new_id("doc"), **payload.model_dump())
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO documents
+                    (id, workspace_id, session_id, scope, file_name, mime_type, file_path,
+                     file_size, file_hash, embed_model, created_at, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    doc.id, doc.workspace_id, doc.session_id, doc.scope, doc.file_name,
+                    doc.mime_type, doc.file_path, doc.file_size, doc.file_hash,
+                    doc.embed_model, doc.created_at, doc.indexed_at,
+                ),
+            )
+        return doc
+
+    def get_document(self, doc_id: str) -> Document | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM documents WHERE id = ?", (doc_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        return self._document_from_row(row)
+
+    def list_documents(self, workspace_id: str) -> list[Document]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM documents
+                WHERE workspace_id = ? AND scope = 'workspace'
+                ORDER BY created_at DESC
+                """,
+                (workspace_id,),
+            ).fetchall()
+        return [self._document_from_row(r) for r in rows]
+
+    def delete_document(self, doc_id: str) -> bool:
+        doc = self.get_document(doc_id)
+        if doc is None:
+            return False
+        with self._connect() as conn:
+            chunk_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM document_chunks WHERE document_id = ?", (doc_id,)
+                ).fetchall()
+            ]
+            if chunk_ids:
+                placeholders = ",".join("?" * len(chunk_ids))
+                conn.execute(f"DELETE FROM document_fts WHERE id IN ({placeholders})", chunk_ids)
+                conn.execute(f"DELETE FROM document_vec WHERE chunk_id IN ({placeholders})", chunk_ids)
+                conn.execute(f"DELETE FROM document_chunks WHERE id IN ({placeholders})", chunk_ids)
+            conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+        # 実ファイル削除
+        try:
+            file_path = self.document_root / doc.file_path
+            if file_path.exists():
+                file_path.unlink()
+            # 親ディレクトリが空なら削除
+            for parent in file_path.parents:
+                if parent == self.document_root or self.document_root not in parent.parents:
+                    break
+                try:
+                    parent.rmdir()
+                except OSError:
+                    break
+        except OSError:
+            pass
+        return True
+
+    def index_document_chunks(self, doc_id: str, chunks: list[str]) -> None:
+        import struct
+        from .memory.embedder import embed
+
+        doc = self.get_document(doc_id)
+        if doc is None:
+            return
+
+        with self._connect() as conn:
+            # 既存チャンクを削除して再インデックス
+            old_ids = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT id FROM document_chunks WHERE document_id = ?", (doc_id,)
+                ).fetchall()
+            ]
+            if old_ids:
+                placeholders = ",".join("?" * len(old_ids))
+                conn.execute(f"DELETE FROM document_fts WHERE id IN ({placeholders})", old_ids)
+                conn.execute(f"DELETE FROM document_vec WHERE chunk_id IN ({placeholders})", old_ids)
+                conn.execute(f"DELETE FROM document_chunks WHERE id IN ({placeholders})", old_ids)
+
+            for i, text in enumerate(chunks):
+                chunk_id = self._new_id("dc")
+                conn.execute(
+                    """
+                    INSERT INTO document_chunks (id, document_id, workspace_id, session_id, chunk_index, content, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (chunk_id, doc_id, doc.workspace_id, doc.session_id, i, text, now_iso()),
+                )
+                conn.execute(
+                    "INSERT INTO document_fts (id, content) VALUES (?, ?)",
+                    (chunk_id, text),
+                )
+                vector = embed(text)
+                vec_bytes = struct.pack(f"{len(vector)}f", *vector)
+                conn.execute(
+                    "INSERT INTO document_vec (chunk_id, embedding) VALUES (?, ?)",
+                    (chunk_id, vec_bytes),
+                )
+
+            conn.execute(
+                "UPDATE documents SET indexed_at = ? WHERE id = ?",
+                (now_iso(), doc_id),
+            )
+
+    def search_documents(
+        self, workspace_id: str, query: str, top_k: int = 3, session_id: str | None = None
+    ) -> list[DocumentChunk]:
+        from .memory.embedder import embed
+        import struct
+
+        query_vec = embed(query)
+        rrf_k = 60
+        scores: dict[str, float] = {}
+
+        with self._connect() as conn:
+            safe_query = '"' + query.replace('"', ' ') + '"'
+            try:
+                fts_rows = conn.execute(
+                    """
+                    SELECT dc.id FROM document_fts df
+                    JOIN document_chunks dc ON dc.id = df.id
+                    WHERE df.content MATCH ? AND dc.workspace_id = ?
+                    LIMIT ?
+                    """,
+                    (safe_query, workspace_id, top_k * 4),
+                ).fetchall()
+                for rank, row in enumerate(fts_rows):
+                    scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+            except Exception:
+                pass
+
+            vec_bytes = struct.pack(f"{len(query_vec)}f", *query_vec)
+            vec_rows = conn.execute(
+                "SELECT chunk_id, distance FROM document_vec WHERE embedding MATCH ? AND k = ?",
+                (vec_bytes, top_k * 4),
+            ).fetchall()
+            if vec_rows:
+                vec_chunk_ids = [row["chunk_id"] for row in vec_rows]
+                placeholders_vec = ",".join("?" * len(vec_chunk_ids))
+                ws_set = {
+                    row["id"]
+                    for row in conn.execute(
+                        f"SELECT id FROM document_chunks WHERE id IN ({placeholders_vec}) AND workspace_id = ?",
+                        (*vec_chunk_ids, workspace_id),
+                    ).fetchall()
+                }
+                for rank, row in enumerate(vec_rows):
+                    if row["chunk_id"] in ws_set:
+                        scores[row["chunk_id"]] = scores.get(row["chunk_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+
+            if not scores:
+                return []
+
+            ids = list(scores.keys())
+            placeholders = ",".join("?" * len(ids))
+            chunk_rows = conn.execute(
+                f"SELECT * FROM document_chunks WHERE id IN ({placeholders})",
+                ids,
+            ).fetchall()
+
+        ranked = sorted(scores.keys(), key=lambda cid: scores[cid], reverse=True)[:top_k]
+        chunks_by_id = {row["id"]: row for row in chunk_rows}
+        result = []
+        for cid in ranked:
+            if cid in chunks_by_id:
+                row = chunks_by_id[cid]
+                data = dict(row)
+                data.setdefault("session_id", None)
+                result.append(DocumentChunk(**data))
+        return result
+
+    def update_document_file_size(self, doc_id: str, file_size: int) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE documents SET file_size = ? WHERE id = ?", (file_size, doc_id))
+
+    def rename_document(self, doc_id: str, new_name: str) -> Document | None:
+        doc = self.get_document(doc_id)
+        if doc is None:
+            return None
+        old_path = self.document_root / doc.file_path
+        new_path = old_path.parent / new_name
+        # 名前衝突を避けるためサフィックスを付ける
+        stem = Path(new_name).stem
+        suffix = Path(new_name).suffix
+        counter = 1
+        while new_path.exists() and new_path != old_path:
+            new_path = old_path.parent / f"{stem}_{counter}{suffix}"
+            counter += 1
+        try:
+            if old_path.exists():
+                old_path.rename(new_path)
+        except OSError:
+            return None
+        new_relative = f"{doc.workspace_id}/{new_path.name}"
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE documents SET file_name = ?, file_path = ? WHERE id = ?",
+                (new_path.name, new_relative, doc_id),
+            )
+        return self.get_document(doc_id)

@@ -3,6 +3,7 @@ import { SavedSystemPrompt, getSettings, listSystemPrompts, updateSettings } fro
 import { ActivityBar, AppMode } from "./components/ActivityBar";
 import { ChatView } from "./components/ChatView";
 import { DebugPromptView } from "./components/DebugPromptView";
+import { DocumentEditor } from "./components/DocumentEditor";
 import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -18,6 +19,8 @@ export function App() {
   const workspaces = useChatStore((state) => state.workspaces);
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
   const currentSession = useChatStore((state) => state.currentSession());
+  const currentDocumentId = useChatStore((state) => state.currentDocumentId);
+  const selectDocument = useChatStore((state) => state.selectDocument);
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const toggleTempChat = useChatStore((state) => state.toggleTempChat);
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
@@ -152,7 +155,7 @@ export function App() {
               onPromptsChange={handlePromptsChange}
             />
           ) : (
-            <Sidebar />
+            <Sidebar onSelectDocument={(docId) => selectDocument(docId)} />
           )}
         </aside>
 
@@ -165,6 +168,13 @@ export function App() {
               selectedId={spSelectedId}
               onSelect={setSpSelectedId}
               onPromptsChange={handlePromptsChange}
+            />
+          </main>
+        ) : currentDocumentId ? (
+          <main className="center-pane doc-editor-pane">
+            <DocumentEditor
+              docId={currentDocumentId}
+              onClose={() => selectDocument(null)}
             />
           </main>
         ) : (

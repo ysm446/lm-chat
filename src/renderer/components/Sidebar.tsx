@@ -1,22 +1,34 @@
 import { useEffect, useRef, useState } from "react";
+import { ApiDocument } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type WsMenu = { id: string; name: string; description: string; x: number; y: number };
 type SessionMenu = { id: string; title: string; x: number; y: number };
+type DocMenu = { id: string; file_name: string; x: number; y: number };
 
-export function Sidebar() {
+type SidebarProps = {
+  onSelectDocument?: (docId: string) => void;
+};
+
+export function Sidebar({ onSelectDocument }: SidebarProps) {
   const workspaces = useChatStore((s) => s.workspaces);
   const sessions = useChatStore((s) => s.sessions);
+  const documents = useChatStore((s) => s.documents);
   const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const currentDocumentId = useChatStore((s) => s.currentDocumentId);
   const selectWorkspace = useChatStore((s) => s.selectWorkspace);
   const selectSession = useChatStore((s) => s.selectSession);
+  const selectDocument = useChatStore((s) => s.selectDocument);
   const createWorkspace = useChatStore((s) => s.createWorkspace);
   const createSession = useChatStore((s) => s.createSession);
   const renameWorkspace = useChatStore((s) => s.renameWorkspace);
   const renameSession = useChatStore((s) => s.renameSession);
   const removeWorkspace = useChatStore((s) => s.removeWorkspace);
   const removeSession = useChatStore((s) => s.removeSession);
+  const removeDocument = useChatStore((s) => s.removeDocument);
+  const loadDocuments = useChatStore((s) => s.loadDocuments);
+  const addDocument = useChatStore((s) => s.addDocument);
   const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
   const reorderSessions = useChatStore((s) => s.reorderSessions);
   const moveSession = useChatStore((s) => s.moveSession);
@@ -46,8 +58,13 @@ export function Sidebar() {
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
+  const [docMenu, setDocMenu] = useState<DocMenu | null>(null);
   const wsMenuRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
+  const docMenuRef = useRef<HTMLDivElement>(null);
+  const [docsExpanded, setDocsExpanded] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingDocWsId, setPendingDocWsId] = useState<string | null>(null);
 
   // 現在のワークスペースが切り替わったら自動展開
   useEffect(() => {
@@ -61,19 +78,20 @@ export function Sidebar() {
   useEffect(() => { if (editingSessionId) { editSessionRef.current?.focus(); editSessionRef.current?.select(); } }, [editingSessionId]);
 
   useEffect(() => {
-    if (!wsMenu && !sessionMenu) return undefined;
+    if (!wsMenu && !sessionMenu && !docMenu) return undefined;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (wsMenuRef.current && !wsMenuRef.current.contains(t)) setWsMenu(null);
       if (sessionMenuRef.current && !sessionMenuRef.current.contains(t)) setSessionMenu(null);
+      if (docMenuRef.current && !docMenuRef.current.contains(t)) setDocMenu(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setWsMenu(null); setSessionMenu(null); }
+      if (e.key === "Escape") { setWsMenu(null); setSessionMenu(null); setDocMenu(null); }
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
-  }, [wsMenu, sessionMenu]);
+  }, [wsMenu, sessionMenu, docMenu]);
 
   const toggleExpand = (wsId: string) => {
     setExpanded((prev) => {
@@ -143,8 +161,57 @@ export function Sidebar() {
     setSessionMenu(null);
   };
 
+  const toggleDocsExpanded = (wsId: string) => {
+    setDocsExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(wsId)) {
+        next.delete(wsId);
+      } else {
+        next.add(wsId);
+        void loadDocuments(wsId);
+      }
+      return next;
+    });
+  };
+
+  const handleAddDocument = (wsId: string) => {
+    setPendingDocWsId(wsId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingDocWsId) return;
+    e.target.value = "";
+    const content = await file.text();
+    await addDocument(pendingDocWsId, file.name, content);
+    // ドキュメントセクションが閉じていたら開く
+    setDocsExpanded((prev) => new Set([...prev, pendingDocWsId]));
+    setPendingDocWsId(null);
+  };
+
+  const handleSelectDoc = (doc: ApiDocument) => {
+    selectDocument(doc.id);
+    onSelectDocument?.(doc.id);
+  };
+
+  const handleDeleteDoc = async (docId: string, fileName: string) => {
+    const ok = window.confirm(`資料「${fileName}」を削除しますか？`);
+    if (!ok) return;
+    await removeDocument(docId);
+    setDocMenu(null);
+  };
+
   return (
     <div className={`sidebar${dragId ? " workspace-dragging" : ""}${sessionDragId ? " session-dragging" : ""}`}>
+      {/* 隠しファイル入力（資料追加用） */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,.json"
+        style={{ display: "none" }}
+        onChange={(e) => void handleFileSelected(e)}
+      />
       <div className="sidebar-header">
         {showNewWs ? (
           <div className="inline-edit-row" style={{ flex: 1 }}>
@@ -300,6 +367,70 @@ export function Sidebar() {
 
               {isExpanded && (
                 <div className="sidebar-sessions">
+                  {/* Documents セクション */}
+                  {(() => {
+                    const wsDocs = documents.filter((d) => d.workspace_id === ws.id);
+                    const isDocsExpanded = docsExpanded.has(ws.id);
+                    return (
+                      <div className="sidebar-docs-section">
+                        <div className="sidebar-docs-header">
+                          <button
+                            className="sidebar-docs-toggle"
+                            onClick={() => toggleDocsExpanded(ws.id)}
+                            title={isDocsExpanded ? "資料を折りたたむ" : "資料を展開"}
+                          >
+                            {isDocsExpanded ? "▾" : "▸"}
+                          </button>
+                          <span className="sidebar-docs-label">Documents</span>
+                          <button
+                            className="sidebar-icon-btn"
+                            title="資料を追加"
+                            onClick={() => handleAddDocument(ws.id)}
+                          >
+                            +
+                          </button>
+                        </div>
+                        {isDocsExpanded && (
+                          <div className="sidebar-docs-list">
+                            {wsDocs.length === 0 ? (
+                              <div className="sidebar-docs-empty">資料なし</div>
+                            ) : (
+                              wsDocs.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}`}
+                                >
+                                  <button
+                                    className="sidebar-doc-btn"
+                                    onClick={() => handleSelectDoc(doc)}
+                                    title={doc.file_name}
+                                  >
+                                    <span className="sidebar-doc-icon">
+                                      {doc.file_name.endsWith(".md") ? "📝" : doc.file_name.endsWith(".json") ? "📋" : "📄"}
+                                    </span>
+                                    <span className="sidebar-doc-name">{doc.file_name}</span>
+                                    {doc.indexed_at == null && (
+                                      <span className="sidebar-doc-indexing" title="インデックス中">⟳</span>
+                                    )}
+                                  </button>
+                                  <button
+                                    className="sidebar-icon-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setDocMenu({ id: doc.id, file_name: doc.file_name, x: rect.right - 8, y: rect.bottom + 6 });
+                                    }}
+                                  >
+                                    •••
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {wsSessions.map((session) => (
                     <div
                       key={session.id}
@@ -418,6 +549,17 @@ export function Sidebar() {
         >
           <button className="context-menu-item" onClick={() => startEditSession(sessionMenu.id, sessionMenu.title)}>名前を変更</button>
           <button className="context-menu-item danger" onClick={() => void handleDeleteSession(sessionMenu.id, sessionMenu.title)}>削除</button>
+        </div>
+      )}
+
+      {docMenu && (
+        <div
+          ref={docMenuRef}
+          className="context-menu"
+          style={{ left: `${docMenu.x}px`, top: `${docMenu.y}px` }}
+          role="menu"
+        >
+          <button className="context-menu-item danger" onClick={() => void handleDeleteDoc(docMenu.id, docMenu.file_name)}>削除</button>
         </div>
       )}
     </div>

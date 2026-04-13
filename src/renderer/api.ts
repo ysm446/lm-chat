@@ -418,6 +418,7 @@ export async function streamChatMessage(
   content: string,
   imageData: string | null,
   memoryEnabled: boolean,
+  docRagEnabled: boolean,
   thinkingEnabled: boolean,
   handlers: StreamHandlers<ApiSession>,
   signal?: AbortSignal,
@@ -430,6 +431,7 @@ export async function streamChatMessage(
       content,
       image_data: imageData ?? null,
       memory_enabled: memoryEnabled,
+      doc_rag_enabled: docRagEnabled,
       thinking_enabled: thinkingEnabled,
       system_prompt: systemPrompt ?? null
     },
@@ -437,6 +439,57 @@ export async function streamChatMessage(
     (payload) => payload.session,
     signal
   );
+}
+
+export type ApiDocument = {
+  id: string;
+  workspace_id: string;
+  session_id: string | null;
+  scope: "workspace" | "session";
+  file_name: string;
+  mime_type: string;
+  file_path: string;
+  file_size: number;
+  file_hash: string;
+  embed_model: string;
+  created_at: string;
+  indexed_at: string | null;
+};
+
+export type ApiDocumentWithContent = ApiDocument & { content: string };
+
+export function listDocuments(workspaceId: string) {
+  return request<ApiDocument[]>(`/documents?workspace_id=${encodeURIComponent(workspaceId)}`);
+}
+
+export function createDocument(payload: {
+  workspace_id: string;
+  session_id?: string | null;
+  scope?: "workspace" | "session";
+  file_name: string;
+  content: string;
+}) {
+  return request<ApiDocument>("/documents", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getDocument(docId: string) {
+  return request<ApiDocumentWithContent>(`/documents/${encodeURIComponent(docId)}`);
+}
+
+export function updateDocument(docId: string, payload: { content?: string; file_name?: string }) {
+  return request<ApiDocument>(`/documents/${encodeURIComponent(docId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteDocument(docId: string) {
+  return request<{ deleted: boolean }>(`/documents/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+  });
 }
 
 export type GpuInfo = {

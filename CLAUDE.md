@@ -129,6 +129,16 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - フロントエンドは移動後、移動先ワークスペースのセッション一覧を再取得して状態を更新し、そのセッションにフォーカスを移す
 - 同一ワークスペース内でのドラッグは従来通り並べ替えになる（別ワークスペースかどうかは `session.workspace_id` で判定）
 
+### 文書 RAG
+- ワークスペース単位で txt / md / json ファイルを取り込める（`POST /documents`）
+- `backend/documents/chunker.py` がファイル形式別にチャンク分割（md は見出し優先、json はトップレベルキー/配列単位）
+- チャンクは `document_chunks` テーブルに保存し、FTS5（`document_fts`）とベクトル検索（`document_vec`）を両方持つ
+- チャット送信時に `build_document_context()` → `combine_contexts()` でワークスペース資料 3 チャンク・会話メモリ 5 チャンク・合計 2000 文字上限の 2 段構えでコンテキストを組み立てる
+- サイドバーの各ワークスペース配下に **Documents** セクション（折りたたみ式）を表示
+- 資料行をクリックすると `App.tsx` の `currentDocumentId` が更新され、中央エリアに `DocumentEditor` を表示
+- `DocumentEditor` は内容を直接編集でき、保存時に再インデックスをバックグラウンド実行する
+- `data/assets/documents/{workspace_id}/` にファイル本体を保存
+
 ### チャット内検索（Ctrl+F）
 - `ChatView.tsx` 内の検索バー（`.chat-search-bar`）で Ctrl+F トグル
 - カスタム rehype プラグイン（`makeHighlightPlugin`）が HAST ツリーを走査し、ReactMarkdown レンダリング済みテキストにもインラインハイライトを適用
@@ -221,6 +231,12 @@ POST /llama/switch-model
 POST /llama/eject                         ← llama-server を停止して VRAM 解放
 
 POST /search/web
+
+GET  /documents?workspace_id=        ← ワークスペース資料一覧
+POST /documents                      ← 資料アップロード・インデックス（txt/md/json）
+GET  /documents/{id}                 ← 資料取得（content フィールド付き）
+PATCH /documents/{id}                ← 資料内容更新・再インデックス
+DELETE /documents/{id}               ← 資料削除
 ```
 
 ## よくある問題と対処

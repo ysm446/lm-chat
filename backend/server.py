@@ -45,10 +45,15 @@ from .llama_manager import eject_model, get_llama_paths, get_model_props, is_rea
 from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
+from .documents.chunker import chunk_document
 from .models import (
     ChatSendRequest,
     ChatSendResponse,
     ConfigUpdate,
+    Document,
+    DocumentCreate,
+    DocumentUploadRequest,
+    DocumentUpdateRequest,
     MemorySaveRequest,
     MemorySearchResult,
     Message,
@@ -84,6 +89,8 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _IMAGE_DIR = _DATA_DIR / "assets" / "images"
 _IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/assets/images", StaticFiles(directory=_IMAGE_DIR), name="chat-images")
+_DOCUMENT_DIR = _DATA_DIR / "assets" / "documents"
+_DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
 
 # 蝓九ａ霎ｼ縺ｿ繝｢繝・Ν繧偵ヰ繝・け繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒繧ｦ繧ｩ繝ｼ繝繧｢繝・・・亥・蝗槭Μ繧ｯ繧ｨ繧ｹ繝医・驕・ｻｶ繧帝亟縺撰ｼ・
 import threading
@@ -98,6 +105,50 @@ def build_memory_context(session: Session, query: str) -> str:
     except Exception as e:
         logger.warning("Memory context build failed: %s", e)
         return ""
+
+
+def build_document_context(session: Session, query: str) -> str:
+    """ワークスペース資料から関連チャンクを取得してコンテキスト文字列を組み立てる。"""
+    try:
+        chunks = store.search_documents(session.workspace_id, query, top_k=3)
+        if not chunks:
+            return ""
+        lines = [
+            "## ワークスペース資料から検索された関連情報",
+            "以下はワークスペースに登録された資料から自動検索された情報です。",
+            "",
+        ]
+        # ドキュメントIDでグループ化してファイル名ラベルを付ける
+        seen_docs: dict[str, str] = {}
+        for chunk in chunks:
+            if chunk.document_id not in seen_docs:
+                doc = store.get_document(chunk.document_id)
+                seen_docs[chunk.document_id] = doc.file_name if doc else chunk.document_id
+            label = seen_docs[chunk.document_id]
+            lines.append(f"[参照資料: {label}]")
+            lines.append(chunk.content)
+            lines.append("")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.warning("Document context build failed: %s", e)
+        return ""
+
+
+def combine_contexts(memory_context: str, doc_context: str, max_chars: int = 2000) -> str:
+    """メモリコンテキストと資料コンテキストを結合し、合計文字数の上限を超えないよう調整する。"""
+    parts = []
+    total = 0
+    for ctx in [doc_context, memory_context]:  # 資料を優先
+        if not ctx:
+            continue
+        remaining = max_chars - total
+        if remaining <= 0:
+            break
+        if len(ctx) > remaining:
+            ctx = ctx[:remaining]
+        parts.append(ctx)
+        total += len(ctx)
+    return "\n\n".join(parts)
 
 
 def save_turn_memory(session_id: str, user_content: str, assistant_content: str) -> None:
@@ -395,8 +446,10 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
+    doc_context = build_document_context(session, payload.content) if payload.doc_rag_enabled else ""
+    full_context = combine_contexts(memory_context, doc_context)
     temperature = get_config_data().get("temperature", 0.8)
-    assistant_text = generate_chat_completion(session, memory_context, payload.thinking_enabled, payload.system_prompt, temperature)
+    assistant_text = generate_chat_completion(session, full_context, payload.thinking_enabled, payload.system_prompt, temperature)
     assistant_message = store.append_message(
         payload.session_id,
         MessageCreate(role="assistant", content=assistant_text),
@@ -425,6 +478,8 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
         raise HTTPException(status_code=404, detail="Session not found")
 
     memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
+    doc_context = build_document_context(session, payload.content) if payload.doc_rag_enabled else ""
+    full_context = combine_contexts(memory_context, doc_context)
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
@@ -433,7 +488,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, memory_context, thinking_enabled, system_prompt, temperature):
+            for item in stream_chat_completion(session, full_context, thinking_enabled, system_prompt, temperature):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
@@ -569,6 +624,144 @@ def memory_stats() -> dict[str, int]:
         "session_count": store.session_count(),
         "memory_chunk_count": store.memory_chunk_count(),
     }
+
+
+@app.get("/documents", response_model=list[Document])
+def list_documents(workspace_id: str = Query(...)) -> list[Document]:
+    return store.list_documents(workspace_id)
+
+
+@app.post("/documents", response_model=Document)
+def create_document(payload: DocumentUploadRequest) -> Document:
+    import hashlib
+
+    if not store.has_workspace(payload.workspace_id):
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    ext = Path(payload.file_name).suffix.lower()
+    if ext not in (".txt", ".md", ".json"):
+        raise HTTPException(status_code=400, detail="Unsupported file type. Only .txt, .md, .json are allowed")
+
+    # MIME type
+    mime_map = {".txt": "text/plain", ".md": "text/markdown", ".json": "application/json"}
+    mime_type = mime_map.get(ext, "text/plain")
+
+    # ファイルハッシュ
+    content_bytes = payload.content.encode("utf-8")
+    file_hash = hashlib.sha256(content_bytes).hexdigest()
+
+    # 保存パス（workspace_id 配下）
+    workspace_dir = _DOCUMENT_DIR / payload.workspace_id
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+
+    # 同名ファイルが存在する場合はサフィックスを付ける
+    target = workspace_dir / payload.file_name
+    stem = Path(payload.file_name).stem
+    suffix = ext
+    counter = 1
+    while target.exists():
+        target = workspace_dir / f"{stem}_{counter}{suffix}"
+        counter += 1
+
+    target.write_text(payload.content, encoding="utf-8")
+    relative_path = f"{payload.workspace_id}/{target.name}"
+
+    doc = store.create_document(
+        DocumentCreate(
+            workspace_id=payload.workspace_id,
+            session_id=payload.session_id,
+            scope=payload.scope,
+            file_name=target.name,
+            mime_type=mime_type,
+            file_path=relative_path,
+            file_size=len(content_bytes),
+            file_hash=file_hash,
+        )
+    )
+
+    # バックグラウンドでインデックス
+    import threading
+    def _index():
+        try:
+            chunks = chunk_document(doc.file_name, payload.content)
+            store.index_document_chunks(doc.id, chunks)
+            logger.info("Document indexed: %s (%d chunks)", doc.id, len(chunks))
+        except Exception as e:
+            logger.warning("Document indexing failed: %s", e)
+
+    threading.Thread(target=_index, daemon=True).start()
+    return doc
+
+
+@app.get("/documents/{doc_id}")
+def get_document(doc_id: str) -> dict:
+    doc = store.get_document(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    # ファイル内容を読み込む
+    file_path = _DOCUMENT_DIR / doc.file_path
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except OSError:
+        content = ""
+    return {**doc.model_dump(), "content": content}
+
+
+@app.patch("/documents/{doc_id}", response_model=Document)
+def update_document(doc_id: str, payload: DocumentUpdateRequest) -> Document:
+    import hashlib
+    import threading
+
+    doc = store.get_document(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # ファイル名変更
+    if payload.file_name is not None and payload.file_name != doc.file_name:
+        new_ext = Path(payload.file_name).suffix.lower()
+        if new_ext not in (".txt", ".md", ".json"):
+            raise HTTPException(status_code=400, detail="Unsupported file type. Only .txt, .md, .json are allowed")
+        renamed = store.rename_document(doc_id, payload.file_name)
+        if renamed is None:
+            raise HTTPException(status_code=500, detail="Failed to rename file")
+        doc = renamed
+
+    # 内容更新
+    if payload.content is not None:
+        content_bytes = payload.content.encode("utf-8")
+        file_hash = hashlib.sha256(content_bytes).hexdigest()
+        file_path = _DOCUMENT_DIR / doc.file_path
+        try:
+            file_path.write_text(payload.content, encoding="utf-8")
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to write file: {e}") from e
+
+        store.update_document_file_size(doc_id, len(content_bytes))
+        content_for_index = payload.content
+        file_name_for_index = doc.file_name
+
+        def _reindex():
+            try:
+                chunks = chunk_document(file_name_for_index, content_for_index)
+                store.index_document_chunks(doc_id, chunks)
+                logger.info("Document re-indexed: %s (%d chunks)", doc_id, len(chunks))
+            except Exception as e:
+                logger.warning("Document re-indexing failed: %s", e)
+
+        threading.Thread(target=_reindex, daemon=True).start()
+
+    updated = store.get_document(doc_id)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="Failed to reload document")
+    return updated
+
+
+@app.delete("/documents/{doc_id}")
+def delete_document(doc_id: str) -> dict[str, bool]:
+    deleted = store.delete_document(doc_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"deleted": True}
 
 
 @app.post("/search/web")

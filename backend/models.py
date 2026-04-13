@@ -92,6 +92,7 @@ class ChatSendRequest(BaseModel):
     content: str
     image_data: str | None = None
     memory_enabled: bool = True
+    doc_rag_enabled: bool = True
     thinking_enabled: bool = False
     system_prompt: str | None = None
 
@@ -154,3 +155,53 @@ class WebSearchResult(BaseModel):
     query: str
     engine: str
     items: list[WebSearchResultItem]
+
+
+class Document(BaseModel):
+    id: str
+    workspace_id: str
+    session_id: str | None = None
+    scope: Literal["workspace", "session"] = "workspace"
+    file_name: str
+    mime_type: str
+    file_path: str
+    file_size: int = 0
+    file_hash: str = ""
+    embed_model: str = "ruri-v3-310m"
+    created_at: str = Field(default_factory=now_iso)
+    indexed_at: str | None = None
+
+
+class DocumentCreate(BaseModel):
+    workspace_id: str
+    session_id: str | None = None
+    scope: Literal["workspace", "session"] = "workspace"
+    file_name: str
+    mime_type: str
+    file_path: str
+    file_size: int = 0
+    file_hash: str = ""
+    embed_model: str = "ruri-v3-310m"
+
+
+class DocumentChunk(BaseModel):
+    id: str
+    document_id: str
+    workspace_id: str
+    session_id: str | None = None
+    chunk_index: int
+    content: str
+    created_at: str = Field(default_factory=now_iso)
+
+
+class DocumentUploadRequest(BaseModel):
+    workspace_id: str
+    session_id: str | None = None
+    scope: Literal["workspace", "session"] = "workspace"
+    file_name: str
+    content: str  # raw text content
+
+
+class DocumentUpdateRequest(BaseModel):
+    content: str | None = None
+    file_name: str | None = None
