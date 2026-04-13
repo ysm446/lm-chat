@@ -397,19 +397,6 @@ a { color: var(--accent); }
 .sidebar-ws-row.active { background: var(--accent-soft); }
 .sidebar-ws-row.active .sidebar-ws-name { color: var(--accent); }
 
-.sidebar-ws-toggle {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
-  color: var(--text-faint);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-}
-.sidebar-ws-toggle:hover { color: var(--text-dim); background: rgba(255,255,255,0.06); }
-
 .sidebar-ws-label {
   flex: 1;
   min-width: 0;
@@ -2766,24 +2753,13 @@ details.thinking-block[open] .thinking-chevron {
 }
 .sidebar-docs-header:hover { background: rgba(255,255,255,0.04); }
 
-.sidebar-docs-toggle {
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
-  color: var(--text-faint);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-.sidebar-docs-toggle:hover { color: var(--text); background: rgba(255,255,255,0.08); }
-
 .sidebar-docs-label {
   flex: 1;
   display: flex;
   align-items: center;
   min-width: 0;
+  text-align: left;
+  padding: 2px 4px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-faint);

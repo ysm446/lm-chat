@@ -115,6 +115,11 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     await selectWorkspace(wsId);
   };
 
+  const handleWorkspaceRowClick = async (wsId: string) => {
+    toggleExpand(wsId);
+    await selectWorkspace(wsId);
+  };
+
   const handleAddChat = async (wsId: string) => {
     setExpanded((prev) => new Set([...prev, wsId]));
     await createSession(wsId, "新規チャット");
@@ -337,15 +342,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                     </svg>
                   </span>
                   <button
-                    className="sidebar-ws-toggle"
-                    onClick={() => toggleExpand(ws.id)}
-                    title={isExpanded ? "折りたたむ" : "展開する"}
-                  >
-                    {isExpanded ? "▾" : "▸"}
-                  </button>
-                  <button
                     className="sidebar-ws-label"
-                    onClick={() => void handleSelectWs(ws.id)}
+                    onClick={() => void handleWorkspaceRowClick(ws.id)}
+                    title={isExpanded ? "クリックで折りたたむ" : "クリックで展開する"}
                   >
                     <span className="sidebar-ws-name">{ws.name}</span>
                     {ws.description && <span className="sidebar-ws-desc">{ws.description}</span>}
@@ -383,13 +382,12 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                       <div className="sidebar-docs-section">
                         <div className="sidebar-docs-header">
                           <button
-                            className="sidebar-docs-toggle"
+                            className="sidebar-docs-label"
                             onClick={() => toggleDocsExpanded(ws.id)}
-                            title={isDocsExpanded ? "資料を折りたたむ" : "資料を展開"}
+                            title={isDocsExpanded ? "クリックで折りたたむ" : "クリックで展開"}
                           >
-                            {isDocsExpanded ? "▾" : "▸"}
+                            Documents
                           </button>
-                          <span className="sidebar-docs-label">Documents</span>
                           <button
                             className="sidebar-icon-btn"
                             title="資料を追加"
