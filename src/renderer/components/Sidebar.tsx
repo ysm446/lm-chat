@@ -101,6 +101,61 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
   }, [wsMenu, sessionMenu, docMenu]);
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (showNewWs || editingWsId || editingSessionId) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        const tag = active.tagName;
+        const isTextInput =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          active.isContentEditable;
+        if (isTextInput) return;
+      }
+
+      if (currentDocumentId) {
+        const doc = documents.find((item) => item.id === currentDocumentId);
+        if (!doc) return;
+        e.preventDefault();
+        void handleDeleteDoc(doc.id, doc.file_name);
+        return;
+      }
+
+      if (currentSessionId) {
+        const session = sessions.find((item) => item.id === currentSessionId);
+        if (!session) return;
+        e.preventDefault();
+        void handleDeleteSession(session.id, session.title);
+        return;
+      }
+
+      if (currentWorkspaceId) {
+        const ws = workspaces.find((item) => item.id === currentWorkspaceId);
+        if (!ws) return;
+        e.preventDefault();
+        void handleDeleteWs(ws.id, ws.name);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    currentDocumentId,
+    currentSessionId,
+    currentWorkspaceId,
+    documents,
+    sessions,
+    workspaces,
+    showNewWs,
+    editingWsId,
+    editingSessionId,
+  ]);
+
   const toggleExpand = (wsId: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
