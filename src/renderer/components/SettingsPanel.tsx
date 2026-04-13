@@ -676,7 +676,7 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ marginTop: 10 }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label">システムリソース</span>
-                <span className="settings-field-hint">CPU・RAM・GPU・VRAMの使用状況（1秒更新）</span>
+                <span className="settings-field-hint">CPU・RAM・GPU・VRAMの使用状況</span>
               </div>
               <button
                 type="button"
