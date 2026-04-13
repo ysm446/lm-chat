@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, SystemResources, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getSettings, getLlamaProps, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -45,6 +45,8 @@ export function SettingsPanel() {
   const [debugPromptLog, setDebugPromptLog] = useState(false);
   const [memoryCleanupBusy, setMemoryCleanupBusy] = useState(false);
   const [memoryCleanupResult, setMemoryCleanupResult] = useState<string | null>(null);
+  const [documentCleanupBusy, setDocumentCleanupBusy] = useState(false);
+  const [documentCleanupResult, setDocumentCleanupResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
   const [sysRes, setSysRes] = useState<SystemResources | null>(null);
   const sysResIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -185,6 +187,25 @@ export function SettingsPanel() {
       setMemoryCleanupResult(error instanceof Error ? error.message : "記憶クリーンアップに失敗しました");
     } finally {
       setMemoryCleanupBusy(false);
+    }
+  };
+
+  const handleDocumentCleanup = async () => {
+    if (documentCleanupBusy) return;
+    setDocumentCleanupBusy(true);
+    setDocumentCleanupResult(null);
+    try {
+      const result = await cleanupDocuments();
+      const total = result.deleted_chunks + result.deleted_fts + result.deleted_vec + result.deleted_files + result.deleted_dirs;
+      setDocumentCleanupResult(
+        total > 0
+          ? `掃除完了: chunks ${result.deleted_chunks}件 / FTS ${result.deleted_fts}件 / vectors ${result.deleted_vec}件 / files ${result.deleted_files}件 / dirs ${result.deleted_dirs}件`
+          : "掃除対象は見つかりませんでした"
+      );
+    } catch (error) {
+      setDocumentCleanupResult(error instanceof Error ? error.message : "ドキュメントクリーンアップに失敗しました");
+    } finally {
+      setDocumentCleanupBusy(false);
     }
   };
 
@@ -671,6 +692,24 @@ export function SettingsPanel() {
                 style={{ minWidth: 96 }}
               >
                 {memoryCleanupBusy ? "掃除中..." : "実行"}
+              </button>
+            </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("documents と紐づかない孤立した資料チャンク、全文検索行、ベクトル行、および DB に参照されない資料ファイルを掃除します。")} onMouseLeave={onTipLeave}>ドキュメントクリーンアップ</span>
+                <span className="settings-field-hint">孤立した資料インデックスと未参照ファイルだけを安全に削除</span>
+                {documentCleanupResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{documentCleanupResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleDocumentCleanup()}
+                disabled={documentCleanupBusy}
+                style={{ minWidth: 96 }}
+              >
+                {documentCleanupBusy ? "掃除中..." : "実行"}
               </button>
             </div>
             <div className="settings-toggle-row" style={{ marginTop: 10 }}>

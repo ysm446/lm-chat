@@ -624,6 +624,11 @@ def cleanup_memory() -> dict[str, int]:
     return store.cleanup_memory()
 
 
+@app.post("/documents/cleanup")
+def cleanup_documents() -> dict[str, int]:
+    return store.cleanup_documents()
+
+
 @app.get("/memory/stats")
 def memory_stats() -> dict[str, int]:
     return {

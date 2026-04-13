@@ -812,6 +812,102 @@ class SQLiteStore:
             "deleted_vec": deleted_vec,
         }
 
+    def cleanup_documents(self) -> dict[str, int]:
+        with self._connect() as conn:
+            orphan_chunk_ids = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT dc.id
+                    FROM document_chunks dc
+                    LEFT JOIN documents d ON d.id = dc.document_id
+                    LEFT JOIN workspaces w ON w.id = dc.workspace_id
+                    WHERE d.id IS NULL
+                       OR w.id IS NULL
+                       OR d.workspace_id != dc.workspace_id
+                    """
+                ).fetchall()
+            ]
+
+            deleted_chunks = 0
+            if orphan_chunk_ids:
+                placeholders = ",".join("?" * len(orphan_chunk_ids))
+                conn.execute(f"DELETE FROM document_fts WHERE id IN ({placeholders})", orphan_chunk_ids)
+                conn.execute(f"DELETE FROM document_vec WHERE chunk_id IN ({placeholders})", orphan_chunk_ids)
+                deleted_chunks = conn.execute(
+                    f"DELETE FROM document_chunks WHERE id IN ({placeholders})", orphan_chunk_ids
+                ).rowcount
+
+            orphan_fts_ids = [
+                row["id"]
+                for row in conn.execute(
+                    """
+                    SELECT df.id
+                    FROM document_fts df
+                    LEFT JOIN document_chunks dc ON dc.id = df.id
+                    WHERE dc.id IS NULL
+                    """
+                ).fetchall()
+            ]
+            deleted_fts = 0
+            if orphan_fts_ids:
+                placeholders = ",".join("?" * len(orphan_fts_ids))
+                deleted_fts = conn.execute(
+                    f"DELETE FROM document_fts WHERE id IN ({placeholders})", orphan_fts_ids
+                ).rowcount
+
+            orphan_vec_ids = [
+                row["chunk_id"]
+                for row in conn.execute(
+                    """
+                    SELECT dv.chunk_id
+                    FROM document_vec dv
+                    LEFT JOIN document_chunks dc ON dc.id = dv.chunk_id
+                    WHERE dc.id IS NULL
+                    """
+                ).fetchall()
+            ]
+            deleted_vec = 0
+            if orphan_vec_ids:
+                placeholders = ",".join("?" * len(orphan_vec_ids))
+                deleted_vec = conn.execute(
+                    f"DELETE FROM document_vec WHERE chunk_id IN ({placeholders})", orphan_vec_ids
+                ).rowcount
+
+            referenced_paths = {
+                row["file_path"]
+                for row in conn.execute("SELECT file_path FROM documents").fetchall()
+                if row["file_path"]
+            }
+
+        deleted_files = 0
+        deleted_dirs = 0
+        if self.document_root.exists():
+            for file_path in sorted((p for p in self.document_root.rglob("*") if p.is_file()), key=lambda p: len(p.parts), reverse=True):
+                relative = file_path.relative_to(self.document_root).as_posix()
+                if relative in referenced_paths:
+                    continue
+                try:
+                    file_path.unlink()
+                    deleted_files += 1
+                except OSError:
+                    pass
+
+            for dir_path in sorted((p for p in self.document_root.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+                try:
+                    dir_path.rmdir()
+                    deleted_dirs += 1
+                except OSError:
+                    pass
+
+        return {
+            "deleted_chunks": deleted_chunks,
+            "deleted_fts": deleted_fts,
+            "deleted_vec": deleted_vec,
+            "deleted_files": deleted_files,
+            "deleted_dirs": deleted_dirs,
+        }
+
     # ──────────────────────────────────────────────
     # Document CRUD
     # ──────────────────────────────────────────────

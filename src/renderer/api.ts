@@ -186,6 +186,12 @@ export function cleanupMemory() {
   });
 }
 
+export function cleanupDocuments() {
+  return request<{ deleted_chunks: number; deleted_fts: number; deleted_vec: number; deleted_files: number; deleted_dirs: number }>("/documents/cleanup", {
+    method: "POST",
+  });
+}
+
 export function fetchAutocomplete(text: string) {
   return request<{ completion: string }>("/autocomplete", {
     method: "POST",
