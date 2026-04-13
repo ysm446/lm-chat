@@ -95,6 +95,7 @@ class SQLiteStore:
                     workspace_id TEXT NOT NULL,
                     session_id TEXT,
                     scope TEXT NOT NULL DEFAULT 'workspace',
+                    sort_order INTEGER NOT NULL DEFAULT 0,
                     file_name TEXT NOT NULL,
                     mime_type TEXT NOT NULL,
                     file_path TEXT NOT NULL,
@@ -133,6 +134,12 @@ class SQLiteStore:
             # sessions sort_order カラムのマイグレーション
             try:
                 conn.execute("ALTER TABLE sessions ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass  # already exists
+            # documents sort_order カラムのマイグレーション
+            try:
+                conn.execute("ALTER TABLE documents ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
                 conn.commit()
             except Exception:
                 pass  # already exists
@@ -813,20 +820,27 @@ class SQLiteStore:
         data = dict(row)
         data.setdefault("session_id", None)
         data.setdefault("indexed_at", None)
+        data.setdefault("sort_order", 0)
         return Document(**data)
 
     def create_document(self, payload: DocumentCreate) -> Document:
-        doc = Document(id=self._new_id("doc"), **payload.model_dump())
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM documents WHERE workspace_id = ? AND scope = ?",
+                (payload.workspace_id, payload.scope),
+            ).fetchone()
+        next_order = int(row["max_order"]) + 1 if row is not None else 0
+        doc = Document(id=self._new_id("doc"), sort_order=next_order, **payload.model_dump(exclude={"sort_order"}))
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO documents
-                    (id, workspace_id, session_id, scope, file_name, mime_type, file_path,
+                    (id, workspace_id, session_id, scope, sort_order, file_name, mime_type, file_path,
                      file_size, file_hash, embed_model, created_at, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    doc.id, doc.workspace_id, doc.session_id, doc.scope, doc.file_name,
+                    doc.id, doc.workspace_id, doc.session_id, doc.scope, doc.sort_order, doc.file_name,
                     doc.mime_type, doc.file_path, doc.file_size, doc.file_hash,
                     doc.embed_model, doc.created_at, doc.indexed_at,
                 ),
@@ -855,11 +869,16 @@ class SQLiteStore:
                 """
                 SELECT * FROM documents
                 WHERE workspace_id = ? AND scope = 'workspace'
-                ORDER BY created_at DESC
+                ORDER BY sort_order ASC, created_at DESC
                 """,
                 (workspace_id,),
             ).fetchall()
         return [self._document_from_row(r) for r in rows]
+
+    def reorder_documents(self, ids: list[str]) -> None:
+        with self._connect() as conn:
+            for order, doc_id in enumerate(ids):
+                conn.execute("UPDATE documents SET sort_order = ? WHERE id = ?", (order, doc_id))
 
     def delete_document(self, doc_id: str) -> bool:
         doc = self.get_document(doc_id)

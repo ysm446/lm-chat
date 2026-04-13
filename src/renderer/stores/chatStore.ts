@@ -16,6 +16,7 @@ import {
   deleteWorkspace as deleteWorkspaceRequest,
   listDocuments as listDocumentsRequest,
   reorderWorkspaces as reorderWorkspacesRequest,
+  reorderDocuments as reorderDocumentsRequest,
   reorderSessions as reorderSessionsRequest,
   ejectLlamaModel,
   getLlamaStatus,
@@ -125,6 +126,7 @@ type ChatState = {
   selectSession: (sessionId: string) => Promise<void>;
   loadDocuments: (workspaceId: string) => Promise<void>;
   addDocument: (workspaceId: string, fileName: string, content: string) => Promise<ApiDocument>;
+  reorderDocuments: (workspaceId: string, orderedIds: string[]) => Promise<void>;
   removeDocument: (docId: string) => Promise<void>;
   updateDocument: (docId: string, content: string) => Promise<void>;
   renameDocument: (docId: string, fileName: string) => Promise<void>;
@@ -520,7 +522,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   addDocument: async (workspaceId, fileName, content) => {
     const doc = await createDocumentRequest({ workspace_id: workspaceId, file_name: fileName, content });
-    set((state) => ({ documents: [doc, ...state.documents] }));
+    set((state) => ({ documents: [...state.documents, doc] }));
     if (doc.indexed_at == null) {
       scheduleDocumentIndexPolling(workspaceId, (latestDocs) =>
         set((state) => ({
@@ -532,6 +534,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
     }
     return doc;
+  },
+
+  reorderDocuments: async (workspaceId, orderedIds) => {
+    await reorderDocumentsRequest(orderedIds);
+    set((state) => {
+      const docsById = new Map(
+        state.documents
+          .filter((d) => d.workspace_id === workspaceId)
+          .map((d) => [d.id, d] as const)
+      );
+      const reordered = orderedIds
+        .map((id, index) => {
+          const doc = docsById.get(id);
+          return doc ? { ...doc, sort_order: index } : null;
+        })
+        .filter((doc): doc is ApiDocument => doc !== null);
+      return {
+        documents: [
+          ...state.documents.filter((d) => d.workspace_id !== workspaceId),
+          ...reordered,
+        ],
+      };
+    });
   },
 
   removeDocument: async (docId) => {

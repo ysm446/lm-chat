@@ -10,14 +10,6 @@ type SidebarProps = {
   onSelectDocument?: (docId: string) => void;
 };
 
-function getDocumentBadge(fileName: string) {
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  if (ext === "md") return "MD";
-  if (ext === "json") return "{}";
-  if (ext === "txt") return "TXT";
-  return "FILE";
-}
-
 export function Sidebar({ onSelectDocument }: SidebarProps) {
   const workspaces = useChatStore((s) => s.workspaces);
   const sessions = useChatStore((s) => s.sessions);
@@ -37,6 +29,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const removeDocument = useChatStore((s) => s.removeDocument);
   const loadDocuments = useChatStore((s) => s.loadDocuments);
   const addDocument = useChatStore((s) => s.addDocument);
+  const reorderDocuments = useChatStore((s) => s.reorderDocuments);
   const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
   const reorderSessions = useChatStore((s) => s.reorderSessions);
   const moveSession = useChatStore((s) => s.moveSession);
@@ -63,6 +56,8 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [sessionDragId, setSessionDragId] = useState<string | null>(null);
   const [sessionDragOverId, setSessionDragOverId] = useState<string | null>(null);
   const [sessionDragOverWsId, setSessionDragOverWsId] = useState<string | null>(null);
+  const [docDragId, setDocDragId] = useState<string | null>(null);
+  const [docDragOverId, setDocDragOverId] = useState<string | null>(null);
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
@@ -271,7 +266,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   };
 
   return (
-    <div className={`sidebar${dragId ? " workspace-dragging" : ""}${sessionDragId ? " session-dragging" : ""}`}>
+    <div className={`sidebar${dragId ? " workspace-dragging" : ""}${sessionDragId ? " session-dragging" : ""}${docDragId ? " doc-dragging" : ""}`}>
       {/* 隠しファイル入力（資料追加用） */}
       <input
         ref={fileInputRef}
@@ -459,16 +454,51 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                               wsDocs.map((doc) => (
                                 <div
                                   key={doc.id}
-                                  className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}`}
+                                  className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}${docDragOverId === doc.id && docDragId !== doc.id ? " drag-over" : ""}${docDragId === doc.id ? " dragging" : ""}`}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setDocDragId(doc.id);
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", doc.id);
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                    if (!docDragId || docDragId === doc.id) return;
+                                    setDocDragOverId(doc.id);
+                                  }}
+                                  onDragLeave={(e) => {
+                                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                      setDocDragOverId(null);
+                                    }
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (!docDragId || docDragId === doc.id) {
+                                      setDocDragId(null);
+                                      setDocDragOverId(null);
+                                      return;
+                                    }
+                                    const from = wsDocs.findIndex((item) => item.id === docDragId);
+                                    const to = wsDocs.findIndex((item) => item.id === doc.id);
+                                    if (from < 0 || to < 0) return;
+                                    const next = [...wsDocs];
+                                    const [moved] = next.splice(from, 1);
+                                    next.splice(to, 0, moved);
+                                    void reorderDocuments(ws.id, next.map((item) => item.id));
+                                    setDocDragId(null);
+                                    setDocDragOverId(null);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDocDragId(null);
+                                    setDocDragOverId(null);
+                                  }}
                                 >
                                   <button
                                     className="sidebar-doc-btn"
                                     onClick={() => handleSelectDoc(doc)}
                                     title={doc.file_name}
                                   >
-                                    <span className="sidebar-doc-icon">
-                                      {getDocumentBadge(doc.file_name)}
-                                    </span>
                                     <span className="sidebar-doc-name">{doc.file_name}</span>
                                     {doc.indexed_at == null && (
                                       <span className="sidebar-doc-indexing" title="インデックス中">⟳</span>

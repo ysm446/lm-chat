@@ -52,6 +52,7 @@ from .models import (
     ConfigUpdate,
     Document,
     DocumentCreate,
+    DocumentReorderRequest,
     DocumentUploadRequest,
     DocumentUpdateRequest,
     MemorySaveRequest,
@@ -629,6 +630,12 @@ def memory_stats() -> dict[str, int]:
 @app.get("/documents", response_model=list[Document])
 def list_documents(workspace_id: str = Query(...)) -> list[Document]:
     return store.list_documents(workspace_id)
+
+
+@app.post("/documents/reorder")
+def reorder_documents(payload: DocumentReorderRequest) -> dict[str, bool]:
+    store.reorder_documents(payload.ids)
+    return {"ok": True}
 
 
 @app.post("/documents", response_model=Document)

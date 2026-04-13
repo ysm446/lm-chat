@@ -446,6 +446,7 @@ export type ApiDocument = {
   workspace_id: string;
   session_id: string | null;
   scope: "workspace" | "session";
+  sort_order: number;
   file_name: string;
   mime_type: string;
   file_path: string;
@@ -460,6 +461,13 @@ export type ApiDocumentWithContent = ApiDocument & { content: string };
 
 export function listDocuments(workspaceId: string) {
   return request<ApiDocument[]>(`/documents?workspace_id=${encodeURIComponent(workspaceId)}`);
+}
+
+export function reorderDocuments(orderedIds: string[]) {
+  return request<{ ok: boolean }>("/documents/reorder", {
+    method: "POST",
+    body: JSON.stringify({ ids: orderedIds }),
+  });
 }
 
 export function createDocument(payload: {

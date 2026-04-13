@@ -37,6 +37,10 @@ class SessionReorderRequest(BaseModel):
     ids: list[str]
 
 
+class DocumentReorderRequest(BaseModel):
+    ids: list[str]
+
+
 class Message(BaseModel):
     id: str
     role: Literal["user", "assistant", "system"]
@@ -162,6 +166,7 @@ class Document(BaseModel):
     workspace_id: str
     session_id: str | None = None
     scope: Literal["workspace", "session"] = "workspace"
+    sort_order: int = 0
     file_name: str
     mime_type: str
     file_path: str
@@ -176,6 +181,7 @@ class DocumentCreate(BaseModel):
     workspace_id: str
     session_id: str | None = None
     scope: Literal["workspace", "session"] = "workspace"
+    sort_order: int = 0
     file_name: str
     mime_type: str
     file_path: str
