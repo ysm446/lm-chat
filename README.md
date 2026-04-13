@@ -45,11 +45,19 @@
 - 画像添付付きチャット
 - 一時チャットモード
 - ワークスペース単位の記憶保存と検索
+- ワークスペース単位の Documents 管理と Document RAG
 - システムプロンプトの保存 / 切り替え / 上書き
 - 入力欄のインライン補完
 - 選択テキストの校正提案
 - チャット内検索（Ctrl+F）
 - 推論パラメータ調整（temperature、ctx_size、GPU layers、completion length）
+
+## Document RAG
+
+- ワークスペースごとに `.txt` / `.md` / `.json` ファイルを `Documents` に取り込めます。
+- 取り込んだファイルはチャンク化・埋め込みされ、会話時に補助コンテキストとして検索利用されます。
+- Documents はサイドバーから参照・編集・削除でき、更新時は再インデックスされます。
+- ファイル本体は `data/assets/documents/{workspace_id}/` 配下に保存されます。
 
 ## 起動
 
@@ -124,6 +132,7 @@ lm-chat/
 │   ├── settings_store.py    # UI 設定の保存
 │   ├── system_prompt_store.py
 │   ├── memory/              # 記憶システム
+│   ├── documents/           # Document RAG のチャンク化処理
 │   ├── search/              # Web 検索まわり
 │   └── utils/
 ├── src/
