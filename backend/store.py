@@ -842,6 +842,13 @@ class SQLiteStore:
             return None
         return self._document_from_row(row)
 
+    def set_document_indexed_at(self, doc_id: str, indexed_at: str | None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE documents SET indexed_at = ? WHERE id = ?",
+                (indexed_at, doc_id),
+            )
+
     def list_documents(self, workspace_id: str) -> list[Document]:
         with self._connect() as conn:
             rows = conn.execute(

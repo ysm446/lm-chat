@@ -27,7 +27,7 @@ export function App() {
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
   const error = useChatStore((state) => state.error);
-  const [sidebarWidth, setSidebarWidth] = useState(220);
+  const [sidebarWidth, setSidebarWidth] = useState(264);
   const [rightWidth, setRightWidth] = useState(280);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(false);

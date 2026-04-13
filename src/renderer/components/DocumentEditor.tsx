@@ -38,6 +38,41 @@ export function DocumentEditor({ docId, onClose }: Props) {
   }, [docId]);
 
   useEffect(() => {
+    if (!doc || doc.indexed_at != null) return undefined;
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer: number | null = null;
+    const maxAttempts = 40;
+
+    const scheduleNext = () => {
+      timer = window.setTimeout(() => {
+        void poll();
+      }, 1500);
+    };
+
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const latest = await getDocument(docId);
+        if (cancelled) return;
+        setDoc(latest);
+        if (latest.indexed_at != null || attempts >= maxAttempts) return;
+      } catch {
+        if (cancelled || attempts >= maxAttempts) return;
+      }
+      scheduleNext();
+    };
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [docId, doc?.indexed_at]);
+
+  useEffect(() => {
     if (editingName) nameInputRef.current?.select();
   }, [editingName]);
 

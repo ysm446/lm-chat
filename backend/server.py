@@ -737,6 +737,7 @@ def update_document(doc_id: str, payload: DocumentUpdateRequest) -> Document:
             raise HTTPException(status_code=500, detail=f"Failed to write file: {e}") from e
 
         store.update_document_file_size(doc_id, len(content_bytes))
+        store.set_document_indexed_at(doc_id, None)
         content_for_index = payload.content
         file_name_for_index = doc.file_name
 

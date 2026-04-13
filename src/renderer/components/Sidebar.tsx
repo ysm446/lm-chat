@@ -10,6 +10,14 @@ type SidebarProps = {
   onSelectDocument?: (docId: string) => void;
 };
 
+function getDocumentBadge(fileName: string) {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (ext === "md") return "MD";
+  if (ext === "json") return "{}";
+  if (ext === "txt") return "TXT";
+  return "FILE";
+}
+
 export function Sidebar({ onSelectDocument }: SidebarProps) {
   const workspaces = useChatStore((s) => s.workspaces);
   const sessions = useChatStore((s) => s.sessions);
@@ -406,7 +414,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                     title={doc.file_name}
                                   >
                                     <span className="sidebar-doc-icon">
-                                      {doc.file_name.endsWith(".md") ? "📝" : doc.file_name.endsWith(".json") ? "📋" : "📄"}
+                                      {getDocumentBadge(doc.file_name)}
                                     </span>
                                     <span className="sidebar-doc-name">{doc.file_name}</span>
                                     {doc.indexed_at == null && (

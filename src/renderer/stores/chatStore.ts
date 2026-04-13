@@ -38,6 +38,44 @@ import {
   moveSession as moveSessionRequest
 } from "../api";
 
+const DOCUMENT_INDEX_POLL_INTERVAL_MS = 1500;
+const DOCUMENT_INDEX_POLL_MAX_ATTEMPTS = 40;
+const documentIndexPollAttempts = new Map<string, number>();
+const documentIndexPollTimers = new Map<string, number>();
+
+function scheduleDocumentIndexPolling(workspaceId: string, setDocuments: (docs: ApiDocument[]) => void) {
+  if (documentIndexPollTimers.has(workspaceId)) return;
+
+  const poll = async () => {
+    const attempts = (documentIndexPollAttempts.get(workspaceId) ?? 0) + 1;
+    documentIndexPollAttempts.set(workspaceId, attempts);
+
+    try {
+      const docs = await listDocumentsRequest(workspaceId);
+      setDocuments(docs);
+
+      const hasPending = docs.some((doc) => doc.indexed_at == null);
+      if (hasPending && attempts < DOCUMENT_INDEX_POLL_MAX_ATTEMPTS) {
+        const timer = window.setTimeout(poll, DOCUMENT_INDEX_POLL_INTERVAL_MS);
+        documentIndexPollTimers.set(workspaceId, timer);
+        return;
+      }
+    } catch {
+      if (attempts < DOCUMENT_INDEX_POLL_MAX_ATTEMPTS) {
+        const timer = window.setTimeout(poll, DOCUMENT_INDEX_POLL_INTERVAL_MS);
+        documentIndexPollTimers.set(workspaceId, timer);
+        return;
+      }
+    }
+
+    documentIndexPollAttempts.delete(workspaceId);
+    documentIndexPollTimers.delete(workspaceId);
+  };
+
+  const timer = window.setTimeout(poll, DOCUMENT_INDEX_POLL_INTERVAL_MS);
+  documentIndexPollTimers.set(workspaceId, timer);
+}
+
 type ChatState = {
   workspaces: ApiWorkspace[];
   sessions: ApiSession[];
@@ -467,12 +505,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...docs,
         ],
       }));
+      if (docs.some((doc) => doc.indexed_at == null)) {
+        scheduleDocumentIndexPolling(workspaceId, (latestDocs) =>
+          set((state) => ({
+            documents: [
+              ...state.documents.filter((d) => d.workspace_id !== workspaceId),
+              ...latestDocs,
+            ],
+          }))
+        );
+      }
     } catch { /* ignore */ }
   },
 
   addDocument: async (workspaceId, fileName, content) => {
     const doc = await createDocumentRequest({ workspace_id: workspaceId, file_name: fileName, content });
     set((state) => ({ documents: [doc, ...state.documents] }));
+    if (doc.indexed_at == null) {
+      scheduleDocumentIndexPolling(workspaceId, (latestDocs) =>
+        set((state) => ({
+          documents: [
+            ...state.documents.filter((d) => d.workspace_id !== workspaceId),
+            ...latestDocs,
+          ],
+        }))
+      );
+    }
     return doc;
   },
 
@@ -489,6 +547,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       documents: state.documents.map((d) => (d.id === docId ? updated : d)),
     }));
+    if (updated.indexed_at == null) {
+      scheduleDocumentIndexPolling(updated.workspace_id, (latestDocs) =>
+        set((state) => ({
+          documents: [
+            ...state.documents.filter((d) => d.workspace_id !== updated.workspace_id),
+            ...latestDocs,
+          ],
+        }))
+      );
+    }
   },
 
   renameDocument: async (docId, fileName) => {
