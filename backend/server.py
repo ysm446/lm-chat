@@ -530,6 +530,8 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
 class ChatContinueRequest(BaseModel):
     session_id: str
     thinking_enabled: bool = False
+    memory_enabled: bool = True
+    doc_rag_enabled: bool = True
     system_prompt: str | None = None
 
 
@@ -541,6 +543,10 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
     if not session.messages or session.messages[-1].role != "user":
         raise HTTPException(status_code=400, detail="Last message must be from user")
 
+    last_user_content = session.messages[-1].content
+    memory_context = build_memory_context(session, last_user_content) if payload.memory_enabled else ""
+    doc_context = build_document_context(session, last_user_content) if payload.doc_rag_enabled else ""
+    full_context = combine_contexts(memory_context, doc_context)
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
@@ -549,7 +555,7 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, "", thinking_enabled, system_prompt, temperature):
+            for item in stream_chat_completion(session, full_context, thinking_enabled, system_prompt, temperature):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"

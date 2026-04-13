@@ -778,7 +778,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamContinueMessage(sessionId, get().thinkingEnabled, {
+      await streamContinueMessage(sessionId, get().thinkingEnabled, get().memoryEnabled, get().docRagEnabled, {
         onToken: (chunk) => {
           tokenCount++;
           set((state) => ({

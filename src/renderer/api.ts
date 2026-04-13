@@ -400,13 +400,21 @@ export async function streamTempChatMessage(
 export async function streamContinueMessage(
   sessionId: string,
   thinkingEnabled: boolean,
+  memoryEnabled: boolean,
+  docRagEnabled: boolean,
   handlers: StreamHandlers<ApiSession>,
   signal?: AbortSignal,
   systemPrompt?: string | null
 ) {
   await streamEvents(
     "/chat/continue/stream",
-    { session_id: sessionId, thinking_enabled: thinkingEnabled, system_prompt: systemPrompt ?? null },
+    {
+      session_id: sessionId,
+      thinking_enabled: thinkingEnabled,
+      memory_enabled: memoryEnabled,
+      doc_rag_enabled: docRagEnabled,
+      system_prompt: systemPrompt ?? null,
+    },
     handlers,
     (payload) => payload.session,
     signal
