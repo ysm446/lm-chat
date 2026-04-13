@@ -19,6 +19,7 @@ export function Sidebar() {
   const removeSession = useChatStore((s) => s.removeSession);
   const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
   const reorderSessions = useChatStore((s) => s.reorderSessions);
+  const moveSession = useChatStore((s) => s.moveSession);
 
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(currentWorkspaceId ? [currentWorkspaceId] : [])
@@ -41,6 +42,7 @@ export function Sidebar() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [sessionDragId, setSessionDragId] = useState<string | null>(null);
   const [sessionDragOverId, setSessionDragOverId] = useState<string | null>(null);
+  const [sessionDragOverWsId, setSessionDragOverWsId] = useState<string | null>(null);
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
@@ -180,15 +182,34 @@ export function Sidebar() {
           return (
             <div
             key={ws.id}
-            className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}`}
+            className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}${sessionDragOverWsId === ws.id ? " session-drop-target" : ""}`}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
-              if (dragId && dragId !== ws.id) setDragOverId(ws.id);
+              if (dragId && dragId !== ws.id) { setDragOverId(ws.id); return; }
+              if (sessionDragId) {
+                const draggedSession = sessions.find((s) => s.id === sessionDragId);
+                if (draggedSession && draggedSession.workspace_id !== ws.id) {
+                  setSessionDragOverWsId(ws.id);
+                  setSessionDragOverId(null);
+                }
+              }
             }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverId(null); }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOverId(null);
+                setSessionDragOverWsId(null);
+              }
+            }}
             onDrop={(e) => {
               e.preventDefault();
+              if (sessionDragId) {
+                const draggedSession = sessions.find((s) => s.id === sessionDragId);
+                if (draggedSession && draggedSession.workspace_id !== ws.id) {
+                  void moveSession(sessionDragId, ws.id);
+                }
+                setSessionDragId(null); setSessionDragOverId(null); setSessionDragOverWsId(null); return;
+              }
               if (!dragId || dragId === ws.id) { setDragId(null); setDragOverId(null); return; }
               const from = workspaces.findIndex((w) => w.id === dragId);
               const to = workspaces.findIndex((w) => w.id === ws.id);
@@ -200,7 +221,7 @@ export function Sidebar() {
               setDragId(null);
               setDragOverId(null);
             }}
-            onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+            onDragEnd={() => { setDragId(null); setDragOverId(null); setSessionDragOverWsId(null); }}
           >
               {editingWsId === ws.id ? (
                 <div className="sidebar-ws-edit">
@@ -286,12 +307,25 @@ export function Sidebar() {
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
-                        if (sessionDragId && sessionDragId !== session.id) setSessionDragOverId(session.id);
+                        if (!sessionDragId || sessionDragId === session.id) return;
+                        const draggedSession = sessions.find((s) => s.id === sessionDragId);
+                        if (draggedSession && draggedSession.workspace_id !== ws.id) {
+                          // 別ワークスペースからのドラッグ → ワークスペース全体をハイライト
+                          setSessionDragOverWsId(ws.id);
+                          setSessionDragOverId(null);
+                        } else {
+                          setSessionDragOverId(session.id);
+                        }
                       }}
                       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setSessionDragOverId(null); }}
                       onDrop={(e) => {
                         e.preventDefault();
-                        if (!sessionDragId || sessionDragId === session.id) { setSessionDragId(null); setSessionDragOverId(null); return; }
+                        if (!sessionDragId || sessionDragId === session.id) { setSessionDragId(null); setSessionDragOverId(null); setSessionDragOverWsId(null); return; }
+                        const draggedSession = sessions.find((s) => s.id === sessionDragId);
+                        if (draggedSession && draggedSession.workspace_id !== ws.id) {
+                          void moveSession(sessionDragId, ws.id);
+                          setSessionDragId(null); setSessionDragOverId(null); setSessionDragOverWsId(null); return;
+                        }
                         const from = wsSessions.findIndex((s) => s.id === sessionDragId);
                         const to = wsSessions.findIndex((s) => s.id === session.id);
                         if (from < 0 || to < 0) return;
@@ -301,8 +335,9 @@ export function Sidebar() {
                         void reorderSessions(next.map((s) => s.id));
                         setSessionDragId(null);
                         setSessionDragOverId(null);
+                        setSessionDragOverWsId(null);
                       }}
-                      onDragEnd={() => { setSessionDragId(null); setSessionDragOverId(null); }}
+                      onDragEnd={() => { setSessionDragId(null); setSessionDragOverId(null); setSessionDragOverWsId(null); }}
                     >
                       {editingSessionId === session.id ? (
                         <div className="inline-edit-row" style={{ flex: 1, padding: "2px 0" }}>

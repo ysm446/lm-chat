@@ -316,6 +316,13 @@ export function branchSession(sessionId: string, upToMessageId: string) {
   });
 }
 
+export function moveSession(sessionId: string, targetWorkspaceId: string) {
+  return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/move`, {
+    method: "POST",
+    body: JSON.stringify({ workspace_id: targetWorkspaceId }),
+  });
+}
+
 export function deleteSession(sessionId: string, deleteMemory = true) {
   return request<{ deleted: boolean; session_count: number }>(
     `/history/sessions/${encodeURIComponent(sessionId)}?delete_memory=${deleteMemory ? "true" : "false"}`,

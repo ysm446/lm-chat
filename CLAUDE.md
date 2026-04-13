@@ -44,7 +44,7 @@ start.bat
 | `src/renderer/App.tsx` | ルートコンポーネント。グリッドレイアウト・サイドバー開閉状態 |
 | `src/renderer/components/ModelBar.tsx` | 上部モデルバー。モデル選択・イジェクト・サイドバートグル |
 | `src/renderer/components/ModelPickerModal.tsx` | モデル選択ダイアログ |
-| `src/renderer/components/Sidebar.tsx` | 左サイドバー。ワークスペース＋セッションのツリー表示 |
+| `src/renderer/components/Sidebar.tsx` | 左サイドバー。ワークスペース＋セッションのツリー表示・ドラッグ並べ替え・ワークスペース間移動 |
 | `src/renderer/components/ChatView.tsx` | メッセージ一覧。生成統計・メッセージアクションボタン |
 | `src/renderer/components/MessageInput.tsx` | 入力エリア。画像添付・トークンリング・インライン補完・選択テキスト校正・送信 |
 | `src/renderer/components/SettingsPanel.tsx` | 右サイドバー。システムプロンプト管理・コンテキスト長・GPU オフロード・Temperature・補完長スライダー |
@@ -123,6 +123,12 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - Esc でキャンセル。校正結果が元テキストと同じ場合はポップアップを表示しない
 - `llm_proxy.correct()` は誤字・脱字・文法ミスのみ修正し、内容・表現は変えない指示を持つ
 
+### セッションのワークスペース間移動
+- セッションのドラッグハンドルを別ワークスペースのヘッダー行や、そのワークスペース内のセッション行にドロップすると移動できる
+- バックエンド `store.move_session()` が `sessions.workspace_id` と `memory_chunks.workspace_id` を同時に更新する（記憶も移動先ワークスペースに帰属が変わる）
+- フロントエンドは移動後、移動先ワークスペースのセッション一覧を再取得して状態を更新し、そのセッションにフォーカスを移す
+- 同一ワークスペース内でのドラッグは従来通り並べ替えになる（別ワークスペースかどうかは `session.workspace_id` で判定）
+
 ### チャット内検索（Ctrl+F）
 - `ChatView.tsx` 内の検索バー（`.chat-search-bar`）で Ctrl+F トグル
 - カスタム rehype プラグイン（`makeHighlightPlugin`）が HAST ツリーを走査し、ReactMarkdown レンダリング済みテキストにもインラインハイライトを適用
@@ -178,6 +184,7 @@ DELETE /history/sessions/{id}
 POST /history/sessions/{id}/messages
 GET  /history/sessions/{id}/token_count
 POST /history/sessions/{id}/branch        ← 指定メッセージまでのセッションを複製
+POST /history/sessions/{id}/move          ← セッションを別ワークスペースへ移動
 POST /history/sessions/{id}/generate-title
 
 DELETE /history/messages/{id}

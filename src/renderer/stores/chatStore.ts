@@ -29,7 +29,8 @@ import {
   updateMessage as updateMessageRequest,
   generateSessionTitle as generateSessionTitleRequest,
   updateSession as updateSessionRequest,
-  updateWorkspace as updateWorkspaceRequest
+  updateWorkspace as updateWorkspaceRequest,
+  moveSession as moveSessionRequest
 } from "../api";
 
 type ChatState = {
@@ -73,6 +74,7 @@ type ChatState = {
   createSession: (workspaceId: string, title: string) => Promise<ApiSession>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
   removeSession: (sessionId: string) => Promise<void>;
+  moveSession: (sessionId: string, targetWorkspaceId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
@@ -419,6 +421,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (nextSessionId) {
       await get().selectSession(nextSessionId);
     }
+  },
+
+  moveSession: async (sessionId, targetWorkspaceId) => {
+    const movedSession = await moveSessionRequest(sessionId, targetWorkspaceId);
+    // セッションの workspace_id を更新し、移動先ワークスペースのセッション一覧を再取得
+    const targetSessions = await listSessions(targetWorkspaceId);
+    set((state) => {
+      const otherSessions = state.sessions.filter((s) => s.workspace_id !== targetWorkspaceId && s.id !== sessionId);
+      return {
+        sessions: [...otherSessions, ...targetSessions],
+        currentWorkspaceId: movedSession.workspace_id,
+        currentSessionId: movedSession.id,
+        error: null,
+      };
+    });
   },
 
   selectSession: async (sessionId) => {

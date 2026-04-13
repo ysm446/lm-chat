@@ -492,6 +492,20 @@ class SQLiteStore:
             )
         return self.get_session(new_session.id)
 
+    def move_session(self, session_id: str, target_workspace_id: str) -> Session | None:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "UPDATE sessions SET workspace_id = ?, updated_at = ? WHERE id = ?",
+                (target_workspace_id, now_iso(), session_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            conn.execute(
+                "UPDATE memory_chunks SET workspace_id = ? WHERE session_id = ?",
+                (target_workspace_id, session_id),
+            )
+        return self.get_session(session_id)
+
     def delete_session(self, session_id: str, delete_memory: bool) -> bool:
         with self._connect() as conn:
             image_paths = self._collect_image_paths_for_session_ids(conn, [session_id])

@@ -327,6 +327,19 @@ def update_message(message_id: str, payload: MessageUpdate) -> Message:
     return message
 
 
+@app.post("/history/sessions/{session_id}/move", response_model=Session)
+def move_session(session_id: str, payload: dict) -> Session:
+    target_workspace_id = payload.get("workspace_id", "")
+    if not target_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required")
+    if not store.has_workspace(target_workspace_id):
+        raise HTTPException(status_code=404, detail="Target workspace not found")
+    session = store.move_session(session_id, target_workspace_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
 @app.post("/history/sessions/{session_id}/branch", response_model=Session)
 def branch_session(session_id: str, payload: dict) -> Session:
     up_to_message_id = payload.get("up_to_message_id", "")
