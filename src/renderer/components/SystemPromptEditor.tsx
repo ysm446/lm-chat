@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { SavedSystemPrompt, countTokens, updateSystemPrompt } from "../api";
+import { SavedSystemPrompt, countTokens, fetchCorrect, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type Props = {
@@ -11,14 +11,23 @@ type Props = {
 
 export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsChange }: Props) {
   const systemPromptText = useChatStore((s) => s.systemPromptText);
+  const activeModelPath = useChatStore((s) => s.activeModelPath);
+  const correctionEnabled = useChatStore((s) => s.correctionEnabled);
 
   const [content, setContent] = useState("");
   const [tokenCount, setTokenCount] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [renamingMode, setRenamingMode] = useState(false);
   const [renamePending, setRenamePending] = useState("");
+  const [selStart, setSelStart] = useState(0);
+  const [selEnd, setSelEnd] = useState(0);
+  const [correction, setCorrection] = useState("");
+  const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
+  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const correctionRequestIdRef = useRef(0);
 
   const selectedPrompt = prompts.find((p) => p.id === selectedId) ?? null;
 
@@ -32,6 +41,20 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
     setRenamingMode(false);
     setRenamePending("");
   }, [selectedId]);
+
+  useEffect(() => {
+    setCorrection("");
+    setCorrectionPos(null);
+    setIsCorrectionLoading(false);
+    correctionRequestIdRef.current += 1;
+    if (!correctionEnabled || selStart === selEnd || !activeModelPath) return;
+    const selected = content.slice(selStart, selEnd);
+    if (!selected.trim()) return;
+    if (textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+  }, [selStart, selEnd, content, activeModelPath, correctionEnabled]);
 
   // Token count debounce
   useEffect(() => {
@@ -47,6 +70,57 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
 
   const handleContentChange = (value: string) => {
     setContent(value);
+  };
+
+  const handleCorrectionRequest = async () => {
+    if (!correctionEnabled || !activeModelPath) return;
+    const selected = content.slice(selStart, selEnd);
+    if (!selected.trim()) return;
+
+    if (textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+
+    const requestId = correctionRequestIdRef.current + 1;
+    correctionRequestIdRef.current = requestId;
+    setIsCorrectionLoading(true);
+    setCorrection("");
+
+    try {
+      const r = await fetchCorrect(selected);
+      if (requestId !== correctionRequestIdRef.current) return;
+      if (r.corrected && r.corrected !== selected) {
+        setCorrection(r.corrected);
+      }
+    } catch {
+      // ignore
+    } finally {
+      if (requestId === correctionRequestIdRef.current) {
+        setIsCorrectionLoading(false);
+      }
+    }
+  };
+
+  const applyCorrection = () => {
+    const ta = textareaRef.current;
+    if (!ta || !correction) return;
+
+    ta.focus();
+    ta.setSelectionRange(selStart, selEnd);
+    const ok = document.execCommand("insertText", false, correction);
+    if (!ok) {
+      const nextContent = content.slice(0, selStart) + correction + content.slice(selEnd);
+      setContent(nextContent);
+    }
+    const newCursor = selStart + correction.length;
+    setSelStart(newCursor);
+    setSelEnd(newCursor);
+    setCorrection("");
+  };
+
+  const cancelCorrection = () => {
+    setCorrection("");
   };
 
   const handleOverwrite = async () => {
@@ -78,9 +152,50 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
   };
 
   const isModified = selectedPrompt ? selectedPrompt.content !== content : false;
+  const hasSelectedText = correctionEnabled && selStart !== selEnd && !!content.slice(selStart, selEnd).trim();
 
   return (
-    <div className="sp-editor">
+    <>
+      {!correction && correctionPos && hasSelectedText && (
+        <button
+          type="button"
+          className="composer-correction-trigger"
+          style={{ top: correctionPos.top, left: correctionPos.left + correctionPos.width - 76 }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => void handleCorrectionRequest()}
+          disabled={isCorrectionLoading}
+        >
+          {isCorrectionLoading ? "校正中..." : "校正"}
+        </button>
+      )}
+      {correction && correctionPos && (
+        <div
+          className="composer-correction-popup"
+          style={{ top: correctionPos.top, left: correctionPos.left, width: correctionPos.width }}
+          aria-live="polite"
+        >
+          <span className="composer-correction-text">{correction}</span>
+          <div className="composer-correction-actions">
+            <button
+              type="button"
+              className="composer-correction-action primary"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={applyCorrection}
+            >
+              置換
+            </button>
+            <button
+              type="button"
+              className="composer-correction-action"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={cancelCorrection}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="sp-editor">
       <div className="sp-editor-header">
         {renamingMode ? (
           <div className="sp-editor-rename-row">
@@ -118,6 +233,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
       </div>
 
       <textarea
+        ref={textareaRef}
         className="sp-editor-textarea"
         placeholder={selectedId
           ? "システムプロンプトを入力…"
@@ -125,6 +241,32 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
         }
         value={content}
         onChange={(e) => handleContentChange(e.target.value)}
+        onSelect={(e) => {
+          const t = e.target as HTMLTextAreaElement;
+          setSelStart(t.selectionStart);
+          setSelEnd(t.selectionEnd);
+        }}
+        onClick={(e) => {
+          const t = e.target as HTMLTextAreaElement;
+          setSelStart(t.selectionStart);
+          setSelEnd(t.selectionEnd);
+        }}
+        onKeyUp={(e) => {
+          const t = e.target as HTMLTextAreaElement;
+          setSelStart(t.selectionStart);
+          setSelEnd(t.selectionEnd);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Tab" && correction) {
+            e.preventDefault();
+            applyCorrection();
+            return;
+          }
+          if (e.key === "Escape" && correction) {
+            e.preventDefault();
+            cancelCorrection();
+          }
+        }}
         disabled={!selectedId && prompts.length > 0}
         spellCheck={false}
       />
@@ -144,6 +286,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
