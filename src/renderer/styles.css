@@ -1600,7 +1600,7 @@ details.thinking-block[open] .thinking-chevron {
   margin-top: -8px;
   background: #1d1f2b;
   border: 1px solid rgba(160, 120, 255, 0.45);
-  border-radius: 6px;
+  border-radius: 12px;
   padding: 10px 12px;
   display: flex;
   align-items: center;
