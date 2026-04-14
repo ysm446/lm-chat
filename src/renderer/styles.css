@@ -436,6 +436,11 @@ a { color: var(--accent); }
   border-radius: 4px;
   flex-shrink: 0;
 }
+.sidebar-add-btn {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
 .sidebar-icon-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 
 .sidebar-sessions {

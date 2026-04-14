@@ -450,7 +450,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                   </button>
                   <div className="sidebar-ws-actions">
                     <button
-                      className="sidebar-icon-btn"
+                      className="sidebar-icon-btn sidebar-add-btn"
                       title="新規チャット"
                       onClick={() => void handleAddChat(ws.id)}
                     >
@@ -488,7 +488,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                             Documents
                           </button>
                           <button
-                            className="sidebar-icon-btn"
+                            className="sidebar-icon-btn sidebar-add-btn"
                             title="資料を追加"
                             onClick={() => handleAddDocument(ws.id)}
                           >
