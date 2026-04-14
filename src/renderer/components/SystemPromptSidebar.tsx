@@ -120,6 +120,13 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
           <div
             key={p.id}
             className={`sp-sidebar-item-wrap${dragOverId === p.id && dragId !== p.id ? " drag-over" : ""}${dragId === p.id ? " dragging" : ""}`}
+            draggable={editingId !== p.id}
+            onDragStart={(e) => {
+              if (editingId === p.id) return;
+              setDragId(p.id);
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", p.id);
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
@@ -148,22 +155,6 @@ export function SystemPromptSidebar({ prompts, selectedId, onSelect, onPromptsCh
               </div>
             ) : (
               <>
-                <span
-                  className="sp-sidebar-drag-handle"
-                  title="ドラッグして並べ替え"
-                  draggable
-                  onDragStart={(e) => {
-                    setDragId(p.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", p.id);
-                  }}
-                >
-                  <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                    <circle cx="2" cy="2" r="1.2"/><circle cx="6" cy="2" r="1.2"/>
-                    <circle cx="2" cy="6" r="1.2"/><circle cx="6" cy="6" r="1.2"/>
-                    <circle cx="2" cy="10" r="1.2"/><circle cx="6" cy="10" r="1.2"/>
-                  </svg>
-                </span>
                 <button
                   className={`sp-sidebar-item${p.id === selectedId ? " active" : ""}`}
                   onClick={() => handleSelectPrompt(p)}

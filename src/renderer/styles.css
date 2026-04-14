@@ -2594,23 +2594,12 @@ details.thinking-block[open] .thinking-chevron {
   gap: 2px;
   border-radius: var(--r-sm);
   margin-bottom: 1px;
+  cursor: grab;
   transition: opacity 0.15s;
 }
 .sp-sidebar-item-wrap.drag-over { outline: 1px solid var(--accent); background: var(--accent-soft); }
 .sp-sidebar-item-wrap.dragging { opacity: 0.4; }
 .sp-sidebar.sp-dragging .sp-sidebar-item-wrap:not(.dragging) { cursor: grabbing; }
-
-.sp-sidebar-drag-handle {
-  display: flex;
-  align-items: center;
-  padding: 0 3px;
-  color: var(--text-faint);
-  opacity: 0;
-  cursor: grab;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-}
-.sp-sidebar-item-wrap:hover .sp-sidebar-drag-handle { opacity: 1; }
 
 .sp-sidebar-item {
   display: flex;
