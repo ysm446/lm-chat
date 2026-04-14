@@ -19,6 +19,29 @@ const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> =
 ];
 
 const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1, completion_length: 80 } as const;
+const CTX_SIZE_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072, 262144] as const;
+
+function formatCtxSizeLabel(value: number) {
+  if (value >= 1024) {
+    const asK = value / 1024;
+    return Number.isInteger(asK) ? `${asK}k` : `${asK.toFixed(1)}k`;
+  }
+  return value.toLocaleString();
+}
+
+function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
+  if (presets.length === 0) return 0;
+  let nearestIndex = 0;
+  let nearestDistance = Math.abs(presets[0] - value);
+  for (let i = 1; i < presets.length; i += 1) {
+    const distance = Math.abs(presets[i] - value);
+    if (distance < nearestDistance) {
+      nearestIndex = i;
+      nearestDistance = distance;
+    }
+  }
+  return nearestIndex;
+}
 
 export function SettingsPanel() {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
@@ -223,6 +246,9 @@ export function SettingsPanel() {
   }, []);
 
   const ctxMax = modelMaxCtx ?? 131072;
+  const ctxPresetOptions = CTX_SIZE_PRESETS.filter((value) => value <= ctxMax);
+  const effectiveCtxPresets = ctxPresetOptions.length > 0 ? ctxPresetOptions : [ctxMax];
+  const currentCtxPresetIndex = getNearestCtxPresetIndex(ctxSize, effectiveCtxPresets);
   const gpuMax = 100;
 
   return (
@@ -519,17 +545,7 @@ export function SettingsPanel() {
                       </svg>
                     </button>
                   )}
-                  <input
-                    className="settings-number-input"
-                    type="number"
-                    min={512}
-                    max={ctxMax}
-                    step={1024}
-                    value={ctxSize}
-                    onChange={(e) => setCtxSize(Number(e.target.value))}
-                    onBlur={() => void handleSave({ ctx_size: ctxSize })}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ ctx_size: ctxSize }); }}
-                  />
+                  <span className="settings-value-badge">{formatCtxSizeLabel(ctxSize)}</span>
                 </div>
               </div>
               {modelMaxCtx && (
@@ -540,11 +556,11 @@ export function SettingsPanel() {
               <input
                 className="settings-slider"
                 type="range"
-                min={512}
-                max={ctxMax}
-                step={1024}
-                value={ctxSize}
-                onChange={(e) => setCtxSize(Number(e.target.value))}
+                min={0}
+                max={Math.max(effectiveCtxPresets.length - 1, 0)}
+                step={1}
+                value={currentCtxPresetIndex}
+                onChange={(e) => setCtxSize(effectiveCtxPresets[Number(e.target.value)] ?? ctxSize)}
                 onMouseUp={() => void handleSave({ ctx_size: ctxSize })}
               />
             </div>

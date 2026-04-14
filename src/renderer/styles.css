@@ -2260,6 +2260,17 @@ details.thinking-block[open] .thinking-chevron {
 }
 .settings-number-input:focus { outline: none; border-color: var(--accent); }
 
+.settings-value-badge {
+  min-width: 72px;
+  padding: 4px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 11px;
+  text-align: center;
+}
+
 .settings-field-hint {
   font-size: 11px;
   color: var(--text-faint);
