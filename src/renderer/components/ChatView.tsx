@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { resolveApiUrl } from "../api";
+import { fetchCorrect, resolveApiUrl } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function escapeRegex(s: string) {
@@ -89,6 +89,8 @@ export function ChatView() {
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const tempMessages = useChatStore((state) => state.tempMessages);
   const continueGeneration = useChatStore((state) => state.continueGeneration);
+  const activeModelPath = useChatStore((state) => state.activeModelPath);
+  const correctionEnabled = useChatStore((state) => state.correctionEnabled);
   const modelName = selectedModel ?? session?.model_name ?? "";
   const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -96,8 +98,14 @@ export function ChatView() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
+  const [editSelStart, setEditSelStart] = useState(0);
+  const [editSelEnd, setEditSelEnd] = useState(0);
+  const [editCorrection, setEditCorrection] = useState("");
+  const [isEditCorrectionLoading, setIsEditCorrectionLoading] = useState(false);
+  const [editCorrectionPos, setEditCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const editCorrectionRequestIdRef = useRef(0);
 
   // ── Search ───────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -173,9 +181,27 @@ export function ChatView() {
     editTextareaRef.current?.focus();
   }, [editingContent, editingId]);
 
+  useEffect(() => {
+    setEditCorrection("");
+    setEditCorrectionPos(null);
+    setIsEditCorrectionLoading(false);
+    editCorrectionRequestIdRef.current += 1;
+    if (!editingId || !correctionEnabled || editSelStart === editSelEnd || !activeModelPath) return;
+    const selected = editingContent.slice(editSelStart, editSelEnd);
+    if (!selected.trim()) return;
+    if (editTextareaRef.current) {
+      const rect = editTextareaRef.current.getBoundingClientRect();
+      setEditCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+  }, [editingId, editSelStart, editSelEnd, editingContent, activeModelPath, correctionEnabled]);
+
   const startEdit = (messageId: string, content: string) => {
     setEditingId(messageId);
     setEditingContent(content);
+    setEditSelStart(0);
+    setEditSelEnd(0);
+    setEditCorrection("");
+    setEditCorrectionPos(null);
   };
 
   const commitEdit = async (sessionId: string, messageId: string) => {
@@ -184,12 +210,104 @@ export function ChatView() {
     setEditingId(null);
   };
 
+  const handleEditCorrectionRequest = async () => {
+    if (!correctionEnabled || !activeModelPath) return;
+    const selected = editingContent.slice(editSelStart, editSelEnd);
+    if (!selected.trim()) return;
+
+    if (editTextareaRef.current) {
+      const rect = editTextareaRef.current.getBoundingClientRect();
+      setEditCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
+    }
+
+    const requestId = editCorrectionRequestIdRef.current + 1;
+    editCorrectionRequestIdRef.current = requestId;
+    setIsEditCorrectionLoading(true);
+    setEditCorrection("");
+
+    try {
+      const r = await fetchCorrect(selected);
+      if (requestId !== editCorrectionRequestIdRef.current) return;
+      if (r.corrected && r.corrected !== selected) {
+        setEditCorrection(r.corrected);
+      }
+    } catch {
+      // ignore
+    } finally {
+      if (requestId === editCorrectionRequestIdRef.current) {
+        setIsEditCorrectionLoading(false);
+      }
+    }
+  };
+
+  const applyEditCorrection = () => {
+    const ta = editTextareaRef.current;
+    if (!ta || !editCorrection) return;
+
+    ta.focus();
+    ta.setSelectionRange(editSelStart, editSelEnd);
+    const ok = document.execCommand("insertText", false, editCorrection);
+    if (!ok) {
+      const nextContent = editingContent.slice(0, editSelStart) + editCorrection + editingContent.slice(editSelEnd);
+      setEditingContent(nextContent);
+    }
+    const newCursor = editSelStart + editCorrection.length;
+    setEditSelStart(newCursor);
+    setEditSelEnd(newCursor);
+    setEditCorrection("");
+  };
+
+  const cancelEditCorrection = () => {
+    setEditCorrection("");
+  };
+
   const handleCopy = (content: string) => {
     void navigator.clipboard.writeText(content);
   };
 
+  const hasSelectedEditText = correctionEnabled && editSelStart !== editSelEnd && !!editingContent.slice(editSelStart, editSelEnd).trim();
+
   return (
     <section className="chat-view">
+      {!editCorrection && editCorrectionPos && hasSelectedEditText && (
+        <button
+          type="button"
+          className="composer-correction-trigger"
+          style={{ top: editCorrectionPos.top, left: editCorrectionPos.left + editCorrectionPos.width - 76 }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => void handleEditCorrectionRequest()}
+          disabled={isEditCorrectionLoading}
+        >
+          {isEditCorrectionLoading ? "校正中..." : "校正"}
+        </button>
+      )}
+      {editCorrection && editCorrectionPos && (
+        <div
+          className="composer-correction-popup"
+          style={{ top: editCorrectionPos.top, left: editCorrectionPos.left, width: editCorrectionPos.width }}
+          aria-live="polite"
+        >
+          <span className="composer-correction-text">{editCorrection}</span>
+          <div className="composer-correction-actions">
+            <button
+              type="button"
+              className="composer-correction-action primary"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={applyEditCorrection}
+            >
+              置換
+            </button>
+            <button
+              type="button"
+              className="composer-correction-action"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={cancelEditCorrection}
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
       {searchOpen && (
         <div className="chat-search-bar">
           <div className="chat-search-box">
@@ -278,7 +396,32 @@ export function ChatView() {
                     setEditingContent(e.target.value);
                     resizeTextareaToContent(e.currentTarget);
                   }}
+                  onSelect={(e) => {
+                    const t = e.target as HTMLTextAreaElement;
+                    setEditSelStart(t.selectionStart);
+                    setEditSelEnd(t.selectionEnd);
+                  }}
+                  onClick={(e) => {
+                    const t = e.target as HTMLTextAreaElement;
+                    setEditSelStart(t.selectionStart);
+                    setEditSelEnd(t.selectionEnd);
+                  }}
+                  onKeyUp={(e) => {
+                    const t = e.target as HTMLTextAreaElement;
+                    setEditSelStart(t.selectionStart);
+                    setEditSelEnd(t.selectionEnd);
+                  }}
                   onKeyDown={(e) => {
+                    if (e.key === "Tab" && editCorrection) {
+                      e.preventDefault();
+                      applyEditCorrection();
+                      return;
+                    }
+                    if (e.key === "Escape" && editCorrection) {
+                      e.preventDefault();
+                      cancelEditCorrection();
+                      return;
+                    }
                     if (e.key === "Enter" && e.ctrlKey && session?.id) { e.preventDefault(); void commitEdit(session.id, message.id); }
                     if (e.key === "Escape") setEditingId(null);
                   }}
