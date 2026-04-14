@@ -75,6 +75,7 @@ export function MessageInput() {
   const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteRequestIdRef = useRef(0);
   const correctionRequestIdRef = useRef(0);
@@ -224,6 +225,15 @@ export function MessageInput() {
     return () => window.removeEventListener("lm-chat:attach-image", handleDroppedImage as EventListener);
   }, []);
 
+  useEffect(() => {
+    const handleScrollState = (event: Event) => {
+      const customEvent = event as CustomEvent<{ can_scroll_to_bottom?: boolean }>;
+      setShowScrollToBottom(!!customEvent.detail?.can_scroll_to_bottom);
+    };
+    window.addEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
+    return () => window.removeEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
+  }, []);
+
   const applyCorrection = () => {
     const ta = textareaRef.current;
     if (!ta || !correction) return;
@@ -311,6 +321,21 @@ export function MessageInput() {
     )}
     <section className="input-shell">
       <div className="input-shell-inner">
+      <div className="composer-wrap">
+      {showScrollToBottom && (
+        <button
+          type="button"
+          className="composer-scroll-jump-btn floating"
+          onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:scroll-to-bottom"))}
+          title="最新メッセージへ移動"
+          aria-label="最新メッセージへ移動"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14" />
+            <polyline points="6 13 12 19 18 13" />
+          </svg>
+        </button>
+      )}
       <div className="composer">
         <input
           ref={fileInputRef}
@@ -524,6 +549,7 @@ export function MessageInput() {
             )}
           </div>
         </div>
+      </div>
       </div>
       </div>
     </section>

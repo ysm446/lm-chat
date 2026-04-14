@@ -1480,15 +1480,60 @@ details.thinking-block[open] .thinking-chevron {
 
 /* Input shell */
 .input-shell {
+  position: relative;
   padding: 12px 20px 16px;
-  border-top: 1px solid var(--border);
   background: var(--bg-chat);
   flex-shrink: 0;
+}
+.input-shell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -40px;
+  height: 40px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(19, 20, 27, 0), var(--bg-chat));
+  z-index: 2;
 }
 
 .input-shell-inner {
   max-width: 1440px;
   margin: 0 auto;
+}
+
+.composer-wrap {
+  position: relative;
+}
+
+.composer-scroll-jump-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(112, 128, 158, 0.28);
+  background: rgba(36, 42, 54, 0.92);
+  color: rgba(208, 217, 232, 0.92);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.05);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.composer-scroll-jump-btn.floating {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 18px));
+  z-index: 4;
+}
+
+.composer-scroll-jump-btn:hover {
+  background: rgba(43, 50, 66, 0.96);
+  border-color: rgba(144, 161, 192, 0.42);
+  color: rgba(236, 241, 248, 0.96);
+}
+.composer-scroll-jump-btn.floating:hover {
+  transform: translate(-50%, calc(-100% - 19px));
 }
 
 .composer {

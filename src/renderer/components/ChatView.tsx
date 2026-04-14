@@ -93,6 +93,7 @@ export function ChatView() {
   const correctionEnabled = useChatStore((state) => state.correctionEnabled);
   const modelName = selectedModel ?? session?.model_name ?? "";
   const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
+  const chatViewRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const previousSubmissionModeRef = useRef<typeof submissionMode>(null);
 
@@ -165,6 +166,25 @@ export function ChatView() {
     if (submissionMode === "regenerate" || previousMode === "regenerate") return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [session?.messages.length, isSubmitting, submissionMode]);
+
+  const emitScrollState = useCallback(() => {
+    const el = chatViewRef.current;
+    if (!el) return;
+    const canScrollToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) > 48;
+    window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", { detail: { can_scroll_to_bottom: canScrollToBottom } }));
+  }, []);
+
+  useEffect(() => {
+    emitScrollState();
+  }, [messages.length, searchOpen, emitScrollState]);
+
+  useEffect(() => {
+    const handleScrollToBottom = () => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+    window.addEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
+    return () => window.removeEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
+  }, []);
 
   useEffect(() => {
     if (!expandedImage) return;
@@ -268,7 +288,11 @@ export function ChatView() {
   const hasSelectedEditText = correctionEnabled && editSelStart !== editSelEnd && !!editingContent.slice(editSelStart, editSelEnd).trim();
 
   return (
-    <section className="chat-view">
+    <section
+      ref={chatViewRef}
+      className="chat-view"
+      onScroll={() => emitScrollState()}
+    >
       {!editCorrection && editCorrectionPos && hasSelectedEditText && (
         <button
           type="button"
