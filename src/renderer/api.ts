@@ -427,6 +427,32 @@ export async function streamContinueMessage(
   );
 }
 
+export async function streamRegenerateMessage(
+  sessionId: string,
+  userMessageId: string,
+  thinkingEnabled: boolean,
+  memoryEnabled: boolean,
+  docRagEnabled: boolean,
+  handlers: StreamHandlers<ApiSession>,
+  signal?: AbortSignal,
+  systemPrompt?: string | null
+) {
+  await streamEvents(
+    "/chat/regenerate/stream",
+    {
+      session_id: sessionId,
+      user_message_id: userMessageId,
+      thinking_enabled: thinkingEnabled,
+      memory_enabled: memoryEnabled,
+      doc_rag_enabled: docRagEnabled,
+      system_prompt: systemPrompt ?? null,
+    },
+    handlers,
+    (payload) => payload.session,
+    signal
+  );
+}
+
 export async function streamChatMessage(
   sessionId: string,
   content: string,

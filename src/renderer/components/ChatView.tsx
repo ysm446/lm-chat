@@ -80,16 +80,19 @@ function parseThinking(content: string): { thinking: string | null; response: st
 export function ChatView() {
   const session = useChatStore((state) => state.currentSession());
   const isSubmitting = useChatStore((state) => state.isSubmitting);
+  const submissionMode = useChatStore((state) => state.submissionMode);
   const selectedModel = useChatStore((state) => state.selectedModel);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const editMessage = useChatStore((state) => state.editMessage);
   const branchSession = useChatStore((state) => state.branchSession);
+  const regenerateMessage = useChatStore((state) => state.regenerateMessage);
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const tempMessages = useChatStore((state) => state.tempMessages);
   const continueGeneration = useChatStore((state) => state.continueGeneration);
   const modelName = selectedModel ?? session?.model_name ?? "";
   const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const previousSubmissionModeRef = useRef<typeof submissionMode>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -149,8 +152,11 @@ export function ChatView() {
   }, [openSearch]);
 
   useEffect(() => {
+    const previousMode = previousSubmissionModeRef.current;
+    previousSubmissionModeRef.current = submissionMode;
+    if (submissionMode === "regenerate" || previousMode === "regenerate") return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session?.messages.length, isSubmitting]);
+  }, [session?.messages.length, isSubmitting, submissionMode]);
 
   useEffect(() => {
     if (!expandedImage) return;
@@ -217,10 +223,11 @@ export function ChatView() {
         </div>
       )}
       <div className="message-stream">
-        {messages.map((message) => {
+        {messages.map((message, messageIndex) => {
           const isMatch = matchedIds.includes(message.id);
           const isCurrent = matchedIds[matchIndex] === message.id;
           const imageSrc = resolveApiUrl(message.image_data);
+          const hasFollowingAssistant = message.role === "user" && messages[messageIndex + 1]?.role === "assistant";
           return (
           <article
             key={message.id}
@@ -374,6 +381,17 @@ export function ChatView() {
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                )}
+                {hasFollowingAssistant && (
+                  <button
+                    className="msg-action-btn"
+                    title="再生成"
+                    onClick={() => { if (session?.id) void regenerateMessage(session.id, message.id); }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/>
                     </svg>
                   </button>
                 )}

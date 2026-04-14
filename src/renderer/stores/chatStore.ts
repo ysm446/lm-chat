@@ -29,6 +29,7 @@ import {
   saveActiveSystemPrompt,
   streamChatMessage,
   streamContinueMessage,
+  streamRegenerateMessage,
   streamTempChatMessage,
   switchLlamaModel,
   updateDocument as updateDocumentRequest,
@@ -86,6 +87,7 @@ type ChatState = {
   currentDocumentId: string | null;
   isBootstrapping: boolean;
   isSubmitting: boolean;
+  submissionMode: "send" | "continue" | "regenerate" | "temp" | null;
   abortController: AbortController | null;
   error: string | null;
   streamingText: string;
@@ -135,6 +137,7 @@ type ChatState = {
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
   editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
+  regenerateMessage: (sessionId: string, userMessageId: string) => Promise<void>;
   stopGeneration: () => void;
   continueGeneration: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
@@ -184,6 +187,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentDocumentId: null,
   isBootstrapping: false,
   isSubmitting: false,
+  submissionMode: null,
   abortController: null,
   error: null,
   streamingText: "",
@@ -324,6 +328,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set((state) => ({
       isSubmitting: true,
+      submissionMode: "temp",
       abortController: controller,
       error: null,
       streamingText: "",
@@ -347,7 +352,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }));
           },
           onDone: () => {
-            set({ isSubmitting: false, abortController: null, streamingText: "" });
+            set({ isSubmitting: false, submissionMode: null, abortController: null, streamingText: "" });
           },
           onError: (detail) => {
             set((state) => ({
@@ -363,7 +368,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        set({ isSubmitting: false, submissionMode: null, abortController: null, streamingText: "" });
         return;
       }
       set((state) => ({
@@ -641,6 +646,110 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
+  regenerateMessage: async (sessionId, userMessageId) => {
+    const current = get().sessions.find((session) => session.id === sessionId);
+    if (!current) return;
+
+    const userIndex = current.messages.findIndex((message) => message.id === userMessageId && message.role === "user");
+    if (userIndex < 0) return;
+
+    const assistantIndex = userIndex + 1;
+    if (assistantIndex >= current.messages.length || current.messages[assistantIndex].role !== "assistant") return;
+
+    const targetAssistant = current.messages[assistantIndex];
+    const controller = new AbortController();
+
+    set((state) => ({
+      isSubmitting: true,
+      submissionMode: "regenerate",
+      abortController: controller,
+      error: null,
+      streamingText: "",
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              messages: session.messages.map((message) =>
+                message.id === targetAssistant.id
+                  ? {
+                      ...message,
+                      content: "",
+                      completion_tokens: null,
+                      tokens_per_second: null,
+                      elapsed_seconds: null,
+                      finish_reason: null,
+                    }
+                  : message
+              )
+            }
+          : session
+      )
+    }));
+
+    try {
+      await streamRegenerateMessage(
+        sessionId,
+        userMessageId,
+        get().thinkingEnabled,
+        get().memoryEnabled,
+        get().docRagEnabled,
+        {
+          onToken: (chunk) => {
+            set((state) => ({
+              streamingText: state.streamingText + chunk,
+              sessions: state.sessions.map((session) =>
+                session.id === sessionId
+                  ? {
+                      ...session,
+                      messages: session.messages.map((message) =>
+                        message.id === targetAssistant.id
+                          ? { ...message, content: message.content + chunk }
+                          : message
+                      )
+                    }
+                  : session
+              )
+            }));
+          },
+          onDone: (session) => {
+            set((state) => ({
+              sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
+              isSubmitting: false,
+              submissionMode: null,
+              abortController: null,
+              streamingText: ""
+            }));
+          },
+          onError: (detail) => {
+            set((state) => ({
+              error: detail,
+              isSubmitting: false,
+              submissionMode: null,
+              abortController: null,
+              streamingText: "",
+              sessions: state.sessions.map((session) =>
+                session.id === sessionId ? { ...session, messages: current.messages } : session
+              )
+            }));
+          }
+        },
+        controller.signal,
+        get().systemPromptText || null
+      );
+    } catch (error) {
+      set((state) => ({
+        error: error instanceof Error ? error.message : "Failed to regenerate response",
+        isSubmitting: false,
+        submissionMode: null,
+        abortController: null,
+        streamingText: "",
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId ? { ...session, messages: current.messages } : session
+        )
+      }));
+    }
+  },
+
   sendMessage: async (sessionId, content, imageData) => {
     const current = get().sessions.find((session) => session.id === sessionId);
     if (!current) return;
@@ -653,6 +762,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let tokenCount = 0;
     set((state) => ({
       isSubmitting: true,
+      submissionMode: "continue",
       abortController: controller,
       error: null,
       streamingText: "",
@@ -688,6 +798,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
             currentSessionId: session.id,
             isSubmitting: false,
+            submissionMode: null,
             streamingText: ""
           }));
           // 初回メッセージ（user+assistant の2件）のときタイトルを自動生成
@@ -704,6 +815,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set((state) => ({
             error: detail,
             isSubmitting: false,
+            submissionMode: null,
             abortController: null,
             streamingText: "",
             sessions: state.sessions.map((session) =>
@@ -722,7 +834,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (error instanceof Error && error.name === "AbortError") {
         const partialText = get().sessions.find((s) => s.id === sessionId)
           ?.messages.find((m) => m.id === assistant.id)?.content ?? "";
-        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        set({ isSubmitting: false, submissionMode: null, abortController: null, streamingText: "" });
         try {
           await persistStoppedMessage(sessionId, partialText, tokenCount, streamStartTime);
           // セッション全体を再取得してユーザー・アシスタント両メッセージのIDを本物に差し替える
@@ -738,6 +850,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         error: error instanceof Error ? error.message : "Failed to send message",
         isSubmitting: false,
+        submissionMode: null,
         abortController: null,
         streamingText: "",
         sessions: state.sessions.map((session) =>
@@ -794,6 +907,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set((state) => ({
             sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
             isSubmitting: false,
+            submissionMode: null,
             streamingText: ""
           }));
         },
@@ -801,6 +915,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set((state) => ({
             error: detail,
             isSubmitting: false,
+            submissionMode: null,
             abortController: null,
             streamingText: "",
             sessions: state.sessions.map((s) =>
@@ -812,7 +927,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         const partialText = get().sessions.find((s) => s.id === sessionId)?.messages.find((m) => m.id === assistant.id)?.content ?? "";
-        set({ isSubmitting: false, abortController: null, streamingText: "" });
+        set({ isSubmitting: false, submissionMode: null, abortController: null, streamingText: "" });
         try {
           await persistStoppedMessage(sessionId, partialText, tokenCount, streamStartTime);
           const refreshed = await getSession(sessionId);
@@ -823,6 +938,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         error: error instanceof Error ? error.message : "Failed to generate response",
         isSubmitting: false,
+        submissionMode: null,
         abortController: null,
         streamingText: "",
         sessions: state.sessions.map((s) =>

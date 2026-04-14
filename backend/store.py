@@ -527,6 +527,51 @@ class SQLiteStore:
         data.setdefault("image_data", None)
         return Message(**data)
 
+    def replace_message(self, message_id: str, payload: MessageCreate) -> Message | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second,
+                       elapsed_seconds, finish_reason, model_name
+                FROM messages
+                WHERE id = ?
+                """,
+                (message_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                """
+                UPDATE messages
+                SET content = ?, completion_tokens = ?, tokens_per_second = ?, elapsed_seconds = ?,
+                    finish_reason = ?, model_name = ?
+                WHERE id = ?
+                """,
+                (
+                    payload.content,
+                    payload.completion_tokens,
+                    payload.tokens_per_second,
+                    payload.elapsed_seconds,
+                    payload.finish_reason,
+                    payload.model_name,
+                    message_id,
+                ),
+            )
+            conn.execute(
+                "UPDATE sessions SET updated_at = ? WHERE id = ?",
+                (now_iso(), row["session_id"]),
+            )
+        data = dict(row)
+        data.pop("session_id", None)
+        data["content"] = payload.content
+        data["completion_tokens"] = payload.completion_tokens
+        data["tokens_per_second"] = payload.tokens_per_second
+        data["elapsed_seconds"] = payload.elapsed_seconds
+        data["finish_reason"] = payload.finish_reason
+        data["model_name"] = payload.model_name
+        data.setdefault("image_data", None)
+        return Message(**data)
+
     def branch_session(self, session_id: str, up_to_message_id: str) -> Session | None:
         session = self.get_session(session_id)
         if session is None:

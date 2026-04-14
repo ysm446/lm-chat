@@ -49,6 +49,7 @@ from .documents.chunker import chunk_document
 from .models import (
     ChatSendRequest,
     ChatSendResponse,
+    ChatRegenerateRequest,
     ConfigUpdate,
     Document,
     DocumentCreate,
@@ -160,6 +161,21 @@ def save_turn_memory(session_id: str, user_content: str, assistant_content: str)
             MessageCreate(role="assistant", content=assistant_content),
         ],
     )
+
+
+def rebuild_session_memory(session_id: str) -> None:
+    session = store.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    store.delete_session_memory(session_id)
+    memory_messages = [
+        MessageCreate(role=message.role, content=message.content)
+        for message in session.messages
+        if message.role in {"user", "assistant"} and message.content.strip()
+    ]
+    if memory_messages:
+        memory_engine.save_session_messages(session_id, memory_messages)
 
 
 def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
@@ -581,6 +597,84 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
         updated_session = store.get_session(payload.session_id)
         if assistant_message is None or updated_session is None:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
+            return
+        yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.post("/chat/regenerate/stream")
+def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
+    session = store.get_session(payload.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    user_index = next((i for i, message in enumerate(session.messages) if message.id == payload.user_message_id), -1)
+    if user_index < 0:
+        raise HTTPException(status_code=404, detail="User message not found")
+
+    user_message = session.messages[user_index]
+    if user_message.role != "user":
+        raise HTTPException(status_code=400, detail="Target message must be from user")
+
+    assistant_index = user_index + 1
+    if assistant_index >= len(session.messages) or session.messages[assistant_index].role != "assistant":
+        raise HTTPException(status_code=400, detail="The next message after the target user message must be assistant")
+
+    target_assistant = session.messages[assistant_index]
+    prefix_messages = session.messages[: user_index + 1]
+    generation_session = session.model_copy(update={"messages": prefix_messages})
+
+    memory_context = build_memory_context(generation_session, user_message.content) if payload.memory_enabled else ""
+    doc_context = build_document_context(generation_session, user_message.content) if payload.doc_rag_enabled else ""
+    full_context = combine_contexts(memory_context, doc_context)
+    temperature = get_config_data().get("temperature", 0.8)
+
+    def event_stream():
+        collected: list[str] = []
+        final_stats: dict | None = None
+        try:
+            for item in stream_chat_completion(
+                generation_session,
+                full_context,
+                payload.thinking_enabled,
+                payload.system_prompt,
+                temperature,
+            ):
+                if isinstance(item, str):
+                    collected.append(item)
+                    yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
+                else:
+                    final_stats = item
+        except HTTPException as exc:
+            yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+
+        assistant_text = "".join(collected).strip()
+        updated_assistant = store.replace_message(
+            target_assistant.id,
+            MessageCreate(
+                role="assistant",
+                content=assistant_text,
+                completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
+                tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
+                elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
+                finish_reason=final_stats.get("finish_reason") if final_stats else None,
+                model_name=session.model_name or None,
+            ),
+        )
+        if updated_assistant is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to update assistant response'})}\n\n"
+            return
+
+        try:
+            rebuild_session_memory(payload.session_id)
+        except Exception as exc:
+            logger.warning("Session memory rebuild failed after regenerate: %s", exc)
+
+        updated_session = store.get_session(payload.session_id)
+        if updated_session is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to reload session'})}\n\n"
             return
         yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
 

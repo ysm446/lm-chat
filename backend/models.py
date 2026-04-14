@@ -101,6 +101,15 @@ class ChatSendRequest(BaseModel):
     system_prompt: str | None = None
 
 
+class ChatRegenerateRequest(BaseModel):
+    session_id: str
+    user_message_id: str
+    memory_enabled: bool = True
+    doc_rag_enabled: bool = True
+    thinking_enabled: bool = False
+    system_prompt: str | None = None
+
+
 class TempChatMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
