@@ -66,9 +66,8 @@ export function ModelBar({ showLeft, showRight, onToggleLeft, onToggleRight }: P
               title="モデルをアンロード (VRAM 解放)"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 19 9 5 9"/>
-                <rect x="3" y="12" width="18" height="3" rx="1"/>
-                <line x1="3" y1="19" x2="21" y2="19"/>
+                <polygon points="12 2 21 12 3 12"/>
+                <rect x="3" y="18" width="18" height="4" rx="1"/>
               </svg>
             </button>
           )}
