@@ -39,6 +39,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   );
   const [showNewWs, setShowNewWs] = useState(false);
   const [newWsName, setNewWsName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const newWsInputRef = useRef<HTMLInputElement>(null);
 
   const [editingWsId, setEditingWsId] = useState<string | null>(null);
@@ -68,6 +69,8 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [docsExpanded, setDocsExpanded] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingDocWsId, setPendingDocWsId] = useState<string | null>(null);
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
+  const isSearching = normalizedSearchQuery.length > 0;
 
   // 現在のワークスペースが切り替わったら自動展開
   useEffect(() => {
@@ -265,6 +268,15 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     setDocMenu(null);
   };
 
+  const visibleWorkspaces = workspaces.filter((ws) => {
+    if (!isSearching) return true;
+    return sessions.some(
+      (session) =>
+        session.workspace_id === ws.id &&
+        session.title.toLocaleLowerCase().includes(normalizedSearchQuery)
+    );
+  });
+
   return (
     <div className={`sidebar${dragId ? " workspace-dragging" : ""}${sessionDragId ? " session-dragging" : ""}${docDragId ? " doc-dragging" : ""}`}>
       {/* 隠しファイル入力（資料追加用） */}
@@ -303,10 +315,45 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
         )}
       </div>
 
+      <div className="sidebar-search-wrap">
+        <label className="sidebar-search" aria-label="チャット検索">
+          <svg
+            className="sidebar-search-icon"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            className="sidebar-search-input"
+            type="search"
+            placeholder="Search chats..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </label>
+      </div>
+
       <div className="sidebar-tree">
-        {workspaces.map((ws) => {
-          const wsSessions = sessions.filter((s) => s.workspace_id === ws.id);
-          const isExpanded = expanded.has(ws.id);
+        {visibleWorkspaces.length === 0 ? (
+          <div className="sidebar-search-empty">
+            <strong>一致するチャットはありません</strong>
+            <span>別のキーワードで検索してください。</span>
+          </div>
+        ) : visibleWorkspaces.map((ws) => {
+          const wsSessions = sessions.filter((s) =>
+            s.workspace_id === ws.id &&
+            (!isSearching || s.title.toLocaleLowerCase().includes(normalizedSearchQuery))
+          );
+          const isExpanded = isSearching ? wsSessions.length > 0 : expanded.has(ws.id);
           const isActiveWs = ws.id === currentWorkspaceId;
 
           return (
@@ -385,8 +432,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
               ) : (
                 <div
                   className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}
-                  draggable
+                  draggable={!isSearching}
                   onDragStart={(e) => {
+                    if (isSearching) return;
                     setDragId(ws.id);
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", ws.id);
@@ -426,7 +474,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
               {isExpanded && (
                 <div className="sidebar-sessions">
                   {/* Documents セクション */}
-                  {(() => {
+                  {!isSearching && (() => {
                     const wsDocs = documents.filter((d) => d.workspace_id === ws.id);
                     const isDocsExpanded = docsExpanded.has(ws.id);
                     return (
@@ -456,8 +504,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                 <div
                                   key={doc.id}
                                   className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}${docDragOverId === doc.id && docDragId !== doc.id ? " drag-over" : ""}${docDragId === doc.id ? " dragging" : ""}`}
-                                  draggable
+                                  draggable={!isSearching}
                                   onDragStart={(e) => {
+                                    if (isSearching) return;
                                     setDocDragId(doc.id);
                                     e.dataTransfer.effectAllowed = "move";
                                     e.dataTransfer.setData("text/plain", doc.id);
@@ -527,8 +576,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                     <div
                       key={session.id}
                       className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
-                      draggable
+                      draggable={!isSearching}
                       onDragStart={(e) => {
+                        if (isSearching) return;
                         setSessionDragId(session.id);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", session.id);
