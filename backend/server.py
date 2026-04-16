@@ -389,7 +389,15 @@ def delete_message(message_id: str) -> dict[str, bool]:
 
 @app.patch("/history/messages/{message_id}", response_model=Message)
 def update_message(message_id: str, payload: MessageUpdate) -> Message:
-    message = store.update_message(message_id, payload.content)
+    stored_image_data = payload.image_data
+    if payload.image_data and payload.image_data.startswith("data:"):
+        # 新しい data: URL はファイルに保存してパスに変換する
+        session_id = store.get_message_session_id(message_id)
+        if session_id is None:
+            raise HTTPException(status_code=404, detail="Message not found")
+        stored_image_data = _prepare_image_data(session_id, payload.image_data)
+
+    message = store.update_message(message_id, payload.content, stored_image_data)
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
     return message

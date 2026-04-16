@@ -291,10 +291,10 @@ export function deleteMessage(messageId: string) {
   });
 }
 
-export function updateMessage(messageId: string, content: string) {
+export function updateMessage(messageId: string, content: string, imageData?: string | null) {
   return request<ApiMessage>(`/history/messages/${encodeURIComponent(messageId)}`, {
     method: "PATCH",
-    body: JSON.stringify({ content })
+    body: JSON.stringify({ content, image_data: imageData ?? null })
   });
 }
 

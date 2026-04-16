@@ -135,7 +135,7 @@ type ChatState = {
   selectDocument: (docId: string | null) => void;
   documentsForWorkspace: (workspaceId: string) => ApiDocument[];
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
-  editMessage: (sessionId: string, messageId: string, content: string) => Promise<void>;
+  editMessage: (sessionId: string, messageId: string, content: string, imageData?: string | null) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
   regenerateMessage: (sessionId: string, userMessageId: string) => Promise<void>;
   stopGeneration: () => void;
@@ -626,12 +626,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  editMessage: async (sessionId, messageId, content) => {
-    const updated = await updateMessageRequest(messageId, content);
+  editMessage: async (sessionId, messageId, content, imageData) => {
+    const updated = await updateMessageRequest(messageId, content, imageData);
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, messages: s.messages.map((m) => (m.id === messageId ? { ...m, content: updated.content } : m)) }
+          ? { ...s, messages: s.messages.map((m) => (m.id === messageId ? { ...m, content: updated.content, image_data: updated.image_data } : m)) }
           : s
       )
     }));

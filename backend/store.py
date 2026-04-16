@@ -513,18 +513,29 @@ class SQLiteStore:
             self._cleanup_unreferenced_images(conn, image_paths)
         return cursor.rowcount > 0
 
-    def update_message(self, message_id: str, content: str) -> Message | None:
+    def get_message_session_id(self, message_id: str) -> str | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, role, content, image_data, created_at FROM messages WHERE id = ?",
+                "SELECT session_id FROM messages WHERE id = ?", (message_id,)
+            ).fetchone()
+            return str(row["session_id"]) if row else None
+
+    def update_message(self, message_id: str, content: str, image_data: str | None = None) -> Message | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id, session_id, role, content, image_data, created_at FROM messages WHERE id = ?",
                 (message_id,),
             ).fetchone()
             if row is None:
                 return None
-            conn.execute("UPDATE messages SET content = ? WHERE id = ?", (content, message_id))
+            conn.execute(
+                "UPDATE messages SET content = ?, image_data = ? WHERE id = ?",
+                (content, image_data, message_id),
+            )
         data = dict(row)
+        del data["session_id"]
         data["content"] = content
-        data.setdefault("image_data", None)
+        data["image_data"] = image_data
         return Message(**data)
 
     def replace_message(self, message_id: str, payload: MessageCreate) -> Message | None:

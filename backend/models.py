@@ -89,6 +89,7 @@ class SessionUpdate(BaseModel):
 
 class MessageUpdate(BaseModel):
     content: str
+    image_data: str | None = None
 
 
 class ChatSendRequest(BaseModel):

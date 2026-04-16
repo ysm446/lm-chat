@@ -4,6 +4,24 @@ import remarkGfm from "remark-gfm";
 import { fetchCorrect, resolveApiUrl } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
+function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -99,8 +117,10 @@ export function ChatView() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
+  const [editingImageData, setEditingImageData] = useState<string | null>(null);
   const [editSelStart, setEditSelStart] = useState(0);
   const [editSelEnd, setEditSelEnd] = useState(0);
+  const editImageInputRef = useRef<HTMLInputElement>(null);
   const [editCorrection, setEditCorrection] = useState("");
   const [isEditCorrectionLoading, setIsEditCorrectionLoading] = useState(false);
   const [editCorrectionPos, setEditCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -215,19 +235,33 @@ export function ChatView() {
     }
   }, [editingId, editSelStart, editSelEnd, editingContent, activeModelPath, correctionEnabled]);
 
-  const startEdit = (messageId: string, content: string) => {
+  const startEdit = (messageId: string, content: string, imageData: string | null) => {
     setEditingId(messageId);
     setEditingContent(content);
+    setEditingImageData(imageData);
     setEditSelStart(0);
     setEditSelEnd(0);
     setEditCorrection("");
     setEditCorrectionPos(null);
   };
 
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingImageData(null);
+  };
+
   const commitEdit = async (sessionId: string, messageId: string) => {
     const content = editingContent.trim();
-    if (content) await editMessage(sessionId, messageId, content);
-    setEditingId(null);
+    if (content || editingImageData) await editMessage(sessionId, messageId, content, editingImageData);
+    cancelEdit();
+  };
+
+  const handleEditImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const dataUrl = await resizeImageToDataUrl(file);
+    setEditingImageData(dataUrl);
+    e.target.value = "";
   };
 
   const handleEditCorrectionRequest = async () => {
@@ -401,7 +435,28 @@ export function ChatView() {
             </div>
 
             <div className="message-body">
-              {message.image_data && (
+              {editingId === message.id ? (
+                <>
+                  <input
+                    ref={editImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => void handleEditImageChange(e)}
+                  />
+                  {editingImageData && (
+                    <div className="edit-image-preview-row">
+                      <img src={resolveApiUrl(editingImageData)} alt="添付画像" className="edit-image-preview-thumb" />
+                      <button
+                        type="button"
+                        className="edit-image-preview-remove"
+                        onClick={() => setEditingImageData(null)}
+                        title="画像を削除"
+                      >✕</button>
+                    </div>
+                  )}
+                </>
+              ) : message.image_data ? (
                 <button
                   type="button"
                   className="message-image-button"
@@ -410,7 +465,7 @@ export function ChatView() {
                 >
                   <img src={imageSrc} alt="添付画像" className="message-image" />
                 </button>
-              )}
+              ) : null}
               {editingId === message.id ? (
                 <textarea
                   ref={editTextareaRef}
@@ -447,7 +502,7 @@ export function ChatView() {
                       return;
                     }
                     if (e.key === "Enter" && e.ctrlKey && session?.id) { e.preventDefault(); void commitEdit(session.id, message.id); }
-                    if (e.key === "Escape") setEditingId(null);
+                    if (e.key === "Escape") cancelEdit();
                   }}
                   rows={1}
                 />
@@ -511,7 +566,17 @@ export function ChatView() {
 
             {editingId === message.id && (
               <div className="message-edit-buttons">
-                <button className="message-edit-discard" onClick={() => setEditingId(null)}>Discard (Esc)</button>
+                <button className="message-edit-discard" onClick={cancelEdit}>Discard (Esc)</button>
+                <button
+                  type="button"
+                  className="message-edit-attach-image"
+                  title="画像を添付"
+                  onClick={() => editImageInputRef.current?.click()}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                  </svg>
+                </button>
                 <button className="message-edit-save" onClick={() => { if (session?.id) void commitEdit(session.id, message.id); }}>Save (Ctrl + Enter)</button>
               </div>
             )}
@@ -544,7 +609,7 @@ export function ChatView() {
                   <button
                     className="msg-action-btn"
                     title="編集"
-                    onClick={() => startEdit(message.id, message.content)}
+                    onClick={() => startEdit(message.id, message.content, message.image_data ?? null)}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
