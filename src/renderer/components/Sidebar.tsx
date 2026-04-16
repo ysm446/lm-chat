@@ -170,7 +170,11 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   };
 
   const handleWorkspaceRowClick = async (wsId: string) => {
-    toggleExpand(wsId);
+    if (wsId === currentWorkspaceId) {
+      toggleExpand(wsId);
+      return;
+    }
+    setExpanded((prev) => new Set([...prev, wsId]));
     await selectWorkspace(wsId);
   };
 
