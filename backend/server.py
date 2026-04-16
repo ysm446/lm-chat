@@ -178,6 +178,12 @@ def rebuild_session_memory(session_id: str) -> None:
         memory_engine.save_session_messages(session_id, memory_messages)
 
 
+def _get_active_model_name() -> str | None:
+    """現在 llama-server で動いているモデルの名前（ファイル stem）を返す。"""
+    active_path = get_llama_paths().get("active_model_path", "")
+    return Path(active_path).stem if active_path else None
+
+
 def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
     if not image_data:
         return None
@@ -533,7 +539,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
                 finish_reason=final_stats.get("finish_reason") if final_stats else None,
-                model_name=session.model_name or None,
+                model_name=_get_active_model_name() or session.model_name or None,
             ),
         )
         updated_session = store.get_session(payload.session_id)
@@ -599,7 +605,7 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
                 finish_reason=final_stats.get("finish_reason") if final_stats else None,
-                model_name=session.model_name or None,
+                model_name=_get_active_model_name() or session.model_name or None,
             ),
         )
         updated_session = store.get_session(payload.session_id)
@@ -668,7 +674,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
                 finish_reason=final_stats.get("finish_reason") if final_stats else None,
-                model_name=session.model_name or None,
+                model_name=_get_active_model_name() or session.model_name or None,
             ),
         )
         if updated_assistant is None:
