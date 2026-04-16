@@ -4,7 +4,12 @@ setlocal
 cd /d "%~dp0"
 
 set "CONDA_EXE=C:\Users\kenyo\miniconda3\Scripts\conda.exe"
-set "LLAMA_SERVER_EXE=%CD%\bin\llama-server\llama-b8781-bin-win-cuda-13.1-x64\llama-server.exe"
+
+if defined LM_CHAT_LLAMA_SERVER_EXE (
+  set "LLAMA_SERVER_EXE=%LM_CHAT_LLAMA_SERVER_EXE%"
+) else (
+  for /f "usebackq delims=" %%i in (`powershell -NoLogo -NoProfile -Command "$root=Join-Path (Get-Location) 'bin\llama-server';if(-not (Test-Path -LiteralPath $root)){exit 1};$candidates=Get-ChildItem -LiteralPath $root -Directory | ForEach-Object {$exe=Join-Path $_.FullName 'llama-server.exe';if(Test-Path -LiteralPath $exe){$build=0;if($_.Name -match 'llama-b(\d+)'){$build=[int64]$matches[1]};[pscustomobject]@{Build=$build;LastWriteTime=$_.LastWriteTime;Exe=$exe}}} | Sort-Object -Property @{Expression='Build';Descending=$true},@{Expression='LastWriteTime';Descending=$true};if(-not $candidates){exit 1};$candidates[0].Exe"`) do set "LLAMA_SERVER_EXE=%%i"
+)
 
 if not exist "%CONDA_EXE%" (
   echo ERROR: conda.exe not found: %CONDA_EXE%
@@ -14,6 +19,7 @@ if not exist "%CONDA_EXE%" (
 
 if not exist "%LLAMA_SERVER_EXE%" (
   echo ERROR: llama-server.exe not found: %LLAMA_SERVER_EXE%
+  echo Searched under: %CD%\bin\llama-server
   pause
   exit /b 1
 )
@@ -92,6 +98,7 @@ set "LM_CHAT_API_BASE_URL=%BACKEND_URL%"
 echo Using backend  : %BACKEND_URL%
 echo Using frontend : %FRONTEND_URL%
 echo Using llama    : %LLAMA_BASE_URL%
+echo Llama server   : %LLAMA_SERVER_EXE%
 
 mkdir "%CD%\data" 2>nul
 powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1;llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'}|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
