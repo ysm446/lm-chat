@@ -25,7 +25,6 @@ export function App() {
   const toggleTempChat = useChatStore((state) => state.toggleTempChat);
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
-  const isSwitchingModel = useChatStore((state) => state.isSwitchingModel);
   const error = useChatStore((state) => state.error);
   const [sidebarWidth, setSidebarWidth] = useState(264);
   const [rightWidth, setRightWidth] = useState(280);
@@ -262,16 +261,6 @@ export function App() {
           <SettingsPanel />
         </aside>
 
-        {isSwitchingModel ? (
-          <div className="model-switch-overlay">
-            <div className="model-switch-card">
-              <div className="model-switch-spinner" />
-              <p className="eyebrow">モデル切り替え中</p>
-              <h2>llama-server を再起動しています</h2>
-              <p className="muted">新しいモデルの読み込みが完了するまでしばらくお待ちください…</p>
-            </div>
-          </div>
-        ) : null}
       </div>
       </div>
     </div>

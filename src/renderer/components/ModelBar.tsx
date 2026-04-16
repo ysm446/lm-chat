@@ -37,11 +37,16 @@ export function ModelBar({ showLeft, showRight, onToggleLeft, onToggleRight }: P
         {/* 中央：モデル選択 + イジェクト */}
         <div className="model-bar-center">
           <button
-            className={`model-bar-select-btn${hasModel ? " active" : ""}`}
+            className={`model-bar-select-btn${hasModel ? " active" : ""}${isSwitchingModel ? " loading" : ""}`}
             onClick={() => setShowPicker(true)}
             disabled={isSwitchingModel}
             title="モデルを選択"
+            aria-busy={isSwitchingModel}
           >
+            <span
+              className={`model-bar-progress${isSwitchingModel ? " switching" : ""}`}
+              aria-hidden="true"
+            />
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="4" y="4" width="16" height="16" rx="2"/>
               <rect x="9" y="9" width="6" height="6"/>
@@ -53,6 +58,7 @@ export function ModelBar({ showLeft, showRight, onToggleLeft, onToggleRight }: P
             <span className="model-bar-label">
               {isSwitchingModel ? "切り替え中…" : hasModel ? activeModel.id : "Select a model to load"}
             </span>
+            {isSwitchingModel && <span className="model-bar-loading-dot" aria-hidden="true" />}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9"/>
             </svg>
