@@ -71,6 +71,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [pendingDocWsId, setPendingDocWsId] = useState<string | null>(null);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const isSearching = normalizedSearchQuery.length > 0;
+  const isRenaming = editingWsId !== null || editingSessionId !== null;
 
   // 現在のワークスペースが切り替わったら自動展開
   useEffect(() => {
@@ -432,9 +433,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
               ) : (
                 <div
                   className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}
-                  draggable={!isSearching && !editingWsId && !editingSessionId}
+                  draggable={!isSearching && !isRenaming}
                   onDragStart={(e) => {
-                    if (isSearching || editingWsId || editingSessionId) return;
+                    if (isSearching || isRenaming) return;
                     setDragId(ws.id);
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", ws.id);
@@ -504,9 +505,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                 <div
                                   key={doc.id}
                                   className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}${docDragOverId === doc.id && docDragId !== doc.id ? " drag-over" : ""}${docDragId === doc.id ? " dragging" : ""}`}
-                                  draggable={!isSearching}
+                                  draggable={!isSearching && !isRenaming}
                                   onDragStart={(e) => {
-                                    if (isSearching || editingWsId || editingSessionId) return;
+                                    if (isSearching || isRenaming) return;
                                     setDocDragId(doc.id);
                                     e.dataTransfer.effectAllowed = "move";
                                     e.dataTransfer.setData("text/plain", doc.id);
@@ -576,9 +577,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                     <div
                       key={session.id}
                       className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
-                      draggable={!isSearching}
+                      draggable={!isSearching && !isRenaming}
                       onDragStart={(e) => {
-                        if (isSearching || editingWsId || editingSessionId) return;
+                        if (isSearching || isRenaming) return;
                         setSessionDragId(session.id);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", session.id);
