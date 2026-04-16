@@ -432,9 +432,9 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
               ) : (
                 <div
                   className={`sidebar-ws-row${isActiveWs ? " active" : ""}`}
-                  draggable={!isSearching}
+                  draggable={!isSearching && !editingWsId && !editingSessionId}
                   onDragStart={(e) => {
-                    if (isSearching) return;
+                    if (isSearching || editingWsId || editingSessionId) return;
                     setDragId(ws.id);
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", ws.id);
@@ -506,7 +506,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                   className={`sidebar-doc-row${doc.id === currentDocumentId ? " active" : ""}${docDragOverId === doc.id && docDragId !== doc.id ? " drag-over" : ""}${docDragId === doc.id ? " dragging" : ""}`}
                                   draggable={!isSearching}
                                   onDragStart={(e) => {
-                                    if (isSearching) return;
+                                    if (isSearching || editingWsId || editingSessionId) return;
                                     setDocDragId(doc.id);
                                     e.dataTransfer.effectAllowed = "move";
                                     e.dataTransfer.setData("text/plain", doc.id);
@@ -578,7 +578,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                       className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
                       draggable={!isSearching}
                       onDragStart={(e) => {
-                        if (isSearching) return;
+                        if (isSearching || editingWsId || editingSessionId) return;
                         setSessionDragId(session.id);
                         e.dataTransfer.effectAllowed = "move";
                         e.dataTransfer.setData("text/plain", session.id);
