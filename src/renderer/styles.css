@@ -1617,18 +1617,6 @@ details.thinking-block[open] .thinking-chevron {
   box-shadow: 0 8px 18px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
-.composer-scroll-jump-btn-center {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translate(-50%, calc(-100% - 18px));
-  z-index: 4;
-}
-
-.composer-scroll-jump-btn-center:hover:not(:disabled) {
-  transform: translate(-50%, calc(-100% - 19px));
-}
-
 .composer {
   display: flex;
   flex-direction: column;

@@ -380,6 +380,20 @@ export function MessageInput() {
           <button
             type="button"
             className="composer-scroll-jump-btn"
+            onClick={handleNextUserClick}
+            onDoubleClick={handleNextUserDoubleClick}
+            title="クリックで次の自分の発言、ダブルクリックで一番下へ移動"
+            aria-label="次の自分の発言へ移動"
+            disabled={!canJumpNextUserMessage && !canScrollToBottom}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14" />
+              <polyline points="6 13 12 19 18 13" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="composer-scroll-jump-btn"
             onClick={handlePrevUserClick}
             onDoubleClick={handlePrevUserDoubleClick}
             title="クリックで前の自分の発言、ダブルクリックで一番上へ移動"
@@ -392,22 +406,6 @@ export function MessageInput() {
             </svg>
           </button>
         </div>
-      )}
-      {hasUserMessages && (
-        <button
-          type="button"
-          className="composer-scroll-jump-btn composer-scroll-jump-btn-center"
-          onClick={handleNextUserClick}
-          onDoubleClick={handleNextUserDoubleClick}
-          title="クリックで次の自分の発言、ダブルクリックで一番下へ移動"
-          aria-label="次の自分の発言へ移動"
-          disabled={!canJumpNextUserMessage && !canScrollToBottom}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14" />
-            <polyline points="6 13 12 19 18 13" />
-          </svg>
-        </button>
       )}
       <div className="composer">
         <input
