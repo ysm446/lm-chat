@@ -75,12 +75,14 @@ export function MessageInput() {
   const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [hasUserMessages, setHasUserMessages] = useState(false);
   const [canJumpPrevUserMessage, setCanJumpPrevUserMessage] = useState(false);
   const [canJumpNextUserMessage, setCanJumpNextUserMessage] = useState(false);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteRequestIdRef = useRef(0);
   const correctionRequestIdRef = useRef(0);
+  const prevUserClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextUserClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     getConfig().then((c) => setCtxSize(c.ctx_size)).catch(() => {});
@@ -230,17 +232,54 @@ export function MessageInput() {
   useEffect(() => {
     const handleScrollState = (event: Event) => {
       const customEvent = event as CustomEvent<{
-        can_scroll_to_bottom?: boolean;
+        has_user_messages?: boolean;
         can_jump_prev_user?: boolean;
         can_jump_next_user?: boolean;
       }>;
-      setShowScrollToBottom(!!customEvent.detail?.can_scroll_to_bottom);
+      setHasUserMessages(!!customEvent.detail?.has_user_messages);
       setCanJumpPrevUserMessage(!!customEvent.detail?.can_jump_prev_user);
       setCanJumpNextUserMessage(!!customEvent.detail?.can_jump_next_user);
     };
     window.addEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
     return () => window.removeEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
   }, []);
+
+  useEffect(() => () => {
+    if (prevUserClickTimerRef.current) clearTimeout(prevUserClickTimerRef.current);
+    if (nextUserClickTimerRef.current) clearTimeout(nextUserClickTimerRef.current);
+  }, []);
+
+  const handlePrevUserClick = () => {
+    if (prevUserClickTimerRef.current) clearTimeout(prevUserClickTimerRef.current);
+    prevUserClickTimerRef.current = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("lm-chat:jump-to-prev-user-message"));
+      prevUserClickTimerRef.current = null;
+    }, 220);
+  };
+
+  const handlePrevUserDoubleClick = () => {
+    if (prevUserClickTimerRef.current) {
+      clearTimeout(prevUserClickTimerRef.current);
+      prevUserClickTimerRef.current = null;
+    }
+    window.dispatchEvent(new CustomEvent("lm-chat:jump-to-first-user-message"));
+  };
+
+  const handleNextUserClick = () => {
+    if (nextUserClickTimerRef.current) clearTimeout(nextUserClickTimerRef.current);
+    nextUserClickTimerRef.current = setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("lm-chat:jump-to-next-user-message"));
+      nextUserClickTimerRef.current = null;
+    }, 220);
+  };
+
+  const handleNextUserDoubleClick = () => {
+    if (nextUserClickTimerRef.current) {
+      clearTimeout(nextUserClickTimerRef.current);
+      nextUserClickTimerRef.current = null;
+    }
+    window.dispatchEvent(new CustomEvent("lm-chat:scroll-to-bottom"));
+  };
 
   const applyCorrection = () => {
     const ta = textareaRef.current;
@@ -330,43 +369,33 @@ export function MessageInput() {
     <section className="input-shell">
       <div className="input-shell-inner">
       <div className="composer-wrap">
-      {(canJumpPrevUserMessage || canJumpNextUserMessage) && (
+      {hasUserMessages && (
         <div className="composer-floating-actions composer-floating-actions-right">
           <button
             type="button"
             className="composer-scroll-jump-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:jump-to-prev-user-message"))}
-            title="一つ前の自分の発言へ移動"
-            aria-label="一つ前の自分の発言へ移動"
+            onClick={handlePrevUserClick}
+            onDoubleClick={handlePrevUserDoubleClick}
+            title="クリックで前の自分の発言、ダブルクリックで最初の自分の発言へ移動"
+            aria-label="前の自分の発言へ移動"
             disabled={!canJumpPrevUserMessage}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 12h8" />
-              <polyline points="11 8 7 12 11 16" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="composer-scroll-jump-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:jump-to-next-user-message"))}
-            title="次の自分の発言へ移動"
-            aria-label="次の自分の発言へ移動"
-            disabled={!canJumpNextUserMessage}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 12h8" />
-              <polyline points="13 8 17 12 13 16" />
+              <path d="M12 19V5" />
+              <polyline points="6 11 12 5 18 11" />
             </svg>
           </button>
         </div>
       )}
-      {showScrollToBottom && (
+      {hasUserMessages && (
         <button
           type="button"
           className="composer-scroll-jump-btn composer-scroll-jump-btn-center"
-          onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:scroll-to-bottom"))}
-          title="最新メッセージへ移動"
-          aria-label="最新メッセージへ移動"
+          onClick={handleNextUserClick}
+          onDoubleClick={handleNextUserDoubleClick}
+          title="クリックで次の自分の発言、ダブルクリックで一番下へ移動"
+          aria-label="次の自分の発言へ移動"
+          disabled={!canJumpNextUserMessage}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14" />

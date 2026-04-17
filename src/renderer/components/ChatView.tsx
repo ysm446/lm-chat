@@ -224,6 +224,7 @@ export function ChatView() {
     window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", {
       detail: {
         can_scroll_to_bottom: canScrollToBottom,
+        has_user_messages: userMessageIds.length > 0,
         can_jump_prev_user: currentUserIndex > 0,
         can_jump_next_user: currentUserIndex >= 0 && currentUserIndex < userMessageIds.length - 1,
       }
@@ -248,13 +249,23 @@ export function ChatView() {
         scrollToUserMessage(currentUserIndex + 1);
       }
     };
+    const handleJumpToFirstUserMessage = () => {
+      if (userMessageIds.length > 0) scrollToUserMessage(0);
+    };
+    const handleJumpToLastUserMessage = () => {
+      if (userMessageIds.length > 0) scrollToUserMessage(userMessageIds.length - 1);
+    };
     window.addEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
     window.addEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
     window.addEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);
+    window.addEventListener("lm-chat:jump-to-first-user-message", handleJumpToFirstUserMessage as EventListener);
+    window.addEventListener("lm-chat:jump-to-last-user-message", handleJumpToLastUserMessage as EventListener);
     return () => {
       window.removeEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
       window.removeEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
       window.removeEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);
+      window.removeEventListener("lm-chat:jump-to-first-user-message", handleJumpToFirstUserMessage as EventListener);
+      window.removeEventListener("lm-chat:jump-to-last-user-message", handleJumpToLastUserMessage as EventListener);
     };
   }, [getFocusedUserMessageIndex, scrollToUserMessage, userMessageIds.length]);
 
