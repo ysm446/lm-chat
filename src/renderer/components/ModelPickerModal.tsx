@@ -65,6 +65,8 @@ export function ModelPickerModal({ onClose }: Props) {
         <div className="model-picker-list">
           {filtered.map((m) => {
             const isActive = m.id === activeModel?.id;
+            const paramsLabel = m.params_label ?? extractParams(m.id) ?? "";
+            const quantLabel = m.quantization ?? "";
             return (
               <button
                 key={m.id}
@@ -73,11 +75,10 @@ export function ModelPickerModal({ onClose }: Props) {
               >
                 <span className="model-picker-name">{m.id}</span>
                 <span className="model-picker-meta">
-                  {extractParams(m.id) && (
-                    <span className="model-picker-params">{extractParams(m.id)}</span>
-                  )}
+                  <span className={`model-picker-params${paramsLabel ? "" : " is-empty"}`}>{paramsLabel}</span>
+                  <span className={`model-picker-quant${quantLabel ? "" : " is-empty"}`}>{quantLabel}</span>
                   <span className="model-picker-size">{formatSize(m.size_bytes)}</span>
-                  {isActive && <span className="model-picker-badge">読込中</span>}
+                  <span className={`model-picker-badge${isActive ? "" : " is-empty"}`}>{isActive ? "読込中" : ""}</span>
                 </span>
               </button>
             );

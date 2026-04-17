@@ -48,6 +48,8 @@ export type LocalModel = {
   id: string;
   path: string;
   size_bytes: number;
+  params_label?: string | null;
+  quantization?: string | null;
 };
 
 export type DebugPromptLogEntry = {
