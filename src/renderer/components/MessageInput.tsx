@@ -76,6 +76,8 @@ export function MessageInput() {
   const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [canJumpPrevUserMessage, setCanJumpPrevUserMessage] = useState(false);
+  const [canJumpNextUserMessage, setCanJumpNextUserMessage] = useState(false);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteRequestIdRef = useRef(0);
   const correctionRequestIdRef = useRef(0);
@@ -227,8 +229,14 @@ export function MessageInput() {
 
   useEffect(() => {
     const handleScrollState = (event: Event) => {
-      const customEvent = event as CustomEvent<{ can_scroll_to_bottom?: boolean }>;
+      const customEvent = event as CustomEvent<{
+        can_scroll_to_bottom?: boolean;
+        can_jump_prev_user?: boolean;
+        can_jump_next_user?: boolean;
+      }>;
       setShowScrollToBottom(!!customEvent.detail?.can_scroll_to_bottom);
+      setCanJumpPrevUserMessage(!!customEvent.detail?.can_jump_prev_user);
+      setCanJumpNextUserMessage(!!customEvent.detail?.can_jump_next_user);
     };
     window.addEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
     return () => window.removeEventListener("lm-chat:chat-scroll-state", handleScrollState as EventListener);
@@ -322,10 +330,40 @@ export function MessageInput() {
     <section className="input-shell">
       <div className="input-shell-inner">
       <div className="composer-wrap">
+      {(canJumpPrevUserMessage || canJumpNextUserMessage) && (
+        <div className="composer-floating-actions composer-floating-actions-right">
+          <button
+            type="button"
+            className="composer-scroll-jump-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:jump-to-prev-user-message"))}
+            title="一つ前の自分の発言へ移動"
+            aria-label="一つ前の自分の発言へ移動"
+            disabled={!canJumpPrevUserMessage}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 12h8" />
+              <polyline points="11 8 7 12 11 16" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="composer-scroll-jump-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:jump-to-next-user-message"))}
+            title="次の自分の発言へ移動"
+            aria-label="次の自分の発言へ移動"
+            disabled={!canJumpNextUserMessage}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 12h8" />
+              <polyline points="13 8 17 12 13 16" />
+            </svg>
+          </button>
+        </div>
+      )}
       {showScrollToBottom && (
         <button
           type="button"
-          className="composer-scroll-jump-btn floating"
+          className="composer-scroll-jump-btn composer-scroll-jump-btn-center"
           onClick={() => window.dispatchEvent(new CustomEvent("lm-chat:scroll-to-bottom"))}
           title="最新メッセージへ移動"
           aria-label="最新メッセージへ移動"

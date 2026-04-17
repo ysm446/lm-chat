@@ -114,6 +114,7 @@ export function ChatView() {
   const chatViewRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const previousSubmissionModeRef = useRef<typeof submissionMode>(null);
+  const userMessageRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -140,6 +141,34 @@ export function ChatView() {
     const q = searchQuery.toLowerCase();
     return messages.filter((m) => m.content?.toLowerCase().includes(q)).map((m) => m.id);
   }, [messages, searchQuery]);
+  const userMessageIds = useMemo(
+    () => messages.filter((message) => message.role === "user").map((message) => message.id),
+    [messages]
+  );
+
+  const getFocusedUserMessageIndex = useCallback(() => {
+    const el = chatViewRef.current;
+    if (!el || userMessageIds.length === 0) return -1;
+    const viewportCenter = el.scrollTop + el.clientHeight / 2;
+    let closestIndex = -1;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    userMessageIds.forEach((id, index) => {
+      const card = userMessageRefs.current.get(id);
+      if (!card) return;
+      const cardCenter = card.offsetTop + card.offsetHeight / 2;
+      const distance = Math.abs(cardCenter - viewportCenter);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+    return closestIndex;
+  }, [userMessageIds]);
+
+  const scrollToUserMessage = useCallback((index: number) => {
+    if (index < 0 || index >= userMessageIds.length) return;
+    userMessageRefs.current.get(userMessageIds[index])?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [userMessageIds]);
 
   useEffect(() => { setMatchIndex(0); }, [searchQuery]);
 
@@ -191,8 +220,15 @@ export function ChatView() {
     const el = chatViewRef.current;
     if (!el) return;
     const canScrollToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) > 48;
-    window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", { detail: { can_scroll_to_bottom: canScrollToBottom } }));
-  }, []);
+    const currentUserIndex = getFocusedUserMessageIndex();
+    window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", {
+      detail: {
+        can_scroll_to_bottom: canScrollToBottom,
+        can_jump_prev_user: currentUserIndex > 0,
+        can_jump_next_user: currentUserIndex >= 0 && currentUserIndex < userMessageIds.length - 1,
+      }
+    }));
+  }, [getFocusedUserMessageIndex, userMessageIds.length]);
 
   useEffect(() => {
     emitScrollState();
@@ -202,9 +238,25 @@ export function ChatView() {
     const handleScrollToBottom = () => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     };
+    const handleJumpToPrevUserMessage = () => {
+      const currentUserIndex = getFocusedUserMessageIndex();
+      if (currentUserIndex > 0) scrollToUserMessage(currentUserIndex - 1);
+    };
+    const handleJumpToNextUserMessage = () => {
+      const currentUserIndex = getFocusedUserMessageIndex();
+      if (currentUserIndex >= 0 && currentUserIndex < userMessageIds.length - 1) {
+        scrollToUserMessage(currentUserIndex + 1);
+      }
+    };
     window.addEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
-    return () => window.removeEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
-  }, []);
+    window.addEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
+    window.addEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);
+    return () => {
+      window.removeEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
+      window.removeEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
+      window.removeEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);
+    };
+  }, [getFocusedUserMessageIndex, scrollToUserMessage, userMessageIds.length]);
 
   useEffect(() => {
     if (!expandedImage) return;
@@ -411,6 +463,8 @@ export function ChatView() {
             ref={(el) => {
               if (el && isMatch) matchCardRefs.current.set(message.id, el);
               else matchCardRefs.current.delete(message.id);
+              if (el && message.role === "user") userMessageRefs.current.set(message.id, el);
+              else userMessageRefs.current.delete(message.id);
             }}
           >
             <div className="message-meta">
