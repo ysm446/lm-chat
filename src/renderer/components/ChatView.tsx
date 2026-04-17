@@ -166,8 +166,12 @@ export function ChatView() {
   }, [userMessageIds]);
 
   const scrollToUserMessage = useCallback((index: number) => {
-    if (index < 0 || index >= userMessageIds.length) return;
-    userMessageRefs.current.get(userMessageIds[index])?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const container = chatViewRef.current;
+    if (!container || index < 0 || index >= userMessageIds.length) return;
+    const target = userMessageRefs.current.get(userMessageIds[index]);
+    if (!target) return;
+    const topPadding = 56;
+    container.scrollTo({ top: Math.max(0, target.offsetTop - topPadding), behavior: "smooth" });
   }, [userMessageIds]);
 
   useEffect(() => { setMatchIndex(0); }, [searchQuery]);
