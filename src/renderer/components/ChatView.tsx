@@ -219,10 +219,12 @@ export function ChatView() {
   const emitScrollState = useCallback(() => {
     const el = chatViewRef.current;
     if (!el) return;
+    const canScrollToTop = el.scrollTop > 48;
     const canScrollToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) > 48;
     const currentUserIndex = getFocusedUserMessageIndex();
     window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", {
       detail: {
+        can_scroll_to_top: canScrollToTop,
         can_scroll_to_bottom: canScrollToBottom,
         has_user_messages: userMessageIds.length > 0,
         can_jump_prev_user: currentUserIndex > 0,
@@ -236,6 +238,9 @@ export function ChatView() {
   }, [messages.length, searchOpen, emitScrollState]);
 
   useEffect(() => {
+    const handleScrollToTop = () => {
+      chatViewRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    };
     const handleScrollToBottom = () => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     };
@@ -255,12 +260,14 @@ export function ChatView() {
     const handleJumpToLastUserMessage = () => {
       if (userMessageIds.length > 0) scrollToUserMessage(userMessageIds.length - 1);
     };
+    window.addEventListener("lm-chat:scroll-to-top", handleScrollToTop as EventListener);
     window.addEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
     window.addEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
     window.addEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);
     window.addEventListener("lm-chat:jump-to-first-user-message", handleJumpToFirstUserMessage as EventListener);
     window.addEventListener("lm-chat:jump-to-last-user-message", handleJumpToLastUserMessage as EventListener);
     return () => {
+      window.removeEventListener("lm-chat:scroll-to-top", handleScrollToTop as EventListener);
       window.removeEventListener("lm-chat:scroll-to-bottom", handleScrollToBottom as EventListener);
       window.removeEventListener("lm-chat:jump-to-prev-user-message", handleJumpToPrevUserMessage as EventListener);
       window.removeEventListener("lm-chat:jump-to-next-user-message", handleJumpToNextUserMessage as EventListener);

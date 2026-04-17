@@ -76,6 +76,8 @@ export function MessageInput() {
   const [isComposing, setIsComposing] = useState(false);
   const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [hasUserMessages, setHasUserMessages] = useState(false);
+  const [canScrollToTop, setCanScrollToTop] = useState(false);
+  const [canScrollToBottom, setCanScrollToBottom] = useState(false);
   const [canJumpPrevUserMessage, setCanJumpPrevUserMessage] = useState(false);
   const [canJumpNextUserMessage, setCanJumpNextUserMessage] = useState(false);
   const autocompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -232,10 +234,14 @@ export function MessageInput() {
   useEffect(() => {
     const handleScrollState = (event: Event) => {
       const customEvent = event as CustomEvent<{
+        can_scroll_to_top?: boolean;
+        can_scroll_to_bottom?: boolean;
         has_user_messages?: boolean;
         can_jump_prev_user?: boolean;
         can_jump_next_user?: boolean;
       }>;
+      setCanScrollToTop(!!customEvent.detail?.can_scroll_to_top);
+      setCanScrollToBottom(!!customEvent.detail?.can_scroll_to_bottom);
       setHasUserMessages(!!customEvent.detail?.has_user_messages);
       setCanJumpPrevUserMessage(!!customEvent.detail?.can_jump_prev_user);
       setCanJumpNextUserMessage(!!customEvent.detail?.can_jump_next_user);
@@ -252,7 +258,7 @@ export function MessageInput() {
   const handlePrevUserClick = () => {
     if (prevUserClickTimerRef.current) clearTimeout(prevUserClickTimerRef.current);
     prevUserClickTimerRef.current = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("lm-chat:jump-to-prev-user-message"));
+      window.dispatchEvent(new CustomEvent(canJumpPrevUserMessage ? "lm-chat:jump-to-prev-user-message" : "lm-chat:scroll-to-top"));
       prevUserClickTimerRef.current = null;
     }, 220);
   };
@@ -262,13 +268,13 @@ export function MessageInput() {
       clearTimeout(prevUserClickTimerRef.current);
       prevUserClickTimerRef.current = null;
     }
-    window.dispatchEvent(new CustomEvent("lm-chat:jump-to-first-user-message"));
+    window.dispatchEvent(new CustomEvent("lm-chat:scroll-to-top"));
   };
 
   const handleNextUserClick = () => {
     if (nextUserClickTimerRef.current) clearTimeout(nextUserClickTimerRef.current);
     nextUserClickTimerRef.current = setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("lm-chat:jump-to-next-user-message"));
+      window.dispatchEvent(new CustomEvent(canJumpNextUserMessage ? "lm-chat:jump-to-next-user-message" : "lm-chat:scroll-to-bottom"));
       nextUserClickTimerRef.current = null;
     }, 220);
   };
@@ -376,9 +382,9 @@ export function MessageInput() {
             className="composer-scroll-jump-btn"
             onClick={handlePrevUserClick}
             onDoubleClick={handlePrevUserDoubleClick}
-            title="クリックで前の自分の発言、ダブルクリックで最初の自分の発言へ移動"
+            title="クリックで前の自分の発言、ダブルクリックで一番上へ移動"
             aria-label="前の自分の発言へ移動"
-            disabled={!canJumpPrevUserMessage}
+            disabled={!canJumpPrevUserMessage && !canScrollToTop}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 19V5" />
@@ -395,7 +401,7 @@ export function MessageInput() {
           onDoubleClick={handleNextUserDoubleClick}
           title="クリックで次の自分の発言、ダブルクリックで一番下へ移動"
           aria-label="次の自分の発言へ移動"
-          disabled={!canJumpNextUserMessage}
+          disabled={!canJumpNextUserMessage && !canScrollToBottom}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14" />
