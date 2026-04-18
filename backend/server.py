@@ -115,7 +115,12 @@ threading.Thread(target=warmup_embedder, daemon=True).start()
 
 def build_memory_context(session: Session, query: str) -> str:
     try:
-        context = memory_engine.build_prompt_context(session.workspace_id, query, top_k=5)
+        context = memory_engine.build_prompt_context(
+            session.workspace_id,
+            query,
+            top_k=5,
+            exclude_session_id=session.id,
+        )
         logger.debug("Memory context built (%d chars): %s", len(context), context[:120])
         return context
     except Exception as e:

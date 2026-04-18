@@ -13,11 +13,28 @@ class MemoryEngine:
         chunks = chunk_messages(messages)
         return self.store.save_memory(session_id, chunks)
 
-    def search(self, workspace_id: str, query: str, top_k: int) -> list[MemoryChunk]:
-        return self.store.search_memory(workspace_id, query, top_k)
+    def search(
+        self,
+        workspace_id: str,
+        query: str,
+        top_k: int,
+        exclude_session_id: str | None = None,
+    ) -> list[MemoryChunk]:
+        return self.store.search_memory(
+            workspace_id,
+            query,
+            top_k,
+            exclude_session_id=exclude_session_id,
+        )
 
-    def build_prompt_context(self, workspace_id: str, query: str, top_k: int = 5) -> str:
-        items = self.search(workspace_id, query, top_k)
+    def build_prompt_context(
+        self,
+        workspace_id: str,
+        query: str,
+        top_k: int = 5,
+        exclude_session_id: str | None = None,
+    ) -> str:
+        items = self.search(workspace_id, query, top_k, exclude_session_id=exclude_session_id)
         if not items:
             return ""
 

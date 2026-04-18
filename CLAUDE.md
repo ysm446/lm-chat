@@ -95,6 +95,7 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 ### 記憶システム
 - 記憶はワークスペース単位でスコープ。`workspace_id` でフィルタ必須
 - **記憶ボタン（`memory_enabled`）は「過去の記憶を参照するか」を制御するのみ。保存は常に行われる**
+- 記憶検索では**現在開いているセッション自身の記憶は除外**し、重複した文脈注入を避ける
 - 埋め込み次元は `ruri-v3-310m` に合わせて **768 次元**（`memory_vec` テーブル）
 - FTS5 の MATCH クエリはユーザー入力を `'"' + query.replace('"', ' ') + '"'` でサニタイズ
 - FTS5 キーワード検索は `memory_chunks` と JOIN して workspace フィルタを1クエリで完結させる

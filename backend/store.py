@@ -811,7 +811,13 @@ class SQLiteStore:
                 chunks.append(chunk)
         return chunks
 
-    def search_memory(self, workspace_id: str, query: str, top_k: int) -> list[MemoryChunk]:
+    def search_memory(
+        self,
+        workspace_id: str,
+        query: str,
+        top_k: int,
+        exclude_session_id: str | None = None,
+    ) -> list[MemoryChunk]:
         from .memory.embedder import embed
         import math
         import logging
@@ -821,6 +827,8 @@ class SQLiteStore:
         rrf_k = 60
         half_life_days = 30
         scores: dict[str, float] = {}
+        exclude_clause = " AND mc.session_id != ?" if exclude_session_id else ""
+        exclude_params = (exclude_session_id,) if exclude_session_id else ()
 
         with self._connect() as conn:
             # --- FTS5 キーワード検索 ---
@@ -831,10 +839,10 @@ class SQLiteStore:
                     """
                     SELECT mc.id FROM memory_fts mf
                     JOIN memory_chunks mc ON mc.id = mf.id
-                    WHERE mf.content MATCH ? AND mc.workspace_id = ?
+                    WHERE mf.content MATCH ? AND mc.workspace_id = ?""" + exclude_clause + """
                     LIMIT ?
                     """,
-                    (safe_query, workspace_id, top_k * 4),
+                    (safe_query, workspace_id, *exclude_params, top_k * 4),
                 ).fetchall()
                 for rank, row in enumerate(fts_rows):
                     scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
@@ -857,8 +865,10 @@ class SQLiteStore:
                 ws_set = {
                     row["id"]
                     for row in conn.execute(
-                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_vec}) AND workspace_id = ?",
-                        (*vec_chunk_ids, workspace_id),
+                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_vec}) AND workspace_id = ?" + (
+                            " AND session_id != ?" if exclude_session_id else ""
+                        ),
+                        (*vec_chunk_ids, workspace_id, *exclude_params),
                     ).fetchall()
                 }
                 for rank, row in enumerate(vec_rows):
@@ -875,9 +885,8 @@ class SQLiteStore:
                 f"""
                 SELECT id, workspace_id, session_id, chunk_type, content, created_at
                 FROM memory_chunks
-                WHERE id IN ({placeholders})
-                """,
-                ids,
+                WHERE id IN ({placeholders})""" + (" AND session_id != ?" if exclude_session_id else ""),
+                ids + ([exclude_session_id] if exclude_session_id else []),
             ).fetchall()
 
         from datetime import datetime, timezone
