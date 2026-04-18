@@ -163,6 +163,7 @@ class SQLiteStore:
                 pass  # already exists
             # 生成統計カラムのマイグレーション
             for col, typedef in [
+                ("prompt_tokens", "INTEGER"),
                 ("completion_tokens", "INTEGER"),
                 ("tokens_per_second", "REAL"),
                 ("elapsed_seconds", "REAL"),
@@ -250,6 +251,7 @@ class SQLiteStore:
         data = dict(row)
         data.setdefault("image_data", None)
         data["has_prompt_log"] = bool(data.get("has_prompt_log", False))
+        data.setdefault("prompt_tokens", None)
         data.setdefault("completion_tokens", None)
         data.setdefault("tokens_per_second", None)
         data.setdefault("elapsed_seconds", None)
@@ -322,6 +324,7 @@ class SQLiteStore:
                     m.content,
                     m.image_data,
                     m.created_at,
+                    m.prompt_tokens,
                     m.completion_tokens,
                     m.tokens_per_second,
                     m.elapsed_seconds,
@@ -525,12 +528,12 @@ class SQLiteStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (message.id, session_id, message.role, message.content, message.image_data, message.created_at,
-                 message.completion_tokens, message.tokens_per_second, message.elapsed_seconds, message.finish_reason,
-                 message.model_name),
+                 message.prompt_tokens, message.completion_tokens, message.tokens_per_second, message.elapsed_seconds,
+                 message.finish_reason, message.model_name),
             )
             conn.execute(
                 "UPDATE sessions SET updated_at = ? WHERE id = ?",
@@ -640,7 +643,12 @@ class SQLiteStore:
     def update_message(self, message_id: str, content: str, image_data: str | None = None) -> Message | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, session_id, role, content, image_data, created_at FROM messages WHERE id = ?",
+                """
+                SELECT id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens,
+                       tokens_per_second, elapsed_seconds, finish_reason, model_name
+                FROM messages
+                WHERE id = ?
+                """,
                 (message_id,),
             ).fetchone()
             if row is None:
@@ -659,8 +667,8 @@ class SQLiteStore:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, session_id, role, content, image_data, created_at, completion_tokens, tokens_per_second,
-                       elapsed_seconds, finish_reason, model_name
+                SELECT id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens,
+                       tokens_per_second, elapsed_seconds, finish_reason, model_name
                 FROM messages
                 WHERE id = ?
                 """,
@@ -671,12 +679,13 @@ class SQLiteStore:
             conn.execute(
                 """
                 UPDATE messages
-                SET content = ?, completion_tokens = ?, tokens_per_second = ?, elapsed_seconds = ?,
+                SET content = ?, prompt_tokens = ?, completion_tokens = ?, tokens_per_second = ?, elapsed_seconds = ?,
                     finish_reason = ?, model_name = ?
                 WHERE id = ?
                 """,
                 (
                     payload.content,
+                    payload.prompt_tokens,
                     payload.completion_tokens,
                     payload.tokens_per_second,
                     payload.elapsed_seconds,
@@ -692,6 +701,7 @@ class SQLiteStore:
         data = dict(row)
         data.pop("session_id", None)
         data["content"] = payload.content
+        data["prompt_tokens"] = payload.prompt_tokens
         data["completion_tokens"] = payload.completion_tokens
         data["tokens_per_second"] = payload.tokens_per_second
         data["elapsed_seconds"] = payload.elapsed_seconds

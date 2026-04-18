@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class GenerationStats(TypedDict):
+    prompt_tokens: int | None
     completion_tokens: int
     tokens_per_second: float
     elapsed_seconds: float
@@ -298,9 +299,11 @@ def _iter_stream(payload: dict) -> Iterator[str | GenerationStats]:
                 elif choice.get("finish_reason"):
                     usage = chunk.get("usage", {})
                     timings = chunk.get("timings", {})
+                    prompt_tokens = timings.get("prompt_n") or usage.get("prompt_tokens")
                     token_count = timings.get("predicted_n") or usage.get("completion_tokens", 0)
                     if timings or usage:
                         yield GenerationStats(
+                            prompt_tokens=prompt_tokens,
                             completion_tokens=token_count,
                             tokens_per_second=timings.get("predicted_per_second", 0.0),
                             elapsed_seconds=timings.get("predicted_ms", 0.0) / 1000.0,

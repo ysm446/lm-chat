@@ -879,6 +879,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
             MessageCreate(
                 role="assistant",
                 content=assistant_text,
+                prompt_tokens=final_stats.get("prompt_tokens") if final_stats else None,
                 completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
@@ -957,6 +958,7 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
             MessageCreate(
                 role="assistant",
                 content=assistant_text,
+                prompt_tokens=final_stats.get("prompt_tokens") if final_stats else None,
                 completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
@@ -1032,6 +1034,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
             MessageCreate(
                 role="assistant",
                 content=assistant_text,
+                prompt_tokens=final_stats.get("prompt_tokens") if final_stats else None,
                 completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
                 tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
                 elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,

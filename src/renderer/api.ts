@@ -7,6 +7,7 @@ export type ApiMessage = {
   image_data: string | null;
   has_prompt_log: boolean;
   created_at: string;
+  prompt_tokens: number | null;
   completion_tokens: number | null;
   tokens_per_second: number | null;
   elapsed_seconds: number | null;
@@ -346,6 +347,7 @@ export function appendSessionMessage(
     role: MessageRole;
     content: string;
     finish_reason?: string | null;
+    prompt_tokens?: number | null;
     completion_tokens?: number | null;
     tokens_per_second?: number | null;
     elapsed_seconds?: number | null;

@@ -1675,13 +1675,16 @@ details.thinking-block[open] .thinking-chevron {
   border-radius: var(--r-lg);
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32), 0 2px 0 rgba(255, 255, 255, 0.02) inset;
   transition: border-color 0.15s;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .composer:focus-within { border-color: var(--accent-border); }
 
 .composer-autocomplete-wrap {
   position: relative;
+  overflow: hidden;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
 }
 
 .composer-ghost-layer {
@@ -1922,7 +1925,7 @@ details.thinking-block[open] .thinking-chevron {
 .token-ring-tooltip {
   display: none;
   position: absolute;
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 12px);
   right: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);

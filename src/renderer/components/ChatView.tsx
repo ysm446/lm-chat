@@ -156,6 +156,10 @@ export function ChatView() {
   const [promptLogError, setPromptLogError] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editCorrectionRequestIdRef = useRef(0);
+  const promptLogTargetMessage = useMemo(
+    () => messages.find((message) => message.id === promptLogMessageId) ?? null,
+    [messages, promptLogMessageId]
+  );
 
   // ── Search ───────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -681,6 +685,15 @@ export function ChatView() {
 
             {message.role === "assistant" && message.elapsed_seconds != null && (
               <div className="message-stats">
+                {message.prompt_tokens != null && (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>
+                    </svg>
+                    <span>{message.prompt_tokens.toLocaleString()} prompt tokens</span>
+                    <span className="message-stats-sep">·</span>
+                  </>
+                )}
                 {/* tok/sec */}
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -820,6 +833,9 @@ export function ChatView() {
               <div>
                 <h2>送信直前の messages</h2>
                 <p>この assistant 生成時に LLM へ渡した入力一式です。</p>
+                {promptLogTargetMessage?.prompt_tokens != null && (
+                  <p>Prompt tokens: {promptLogTargetMessage.prompt_tokens.toLocaleString()}</p>
+                )}
               </div>
               <button type="button" className="model-picker-close" onClick={() => setPromptLogMessageId(null)} aria-label="閉じる">✕</button>
             </div>
