@@ -1,5 +1,11 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
+
+function buildExportFileName() {
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `lm-chat-data-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.zip`;
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -28,6 +34,34 @@ function createWindow() {
 app.commandLine.appendSwitch("disable-gpu-disk-cache");
 
 app.whenReady().then(() => {
+  ipcMain.handle("lm-chat:choose-export-archive-path", async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const options = {
+      title: "データをエクスポート",
+      buttonLabel: "保存",
+      defaultPath: path.join(app.getPath("documents"), buildExportFileName()),
+      filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
+    };
+    const result = focusedWindow
+      ? await dialog.showSaveDialog(focusedWindow, options)
+      : await dialog.showSaveDialog(options);
+    return result.canceled ? null : (result.filePath ?? null);
+  });
+
+  ipcMain.handle("lm-chat:choose-import-archive-path", async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const options = {
+      title: "データをインポート",
+      buttonLabel: "選択",
+      properties: ["openFile"] as Array<"openFile">,
+      filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
+    };
+    const result = focusedWindow
+      ? await dialog.showOpenDialog(focusedWindow, options)
+      : await dialog.showOpenDialog(options);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
   createWindow();
 
   app.on("activate", () => {

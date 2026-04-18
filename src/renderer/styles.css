@@ -346,7 +346,7 @@ a { color: var(--accent); }
   gap: 8px;
   min-height: 30px;
   padding: 4px 12px;
-  background: rgba(10, 12, 18, 0.96);
+  background: var(--bg-sidebar);
   border-top: 1px solid var(--border);
   color: var(--text-dim);
   font-size: 11px;

@@ -143,6 +143,10 @@ class ConfigUpdate(BaseModel):
     completion_length: int | None = None
 
 
+class DataArchivePathRequest(BaseModel):
+    path: str
+
+
 class MemoryChunk(BaseModel):
     id: str
     workspace_id: str

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, exportDataArchive, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, importDataArchive, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -67,12 +67,17 @@ export function SettingsPanel() {
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [interfaceOpen, setInterfaceOpen] = useState(false);
   const [completionOpen, setCompletionOpen] = useState(false);
+  const [dataOpen, setDataOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugPromptLog, setDebugPromptLog] = useState(false);
   const [databaseCleanupBusy, setDatabaseCleanupBusy] = useState(false);
   const [databaseCleanupResult, setDatabaseCleanupResult] = useState<string | null>(null);
   const [promptLogCleanupBusy, setPromptLogCleanupBusy] = useState(false);
   const [promptLogCleanupResult, setPromptLogCleanupResult] = useState<string | null>(null);
+  const [dataExportBusy, setDataExportBusy] = useState(false);
+  const [dataExportResult, setDataExportResult] = useState<string | null>(null);
+  const [dataImportBusy, setDataImportBusy] = useState(false);
+  const [dataImportResult, setDataImportResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
 
   // System prompt state
@@ -220,6 +225,51 @@ export function SettingsPanel() {
       setPromptLogCleanupResult(error instanceof Error ? error.message : "保存済みプロンプトの削除に失敗しました");
     } finally {
       setPromptLogCleanupBusy(false);
+    }
+  };
+
+  const handleDataExport = async () => {
+    if (dataExportBusy) return;
+    const bridge = window.lmChat;
+    if (!bridge?.chooseExportArchivePath) {
+      setDataExportResult("Electron 版でのみ利用できます");
+      return;
+    }
+    const exportPath = await bridge.chooseExportArchivePath();
+    if (!exportPath) return;
+    setDataExportBusy(true);
+    setDataExportResult(null);
+    try {
+      const result = await exportDataArchive(exportPath);
+      const sizeMb = (result.size_bytes / (1024 * 1024)).toFixed(1);
+      setDataExportResult(`保存しました: ${result.file_name} (${sizeMb} MB)`);
+    } catch (error) {
+      setDataExportResult(error instanceof Error ? error.message : "データのエクスポートに失敗しました");
+    } finally {
+      setDataExportBusy(false);
+    }
+  };
+
+  const handleDataImport = async () => {
+    if (dataImportBusy) return;
+    const bridge = window.lmChat;
+    if (!bridge?.chooseImportArchivePath) {
+      setDataImportResult("Electron 版でのみ利用できます");
+      return;
+    }
+    const importPath = await bridge.chooseImportArchivePath();
+    if (!importPath) return;
+    const confirmed = window.confirm("ZIP からデータ一式を復元します。現在の data フォルダは上書きされます。続行しますか？");
+    if (!confirmed) return;
+    setDataImportBusy(true);
+    setDataImportResult(null);
+    try {
+      const result = await importDataArchive(importPath);
+      setDataImportResult(result.restart_required ? "インポートしました。反映のためアプリを再起動してください。" : "インポートしました");
+    } catch (error) {
+      setDataImportResult(error instanceof Error ? error.message : "データのインポートに失敗しました");
+    } finally {
+      setDataImportBusy(false);
     }
   };
 
@@ -638,6 +688,61 @@ export function SettingsPanel() {
                 <div className="stat-row"><span>検索チャンク</span><strong>{stats.memory_chunk_count}</strong></div>
               </div>
             )}
+          </div>
+        )}
+      </section>
+      {/* Data */}
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setDataOpen((v) => !v)} onMouseEnter={onTipEnter("会話履歴、画像、Documents、設定を zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </span>
+          <span>Data</span>
+          <svg className={`settings-chevron${dataOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {dataOpen && (
+          <div className="settings-section-body">
+            <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label">データをエクスポート</span>
+                <span className="settings-field-hint"><code>lm_chat.db</code>、画像、Documents、設定ファイルを zip にまとめて保存</span>
+                {dataExportResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataExportResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleDataExport()}
+                disabled={dataExportBusy}
+                style={{ minWidth: 96 }}
+              >
+                {dataExportBusy ? "出力中..." : "実行"}
+              </button>
+            </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label">データをインポート</span>
+                <span className="settings-field-hint">zip から data フォルダ一式を復元。実行後は再起動が必要です</span>
+                {dataImportResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataImportResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleDataImport()}
+                disabled={dataImportBusy}
+                style={{ minWidth: 96 }}
+              >
+                {dataImportBusy ? "読込中..." : "実行"}
+              </button>
+            </div>
           </div>
         )}
       </section>

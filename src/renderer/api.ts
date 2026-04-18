@@ -71,6 +71,20 @@ export type MessagePromptLog = {
   updated_at: string;
 };
 
+export type DataExportResult = {
+  path: string;
+  file_name: string;
+  size_bytes: number;
+  items: string[];
+};
+
+export type DataImportResult = {
+  imported: boolean;
+  restart_required: boolean;
+  source_path: string;
+  file_name: string;
+};
+
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const API_ROOT = API_BASE.replace(/\/$/, "");
 
@@ -248,6 +262,20 @@ export function getMessagePromptLog(messageId: string) {
 
 export function clearAllPromptLogs() {
   return request<{ cleared: number }>("/debug/prompt-logs", { method: "DELETE" });
+}
+
+export function exportDataArchive(path: string) {
+  return request<DataExportResult>("/data/export", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
+export function importDataArchive(path: string) {
+  return request<DataImportResult>("/data/import", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
 }
 
 export function getLlamaProps() {
