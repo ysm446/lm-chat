@@ -245,7 +245,13 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     });
   };
 
-  const handleAddDocument = (wsId: string) => {
+  const handleCreateTextDocument = async (wsId: string) => {
+    setDocsExpanded((prev) => new Set([...prev, wsId]));
+    const doc = await addDocument(wsId, "新規テキスト.txt", "");
+    handleSelectDoc(doc);
+  };
+
+  const handleImportDocument = (wsId: string) => {
     setPendingDocWsId(wsId);
     fileInputRef.current?.click();
   };
@@ -492,13 +498,28 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                           >
                             Documents
                           </button>
-                          <button
-                            className="sidebar-icon-btn sidebar-add-btn"
-                            title="資料を追加"
-                            onClick={() => handleAddDocument(ws.id)}
-                          >
-                            +
-                          </button>
+                          <div className="sidebar-docs-actions">
+                            <button
+                              className="sidebar-icon-btn sidebar-add-btn"
+                              title="空のテキストを作成"
+                              onClick={() => void handleCreateTextDocument(ws.id)}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                                <path d="M12 5v14"/>
+                                <path d="M5 12h14"/>
+                              </svg>
+                            </button>
+                            <button
+                              className="sidebar-icon-btn"
+                              title="ファイルを読み込む"
+                              onClick={() => handleImportDocument(ws.id)}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M9 3.75h4.9L19 8.85V19a1.25 1.25 0 0 1-1.25 1.25h-8.5A1.25 1.25 0 0 1 8 19V5A1.25 1.25 0 0 1 9.25 3.75Z"/>
+                                <path d="M13.75 3.75V9h5.25"/>
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         {isDocsExpanded && (
                           <div className="sidebar-docs-list">

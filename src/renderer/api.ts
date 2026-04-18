@@ -236,11 +236,32 @@ export function fetchCorrect(text: string) {
 }
 
 export function getConfig() {
-  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number; completion_length: number }>("/config");
+  return request<{
+    ctx_size: number;
+    n_gpu_layers: number;
+    temperature: number;
+    completion_length: number;
+    memory_context_chars: number;
+    document_context_chars: number;
+  }>("/config");
 }
 
-export function updateConfig(patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) {
-  return request<{ ctx_size: number; n_gpu_layers: number; temperature: number; completion_length: number }>("/config", {
+export function updateConfig(patch: {
+  ctx_size?: number;
+  n_gpu_layers?: number;
+  temperature?: number;
+  completion_length?: number;
+  memory_context_chars?: number;
+  document_context_chars?: number;
+}) {
+  return request<{
+    ctx_size: number;
+    n_gpu_layers: number;
+    temperature: number;
+    completion_length: number;
+    memory_context_chars: number;
+    document_context_chars: number;
+  }>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

@@ -158,8 +158,8 @@ def build_document_context(session: Session, query: str) -> str:
 def combine_contexts(
     memory_context: str,
     doc_context: str,
-    memory_max_chars: int = 1500,
-    doc_max_chars: int = 2000,
+    memory_max_chars: int,
+    doc_max_chars: int,
 ) -> str:
     """メモリと資料を個別上限で切り詰めて結合する。"""
     parts = []
@@ -172,6 +172,18 @@ def combine_contexts(
             ctx = ctx[:max_chars]
         parts.append(ctx)
     return "\n\n".join(parts)
+
+
+def build_combined_context(session: Session, query: str, include_memory: bool, include_documents: bool) -> str:
+    memory_context = build_memory_context(session, query) if include_memory else ""
+    doc_context = build_document_context(session, query) if include_documents else ""
+    config = get_config_data()
+    return combine_contexts(
+        memory_context,
+        doc_context,
+        memory_max_chars=int(config.get("memory_context_chars", 1500)),
+        doc_max_chars=int(config.get("document_context_chars", 2000)),
+    )
 
 
 def save_turn_memory(session_id: str, user_content: str, assistant_content: str) -> None:
@@ -810,9 +822,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
-    doc_context = build_document_context(session, payload.content) if payload.doc_rag_enabled else ""
-    full_context = combine_contexts(memory_context, doc_context)
+    full_context = build_combined_context(session, payload.content, payload.memory_enabled, payload.doc_rag_enabled)
     temperature = get_config_data().get("temperature", 0.8)
     prompt_messages = build_chat_messages(session, full_context, payload.system_prompt)
     assistant_text = generate_chat_completion(
@@ -851,9 +861,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    memory_context = build_memory_context(session, payload.content) if payload.memory_enabled else ""
-    doc_context = build_document_context(session, payload.content) if payload.doc_rag_enabled else ""
-    full_context = combine_contexts(memory_context, doc_context)
+    full_context = build_combined_context(session, payload.content, payload.memory_enabled, payload.doc_rag_enabled)
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
@@ -930,9 +938,7 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
         raise HTTPException(status_code=400, detail="Last message must be from user")
 
     last_user_content = session.messages[-1].content
-    memory_context = build_memory_context(session, last_user_content) if payload.memory_enabled else ""
-    doc_context = build_document_context(session, last_user_content) if payload.doc_rag_enabled else ""
-    full_context = combine_contexts(memory_context, doc_context)
+    full_context = build_combined_context(session, last_user_content, payload.memory_enabled, payload.doc_rag_enabled)
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
@@ -1008,9 +1014,12 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
     prefix_messages = session.messages[: user_index + 1]
     generation_session = session.model_copy(update={"messages": prefix_messages})
 
-    memory_context = build_memory_context(generation_session, user_message.content) if payload.memory_enabled else ""
-    doc_context = build_document_context(generation_session, user_message.content) if payload.doc_rag_enabled else ""
-    full_context = combine_contexts(memory_context, doc_context)
+    full_context = build_combined_context(
+        generation_session,
+        user_message.content,
+        payload.memory_enabled,
+        payload.doc_rag_enabled,
+    )
     temperature = get_config_data().get("temperature", 0.8)
     prompt_messages = build_chat_messages(generation_session, full_context, payload.system_prompt)
 

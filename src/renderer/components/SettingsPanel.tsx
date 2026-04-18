@@ -18,7 +18,14 @@ const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> =
   { value: "custom", label: "カスタム" },
 ];
 
-const DEFAULTS = { temperature: 0.8, ctx_size: 32768, n_gpu_layers: -1, completion_length: 80 } as const;
+const DEFAULTS = {
+  temperature: 0.8,
+  ctx_size: 32768,
+  n_gpu_layers: -1,
+  completion_length: 80,
+  memory_context_chars: 1500,
+  document_context_chars: 2000,
+} as const;
 const CTX_SIZE_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072, 262144] as const;
 
 function formatCtxSizeLabel(value: number) {
@@ -58,6 +65,8 @@ export function SettingsPanel() {
   const [nGpuLayers, setNGpuLayers] = useState(-1);
   const [temperature, setTemperature] = useState(0.8);
   const [completionLength, setCompletionLength] = useState(80);
+  const [memoryContextChars, setMemoryContextChars] = useState<number>(DEFAULTS.memory_context_chars);
+  const [documentContextChars, setDocumentContextChars] = useState<number>(DEFAULTS.document_context_chars);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
   const [llamaServerVersion, setLlamaServerVersion] = useState("");
   const [saving, setSaving] = useState(false);
@@ -101,6 +110,8 @@ export function SettingsPanel() {
         setNGpuLayers(cfg.n_gpu_layers);
         setTemperature(cfg.temperature ?? 0.8);
         setCompletionLength(cfg.completion_length ?? 80);
+        setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
+        setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
       })
       .catch(() => {});
     listSystemPrompts()
@@ -168,7 +179,14 @@ export function SettingsPanel() {
     };
   }, [sysResOpen]);
 
-  const handleSave = async (patch: { ctx_size?: number; n_gpu_layers?: number; temperature?: number; completion_length?: number }) => {
+  const handleSave = async (patch: {
+    ctx_size?: number;
+    n_gpu_layers?: number;
+    temperature?: number;
+    completion_length?: number;
+    memory_context_chars?: number;
+    document_context_chars?: number;
+  }) => {
     setSaving(true);
     try {
       const cfg = await updateConfig(patch);
@@ -176,6 +194,8 @@ export function SettingsPanel() {
       setNGpuLayers(cfg.n_gpu_layers);
       setTemperature(cfg.temperature ?? 0.8);
       setCompletionLength(cfg.completion_length ?? 80);
+      setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
+      setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
@@ -619,6 +639,70 @@ export function SettingsPanel() {
                 onChange={(e) => setCtxSize(effectiveCtxPresets[Number(e.target.value)] ?? ctxSize)}
                 onMouseUp={() => void handleSave({ ctx_size: ctxSize })}
               />
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Context</span>
+                <div className="settings-field-controls">
+                  {documentContextChars !== DEFAULTS.document_context_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextChars(DEFAULTS.document_context_chars); void handleSave({ document_context_chars: DEFAULTS.document_context_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentContextChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <p className="settings-field-hint">Documents から検索した補助情報の上限です</p>
+              <input
+                className="settings-slider"
+                type="range"
+                min={0}
+                max={6000}
+                step={100}
+                value={documentContextChars}
+                onChange={(e) => setDocumentContextChars(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ document_context_chars: documentContextChars })}
+                onKeyUp={() => void handleSave({ document_context_chars: documentContextChars })}
+              />
+              <div className="settings-slider-labels">
+                <span>0字</span>
+                <span>6000字</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った過去記憶コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Memory Context</span>
+                <div className="settings-field-controls">
+                  {memoryContextChars !== DEFAULTS.memory_context_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setMemoryContextChars(DEFAULTS.memory_context_chars); void handleSave({ memory_context_chars: DEFAULTS.memory_context_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{memoryContextChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <p className="settings-field-hint">過去会話の記憶検索から追加する補助情報の上限です</p>
+              <input
+                className="settings-slider"
+                type="range"
+                min={0}
+                max={6000}
+                step={100}
+                value={memoryContextChars}
+                onChange={(e) => setMemoryContextChars(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ memory_context_chars: memoryContextChars })}
+                onKeyUp={() => void handleSave({ memory_context_chars: memoryContextChars })}
+              />
+              <div className="settings-slider-labels">
+                <span>0字</span>
+                <span>6000字</span>
+              </div>
             </div>
 
             <div className="settings-field">

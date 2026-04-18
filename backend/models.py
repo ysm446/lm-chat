@@ -143,6 +143,8 @@ class ConfigUpdate(BaseModel):
     n_gpu_layers: int | None = None
     temperature: float | None = None
     completion_length: int | None = None
+    memory_context_chars: int | None = None
+    document_context_chars: int | None = None
 
 
 class DataArchivePathRequest(BaseModel):

@@ -547,10 +547,9 @@ a { color: var(--accent); }
   flex-shrink: 0;
 }
 .sidebar-add-btn {
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1;
+  padding: 0;
 }
+.sidebar-icon-btn svg { display: block; }
 .sidebar-icon-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
 
 .sidebar-sessions {
@@ -2964,6 +2963,13 @@ details.thinking-block[open] .thinking-chevron {
   min-width: 0;
 }
 .sidebar-docs-header:hover { background: rgba(255,255,255,0.04); }
+
+.sidebar-docs-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
 
 .sidebar-docs-label {
   flex: 1;
