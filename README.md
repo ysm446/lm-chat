@@ -47,10 +47,12 @@
 - ワークスペース単位の記憶保存と検索
 - ワークスペース単位の Documents 管理と Document RAG
 - システムプロンプトの保存 / 切り替え / 上書き
+- assistant ごとの「送信直前 messages」保存と確認
 - 入力欄のインライン補完
 - 選択テキストの校正提案
 - チャット内検索（Ctrl+F）
 - 推論パラメータ調整（temperature、ctx_size、GPU layers、completion length）
+- 下部システムリソースバー（CPU / RAM / GPU / VRAM）
 
 ## Document RAG
 
@@ -159,7 +161,9 @@ lm-chat/
 | `settings.json` | UI 設定（サイドバー表示など） |
 | `system_prompts.json` | 保存済みシステムプロンプト |
 | `llama_paths.json` | llama-server と現在モデルのパス情報 |
-| `lm_chat.db` | SQLite データベース |
+| `lm_chat.db` | SQLite データベース本体（セッション、メッセージ、記憶、Documents、保存済みプロンプト全文など） |
+
+実体の場所は `data/lm_chat.db` です。
 
 これらは実行時データで、通常はリポジトリに含めません。
 

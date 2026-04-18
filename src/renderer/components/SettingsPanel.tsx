@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, clearAllPromptLogs, fetchMemoryStats, fetchSystemResources, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -74,8 +74,6 @@ export function SettingsPanel() {
   const [promptLogCleanupBusy, setPromptLogCleanupBusy] = useState(false);
   const [promptLogCleanupResult, setPromptLogCleanupResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
-  const [sysRes, setSysRes] = useState<SystemResources | null>(null);
-  const sysResIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -159,23 +157,9 @@ export function SettingsPanel() {
   }, []);
 
   useEffect(() => {
-    if (sysResOpen) {
-      fetchSystemResources().then(setSysRes).catch(() => {});
-      sysResIntervalRef.current = setInterval(() => {
-        fetchSystemResources().then(setSysRes).catch(() => {});
-      }, 1000);
-    } else {
-      if (sysResIntervalRef.current) {
-        clearInterval(sysResIntervalRef.current);
-        sysResIntervalRef.current = null;
-      }
-      setSysRes(null);
-    }
+    window.dispatchEvent(new CustomEvent("lm-chat:statusbar-system-resources", { detail: { enabled: sysResOpen } }));
     return () => {
-      if (sysResIntervalRef.current) {
-        clearInterval(sysResIntervalRef.current);
-        sysResIntervalRef.current = null;
-      }
+      window.dispatchEvent(new CustomEvent("lm-chat:statusbar-system-resources", { detail: { enabled: false } }));
     };
   }, [sysResOpen]);
 
@@ -747,36 +731,6 @@ export function SettingsPanel() {
                 <span className="settings-toggle-thumb" />
               </button>
             </div>
-            {sysResOpen && (
-              <div className="sysres-panel">
-                {sysRes ? (
-                  <>
-                    <SysResBar label="CPU" percent={sysRes.cpu_percent} valueLabel={`${sysRes.cpu_percent.toFixed(1)}%`} />
-                    <SysResBar
-                      label="RAM"
-                      percent={sysRes.ram_percent}
-                      valueLabel={`${sysRes.ram_used_gb.toFixed(1)} / ${sysRes.ram_total_gb.toFixed(1)} GB`}
-                    />
-                    {sysRes.gpus.length === 0 && (
-                      <div className="sysres-no-gpu">GPU: N/A</div>
-                    )}
-                    {sysRes.gpus.map((gpu, i) => (
-                      <div key={i}>
-                        {sysRes.gpus.length > 1 && <div className="sysres-gpu-name">{gpu.name}</div>}
-                        <SysResBar label="GPU" percent={gpu.gpu_percent} valueLabel={`${gpu.gpu_percent.toFixed(1)}%`} />
-                        <SysResBar
-                          label="VRAM"
-                          percent={gpu.vram_percent}
-                          valueLabel={`${gpu.vram_used_gb.toFixed(1)} / ${gpu.vram_total_gb.toFixed(1)} GB`}
-                        />
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <div className="sysres-loading">読み込み中...</div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </section>
@@ -790,27 +744,6 @@ export function SettingsPanel() {
       </div>
     )}
     </>
-  );
-}
-
-function sysResColor(percent: number): string {
-  if (percent < 50) return "#4a9eff";
-  if (percent < 80) return "#e8814a";
-  return "#e84a4a";
-}
-
-function SysResBar({ label, percent, valueLabel }: { label: string; percent: number; valueLabel: string }) {
-  const clamped = Math.min(100, Math.max(0, percent));
-  return (
-    <div className="sysres-row">
-      <div className="sysres-row-header">
-        <span className="sysres-label">{label}</span>
-        <span className="sysres-value">{valueLabel}</span>
-      </div>
-      <div className="sysres-track">
-        <div className="sysres-fill" style={{ width: `${clamped}%`, background: sysResColor(clamped) }} />
-      </div>
-    </div>
   );
 }
 

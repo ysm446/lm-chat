@@ -7,6 +7,7 @@ import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
+import { StatusBar } from "./components/StatusBar";
 import { SystemPromptEditor } from "./components/SystemPromptEditor";
 import { SystemPromptSidebar } from "./components/SystemPromptSidebar";
 import { applyFontSize, applyUIFont } from "./fontOptions";
@@ -231,6 +232,7 @@ export function App() {
 
       </div>
       </div>
+      <StatusBar />
     </div>
   );
 }
