@@ -155,20 +155,22 @@ def build_document_context(session: Session, query: str) -> str:
         return ""
 
 
-def combine_contexts(memory_context: str, doc_context: str, max_chars: int = 2000) -> str:
-    """メモリコンテキストと資料コンテキストを結合し、合計文字数の上限を超えないよう調整する。"""
+def combine_contexts(
+    memory_context: str,
+    doc_context: str,
+    memory_max_chars: int = 1500,
+    doc_max_chars: int = 2000,
+) -> str:
+    """メモリと資料を個別上限で切り詰めて結合する。"""
     parts = []
-    total = 0
-    for ctx in [doc_context, memory_context]:  # 資料を優先
+    for ctx, max_chars in ((doc_context, doc_max_chars), (memory_context, memory_max_chars)):
         if not ctx:
             continue
-        remaining = max_chars - total
-        if remaining <= 0:
-            break
-        if len(ctx) > remaining:
-            ctx = ctx[:remaining]
+        if max_chars <= 0:
+            continue
+        if len(ctx) > max_chars:
+            ctx = ctx[:max_chars]
         parts.append(ctx)
-        total += len(ctx)
     return "\n\n".join(parts)
 
 

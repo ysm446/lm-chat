@@ -134,7 +134,7 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - ワークスペース単位で txt / md / json ファイルを取り込める（`POST /documents`）
 - `backend/documents/chunker.py` がファイル形式別にチャンク分割（md は見出し優先、json はトップレベルキー/配列単位）
 - チャンクは `document_chunks` テーブルに保存し、FTS5（`document_fts`）とベクトル検索（`document_vec`）を両方持つ
-- チャット送信時に `build_document_context()` → `combine_contexts()` でワークスペース資料 3 チャンク・会話メモリ 5 チャンク・合計 2000 文字上限の 2 段構えでコンテキストを組み立てる
+- チャット送信時に `build_document_context()` → `combine_contexts()` でワークスペース資料 3 チャンク・会話メモリ 5 チャンクを結合し、現在は資料 2000 文字・記憶 1500 文字の個別上限で補助コンテキストを組み立てる
 - サイドバーの各ワークスペース配下に **Documents** セクション（折りたたみ式）を表示
 - 資料行をクリックすると `App.tsx` の `currentDocumentId` が更新され、中央エリアに `DocumentEditor` を表示
 - `DocumentEditor` は内容を直接編集でき、保存時に再インデックスをバックグラウンド実行する
