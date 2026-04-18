@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { SavedSystemPrompt, getSettings, listSystemPrompts, updateSettings } from "./api";
 import { ActivityBar, AppMode } from "./components/ActivityBar";
 import { ChatView } from "./components/ChatView";
-import { DebugPromptView } from "./components/DebugPromptView";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
@@ -30,8 +29,6 @@ export function App() {
   const [rightWidth, setRightWidth] = useState(280);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(false);
-  const [debugViewOpen, setDebugViewOpen] = useState(false);
-  const [debugPromptLogEnabled, setDebugPromptLogEnabled] = useState(false);
   const [isImageDragOver, setIsImageDragOver] = useState(false);
   const dragDepthRef = useRef(0);
   const [appMode, setAppMode] = useState<AppMode>("chat");
@@ -73,21 +70,9 @@ export function App() {
     getSettings().then((s) => {
       setShowLeft(s.show_left);
       setShowRight(s.show_right);
-      setDebugPromptLogEnabled(s.debug_prompt_log ?? false);
       applyUIFont(s.ui_font);
       applyFontSize(s.ui_font_size);
     }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const handleSettingsUpdated = (event: Event) => {
-      const customEvent = event as CustomEvent<{ debug_prompt_log?: boolean }>;
-      if (typeof customEvent.detail?.debug_prompt_log === "boolean") {
-        setDebugPromptLogEnabled(customEvent.detail.debug_prompt_log);
-      }
-    };
-    window.addEventListener("lm-chat:settings-updated", handleSettingsUpdated as EventListener);
-    return () => window.removeEventListener("lm-chat:settings-updated", handleSettingsUpdated as EventListener);
   }, []);
 
   const handlePromptsChange = (prompts: SavedSystemPrompt[]) => {
@@ -214,19 +199,6 @@ export function App() {
               <div style={{ flex: 1 }} />
               {error ? <p className="error-text" style={{ margin: 0 }}>{error}</p> : null}
               <button
-                className={`center-header-btn${debugViewOpen ? " active" : ""}`}
-                onClick={() => setDebugViewOpen((value) => !value)}
-                title={debugViewOpen ? "デバッグビューを閉じる" : "デバッグビューを開く"}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 3h6l1 2h3a1 1 0 0 1 1 1v3h-2" />
-                  <path d="M6 5H5a1 1 0 0 0-1 1v3h2" />
-                  <path d="M8 13h8" />
-                  <path d="M9 17h6" />
-                  <rect x="7" y="9" width="10" height="10" rx="2" />
-                </svg>
-              </button>
-              <button
                 className={`center-header-btn${tempChatMode ? " active" : ""}`}
                 onClick={toggleTempChat}
                 title={tempChatMode ? "一時チャットを終了（履歴に戻る）" : "一時チャット（保存されません）"}
@@ -236,14 +208,10 @@ export function App() {
                 </svg>
               </button>
             </header>
-            {debugViewOpen ? (
-              <DebugPromptView active={debugViewOpen} enabled={debugPromptLogEnabled} />
-            ) : (
-              <>
-                <ChatView />
-                <MessageInput />
-              </>
-            )}
+            <>
+              <ChatView />
+              <MessageInput />
+            </>
             {isImageDragOver && (
               <div className="chat-drop-overlay" aria-hidden="true">
                 <div className="chat-drop-card">

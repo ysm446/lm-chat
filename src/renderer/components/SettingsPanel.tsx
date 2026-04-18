@@ -83,10 +83,6 @@ export function SettingsPanel() {
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
   const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
 
-  const emitSettingsUpdate = useCallback((patch: { debug_prompt_log?: boolean }) => {
-    window.dispatchEvent(new CustomEvent("lm-chat:settings-updated", { detail: patch }));
-  }, []);
-
   const loadMemoryStats = useCallback(() => {
     fetchMemoryStats().then(setStats).catch(() => {});
   }, []);
@@ -119,7 +115,6 @@ export function SettingsPanel() {
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
         setCustomCorrectionPrompt(s.correction_custom_prompt || "");
         setDebugPromptLog(s.debug_prompt_log ?? false);
-        emitSettingsUpdate({ debug_prompt_log: s.debug_prompt_log ?? false });
       })
       .catch(() => {});
   }, []);
@@ -657,8 +652,8 @@ export function SettingsPanel() {
           <div className="settings-section-body">
             <div className="settings-toggle-row">
               <div className="settings-toggle-copy">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("llama-server に送信するプロンプト全文をバックエンドのログに出力します。uvicorn のコンソールで確認できます。")} onMouseLeave={onTipLeave}>プロンプトログ出力</span>
-                <span className="settings-field-hint">llama-server への送信内容をログに表示</span>
+                <span className="settings-field-label" onMouseEnter={onTipEnter("assistant の各返信に対して、LLM へ送る直前の messages 全体を保存します。会話中のアイコンから後で確認できます。")} onMouseLeave={onTipLeave}>プロンプト全文を保存</span>
+                <span className="settings-field-hint">送信直前の messages 一式を assistant ごとに保存して確認</span>
               </div>
               <button
                 type="button"
@@ -667,10 +662,8 @@ export function SettingsPanel() {
                 onClick={() => {
                   const next = !debugPromptLog;
                   setDebugPromptLog(next);
-                  emitSettingsUpdate({ debug_prompt_log: next });
                   updateSettings({ debug_prompt_log: next }).catch(() => {
                     setDebugPromptLog(!next);
-                    emitSettingsUpdate({ debug_prompt_log: !next });
                   });
                 }}
               >

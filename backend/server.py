@@ -39,12 +39,11 @@ except Exception:
 
 from .config_store import get as get_config_data
 from .config_store import update as update_config_data
-from .debug_store import clear_prompt_logs, list_prompt_logs
 from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, reorder_prompts, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_llama_server_version, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
+from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, build_chat_messages, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .documents.chunker import chunk_document
@@ -196,6 +195,14 @@ def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return save_data_url_image(_IMAGE_DIR, session.workspace_id, session.id, image_data)
+
+
+def _save_prompt_log_if_enabled(session_id: str, assistant_message_id: str, prompt_messages: list[dict]) -> None:
+    if not get_settings_data().get("debug_prompt_log", False):
+        return
+    saved = store.save_message_prompt_log(assistant_message_id, session_id, prompt_messages)
+    if saved is None:
+        logger.warning("Prompt log save failed for message %s", assistant_message_id)
 
 
 @app.get("/health")
@@ -643,21 +650,30 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
     doc_context = build_document_context(session, payload.content) if payload.doc_rag_enabled else ""
     full_context = combine_contexts(memory_context, doc_context)
     temperature = get_config_data().get("temperature", 0.8)
-    assistant_text = generate_chat_completion(session, full_context, payload.thinking_enabled, payload.system_prompt, temperature)
+    prompt_messages = build_chat_messages(session, full_context, payload.system_prompt)
+    assistant_text = generate_chat_completion(
+        session,
+        full_context,
+        payload.thinking_enabled,
+        payload.system_prompt,
+        temperature,
+        messages=prompt_messages,
+    )
     assistant_message = store.append_message(
         payload.session_id,
         MessageCreate(role="assistant", content=assistant_text),
     )
     if assistant_message is None:
         raise HTTPException(status_code=500, detail="Failed to store assistant response")
+    _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)
 
     save_turn_memory(payload.session_id, payload.content, assistant_text)
 
     updated_session = store.get_session(payload.session_id)
     if updated_session is None:
         raise HTTPException(status_code=500, detail="Failed to reload session")
-
-    return ChatSendResponse(session=updated_session, assistant_message=assistant_message)
+    latest_assistant = next((msg for msg in reversed(updated_session.messages) if msg.id == assistant_message.id), assistant_message)
+    return ChatSendResponse(session=updated_session, assistant_message=latest_assistant)
 
 
 @app.post("/chat/send/stream")
@@ -677,12 +693,20 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
+    prompt_messages = build_chat_messages(session, full_context, system_prompt)
 
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, full_context, thinking_enabled, system_prompt, temperature):
+            for item in stream_chat_completion(
+                session,
+                full_context,
+                thinking_enabled,
+                system_prompt,
+                temperature,
+                messages=prompt_messages,
+            ):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
@@ -705,8 +729,12 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
                 model_name=_get_active_model_name() or session.model_name or None,
             ),
         )
+        if assistant_message is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
+            return
+        _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)
         updated_session = store.get_session(payload.session_id)
-        if assistant_message is None or updated_session is None:
+        if updated_session is None:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
             return
 
@@ -743,12 +771,20 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
     thinking_enabled = payload.thinking_enabled
     system_prompt = payload.system_prompt
     temperature = get_config_data().get("temperature", 0.8)
+    prompt_messages = build_chat_messages(session, full_context, system_prompt)
 
     def event_stream():
         collected: list[str] = []
         final_stats: dict | None = None
         try:
-            for item in stream_chat_completion(session, full_context, thinking_enabled, system_prompt, temperature):
+            for item in stream_chat_completion(
+                session,
+                full_context,
+                thinking_enabled,
+                system_prompt,
+                temperature,
+                messages=prompt_messages,
+            ):
                 if isinstance(item, str):
                     collected.append(item)
                     yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
@@ -771,8 +807,12 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
                 model_name=_get_active_model_name() or session.model_name or None,
             ),
         )
+        if assistant_message is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
+            return
+        _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)
         updated_session = store.get_session(payload.session_id)
-        if assistant_message is None or updated_session is None:
+        if updated_session is None:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
             return
         yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
@@ -806,6 +846,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
     doc_context = build_document_context(generation_session, user_message.content) if payload.doc_rag_enabled else ""
     full_context = combine_contexts(memory_context, doc_context)
     temperature = get_config_data().get("temperature", 0.8)
+    prompt_messages = build_chat_messages(generation_session, full_context, payload.system_prompt)
 
     def event_stream():
         collected: list[str] = []
@@ -817,6 +858,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
                 payload.thinking_enabled,
                 payload.system_prompt,
                 temperature,
+                messages=prompt_messages,
             ):
                 if isinstance(item, str):
                     collected.append(item)
@@ -843,6 +885,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
         if updated_assistant is None:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to update assistant response'})}\n\n"
             return
+        _save_prompt_log_if_enabled(payload.session_id, updated_assistant.id, prompt_messages)
 
         try:
             rebuild_session_memory(payload.session_id)
@@ -1079,14 +1122,22 @@ def patch_settings(payload: dict) -> dict:
     return update_settings_data(payload)
 
 
-@app.get("/debug/prompt-logs")
-def get_debug_prompt_logs(limit: int = Query(100, ge=1, le=200)) -> dict[str, list[dict]]:
-    return {"items": list_prompt_logs(limit)}
-
-
-@app.delete("/debug/prompt-logs")
-def clear_debug_prompt_logs() -> dict[str, int]:
-    return {"cleared": clear_prompt_logs()}
+@app.get("/history/messages/{message_id}/prompt-log")
+def get_message_prompt_log(message_id: str) -> dict:
+    prompt_log = store.get_message_prompt_log(message_id)
+    if prompt_log is None:
+        raise HTTPException(status_code=404, detail="Prompt log not found")
+    try:
+        messages = json.loads(prompt_log.payload_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Prompt log is corrupted") from exc
+    return {
+        "assistant_message_id": prompt_log.assistant_message_id,
+        "session_id": prompt_log.session_id,
+        "messages": messages,
+        "created_at": prompt_log.created_at,
+        "updated_at": prompt_log.updated_at,
+    }
 
 
 @app.get("/history/sessions/{session_id}/token_count")

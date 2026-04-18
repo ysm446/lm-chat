@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchCorrect, resolveApiUrl } from "../api";
+import { MessagePromptLog, PromptLogContentPart, fetchCorrect, getMessagePromptLog, resolveApiUrl } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
@@ -95,6 +95,30 @@ function parseThinking(content: string): { thinking: string | null; response: st
   return { thinking: null, response: content, streaming: false };
 }
 
+function formatPromptRole(role: string) {
+  if (role === "system") return "system";
+  if (role === "user") return "user";
+  if (role === "assistant") return "assistant";
+  return role;
+}
+
+function formatPromptContent(content: string | PromptLogContentPart[]) {
+  if (typeof content === "string") return content;
+  return content.map((item) => {
+    if ("type" in item && item.type === "text") {
+      return `[text]\n${item.text ?? ""}`;
+    }
+    if ("type" in item && item.type === "image_url") {
+      const image = item.image_url;
+      const url = typeof image === "string"
+        ? image
+        : (image && typeof image === "object" && "url" in image && typeof image.url === "string" ? image.url : "");
+      return `[image_url]\n${url}`;
+    }
+    return JSON.stringify(item, null, 2);
+  }).join("\n");
+}
+
 export function ChatView() {
   const session = useChatStore((state) => state.currentSession());
   const isSubmitting = useChatStore((state) => state.isSubmitting);
@@ -126,6 +150,10 @@ export function ChatView() {
   const [isEditCorrectionLoading, setIsEditCorrectionLoading] = useState(false);
   const [editCorrectionPos, setEditCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [promptLogMessageId, setPromptLogMessageId] = useState<string | null>(null);
+  const [promptLog, setPromptLog] = useState<MessagePromptLog | null>(null);
+  const [promptLogLoading, setPromptLogLoading] = useState(false);
+  const [promptLogError, setPromptLogError] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editCorrectionRequestIdRef = useRef(0);
 
@@ -212,6 +240,45 @@ export function ChatView() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [openSearch]);
+
+  useEffect(() => {
+    if (!promptLogMessageId) {
+      setPromptLog(null);
+      setPromptLogError(null);
+      setPromptLogLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPromptLogLoading(true);
+    setPromptLogError(null);
+    getMessagePromptLog(promptLogMessageId)
+      .then((data) => {
+        if (cancelled) return;
+        setPromptLog(data);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPromptLog(null);
+        setPromptLogError(error instanceof Error ? error.message : "プロンプト全文を取得できませんでした");
+      })
+      .finally(() => {
+        if (!cancelled) setPromptLogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [promptLogMessageId]);
+
+  useEffect(() => {
+    if (!promptLogMessageId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPromptLogMessageId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [promptLogMessageId]);
 
   useEffect(() => {
     const previousMode = previousSubmissionModeRef.current;
@@ -692,6 +759,20 @@ export function ChatView() {
                     </svg>
                   </button>
                 )}
+                {message.role === "assistant" && message.has_prompt_log && (
+                  <button
+                    className="msg-action-btn"
+                    title="送信直前のプロンプト全文を表示"
+                    onClick={() => setPromptLogMessageId(message.id)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>
+                      <path d="M14 3v5h5"/>
+                      <path d="M8 13h8"/>
+                      <path d="M8 17h6"/>
+                    </svg>
+                  </button>
+                )}
                 {hasFollowingAssistant && (
                   <button
                     className="msg-action-btn"
@@ -732,6 +813,40 @@ export function ChatView() {
           </div>
         )}
         <div ref={bottomRef} />
+      {promptLogMessageId && (
+        <div className="modal-backdrop" onClick={() => setPromptLogMessageId(null)} role="dialog" aria-modal="true" aria-label="プロンプト全文">
+          <div className="prompt-log-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="prompt-log-header">
+              <div>
+                <h2>送信直前の messages</h2>
+                <p>この assistant 生成時に LLM へ渡した入力一式です。</p>
+              </div>
+              <button type="button" className="model-picker-close" onClick={() => setPromptLogMessageId(null)} aria-label="閉じる">✕</button>
+            </div>
+            <div className="prompt-log-body">
+              {promptLogLoading ? (
+                <p className="prompt-log-status">読み込み中...</p>
+              ) : promptLogError ? (
+                <p className="error-text" style={{ margin: 0 }}>{promptLogError}</p>
+              ) : promptLog ? (
+                <div className="prompt-log-list">
+                  {promptLog.messages.map((entry, index) => (
+                    <article key={`${entry.role}-${index}`} className="prompt-log-card">
+                      <div className="prompt-log-meta">
+                        <strong>{formatPromptRole(entry.role)}</strong>
+                        <span>#{index}</span>
+                      </div>
+                      <pre className="prompt-log-pre">{formatPromptContent(entry.content)}</pre>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="prompt-log-status">保存済みプロンプトはありません。</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {expandedImage && (
         <div className="image-lightbox" onClick={() => setExpandedImage(null)} role="dialog" aria-modal="true" aria-label="画像の拡大表示">
           <button

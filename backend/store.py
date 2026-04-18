@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
@@ -13,6 +14,7 @@ from .models import (
     MemoryChunk,
     Message,
     MessageCreate,
+    MessagePromptLog,
     Session,
     SessionCreate,
     SessionUpdate,
@@ -72,6 +74,16 @@ class SQLiteStore:
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
                     created_at TEXT NOT NULL,
+                    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS message_prompt_logs (
+                    assistant_message_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (assistant_message_id) REFERENCES messages(id) ON DELETE CASCADE,
                     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 );
 
@@ -170,6 +182,9 @@ class SQLiteStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_memory_chunks_session ON memory_chunks(session_id)"
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_message_prompt_logs_session ON message_prompt_logs(session_id)"
+            )
             conn.commit()
 
             # sqlite-vec テーブルは CREATE IF NOT EXISTS が使えないため個別に確認
@@ -234,6 +249,7 @@ class SQLiteStore:
     def _message_from_row(self, row: sqlite3.Row) -> Message:
         data = dict(row)
         data.setdefault("image_data", None)
+        data["has_prompt_log"] = bool(data.get("has_prompt_log", False))
         data.setdefault("completion_tokens", None)
         data.setdefault("tokens_per_second", None)
         data.setdefault("elapsed_seconds", None)
@@ -300,9 +316,25 @@ class SQLiteStore:
             self._message_from_row(message_row)
             for message_row in conn.execute(
                 """
-                SELECT id, role, content, image_data, created_at, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name
+                SELECT
+                    m.id,
+                    m.role,
+                    m.content,
+                    m.image_data,
+                    m.created_at,
+                    m.completion_tokens,
+                    m.tokens_per_second,
+                    m.elapsed_seconds,
+                    m.finish_reason,
+                    m.model_name,
+                    EXISTS(
+                        SELECT 1
+                        FROM message_prompt_logs mpl
+                        WHERE mpl.assistant_message_id = m.id
+                    ) AS has_prompt_log
                 FROM messages
-                WHERE session_id = ?
+                AS m
+                WHERE m.session_id = ?
                 ORDER BY created_at ASC
                 """,
                 (row["id"],),
@@ -506,6 +538,86 @@ class SQLiteStore:
             )
         return message
 
+    def save_message_prompt_log(
+        self,
+        assistant_message_id: str,
+        session_id: str,
+        messages: list[dict],
+    ) -> MessagePromptLog | None:
+        payload_json = json.dumps(messages, ensure_ascii=False)
+        created_at = now_iso()
+        updated_at = created_at
+        with self._connect() as conn:
+            message_row = conn.execute(
+                "SELECT id, role FROM messages WHERE id = ? AND session_id = ?",
+                (assistant_message_id, session_id),
+            ).fetchone()
+            if message_row is None or str(message_row["role"]) != "assistant":
+                return None
+            existing = conn.execute(
+                "SELECT created_at FROM message_prompt_logs WHERE assistant_message_id = ?",
+                (assistant_message_id,),
+            ).fetchone()
+            if existing is not None:
+                created_at = str(existing["created_at"])
+            conn.execute(
+                """
+                INSERT INTO message_prompt_logs (assistant_message_id, session_id, payload_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(assistant_message_id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    payload_json = excluded.payload_json,
+                    updated_at = excluded.updated_at
+                """,
+                (assistant_message_id, session_id, payload_json, created_at, updated_at),
+            )
+        return MessagePromptLog(
+            assistant_message_id=assistant_message_id,
+            session_id=session_id,
+            payload_json=payload_json,
+            created_at=created_at,
+            updated_at=updated_at,
+        )
+
+    def get_message_prompt_log(self, assistant_message_id: str) -> MessagePromptLog | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT assistant_message_id, session_id, payload_json, created_at, updated_at
+                FROM message_prompt_logs
+                WHERE assistant_message_id = ?
+                """,
+                (assistant_message_id,),
+            ).fetchone()
+        return MessagePromptLog(**dict(row)) if row is not None else None
+
+    def copy_message_prompt_log(self, source_message_id: str, target_message_id: str, session_id: str) -> bool:
+        with self._connect() as conn:
+            source = conn.execute(
+                "SELECT payload_json FROM message_prompt_logs WHERE assistant_message_id = ?",
+                (source_message_id,),
+            ).fetchone()
+            target = conn.execute(
+                "SELECT id, role FROM messages WHERE id = ? AND session_id = ?",
+                (target_message_id, session_id),
+            ).fetchone()
+            if source is None or target is None or str(target["role"]) != "assistant":
+                return False
+            created_at = now_iso()
+            updated_at = created_at
+            conn.execute(
+                """
+                INSERT INTO message_prompt_logs (assistant_message_id, session_id, payload_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(assistant_message_id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    payload_json = excluded.payload_json,
+                    updated_at = excluded.updated_at
+                """,
+                (target_message_id, session_id, str(source["payload_json"]), created_at, updated_at),
+            )
+        return True
+
     def delete_message(self, message_id: str) -> bool:
         with self._connect() as conn:
             image_paths = self._collect_image_paths_for_message_ids(conn, [message_id])
@@ -600,10 +712,12 @@ class SQLiteStore:
             )
         )
         for msg in messages_to_copy:
-            self.append_message(
+            copied = self.append_message(
                 new_session.id,
                 MessageCreate(role=msg.role, content=msg.content, image_data=msg.image_data),
             )
+            if copied is not None and msg.role == "assistant":
+                self.copy_message_prompt_log(msg.id, copied.id, new_session.id)
         return self.get_session(new_session.id)
 
     def move_session(self, session_id: str, target_workspace_id: str) -> Session | None:

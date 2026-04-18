@@ -46,6 +46,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     image_data: str | None = None
+    has_prompt_log: bool = False
     created_at: str = Field(default_factory=now_iso)
     completion_tokens: int | None = None
     tokens_per_second: float | None = None
@@ -63,6 +64,14 @@ class MessageCreate(BaseModel):
     elapsed_seconds: float | None = None
     finish_reason: str | None = None
     model_name: str | None = None
+
+
+class MessagePromptLog(BaseModel):
+    assistant_message_id: str
+    session_id: str
+    payload_json: str
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
 
 
 class Session(BaseModel):

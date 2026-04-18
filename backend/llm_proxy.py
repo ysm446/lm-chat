@@ -7,9 +7,6 @@ from collections.abc import Iterator
 from typing import TypedDict
 from urllib import error, request
 
-from .debug_store import append_prompt_log
-from .settings_store import get as get_settings_data
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,26 +38,6 @@ def _resolve_image_url(image_ref: str) -> str:
     return f"{BACKEND_PUBLIC_BASE}/{image_ref.lstrip('/')}"
 
 
-def _format_debug_content(content: str | list[dict]) -> str:
-    if isinstance(content, str):
-        return content
-
-    parts: list[str] = []
-    for item in content:
-        item_type = item.get("type")
-        if item_type == "text":
-            parts.append(f"[text]\n{item.get('text', '')}")
-        elif item_type == "image_url":
-            image = item.get("image_url", {})
-            if isinstance(image, dict):
-                parts.append(f"[image_url]\n{image.get('url', '')}")
-            else:
-                parts.append(f"[image_url]\n{image}")
-        else:
-            parts.append(json.dumps(item, ensure_ascii=False, indent=2))
-    return "\n".join(parts)
-
-
 def count_tokens(text: str) -> int:
     payload = {"content": text}
     req = request.Request(
@@ -88,7 +65,7 @@ def list_models() -> dict[str, list[dict[str, str]]]:
     }
 
 
-def _build_messages(session: Session, memory_context: str = "", system_prompt: str | None = None) -> list[dict]:
+def build_chat_messages(session: Session, memory_context: str = "", system_prompt: str | None = None) -> list[dict]:
     base_prompt = system_prompt if system_prompt else SYSTEM_PROMPT
     effective_prompt = f"{base_prompt}\n\n{memory_context}" if memory_context else base_prompt
 
@@ -102,16 +79,6 @@ def _build_messages(session: Session, memory_context: str = "", system_prompt: s
             messages.append({"role": message.role, "content": content})
         else:
             messages.append({"role": message.role, "content": message.content})
-    if get_settings_data().get("debug_prompt_log", False):
-        sep = "-" * 60
-        lines = [f"_build_messages ({len(messages)} msgs)", sep]
-        for i, m in enumerate(messages):
-            role = m["role"]
-            content = _format_debug_content(m["content"])
-            lines.append(f"[{i}] {role}:\n{content}\n{sep}")
-        prompt_log = "\n".join(lines)
-        append_prompt_log(label="Prompt", lines=lines)
-        logger.debug(prompt_log)
     return messages
 
 
@@ -255,10 +222,17 @@ def correct(text: str, system_prompt: str | None = None) -> str:
         return ""
 
 
-def generate_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> str:
+def generate_chat_completion(
+    session: Session,
+    memory_context: str = "",
+    thinking_enabled: bool = False,
+    system_prompt: str | None = None,
+    temperature: float = 0.8,
+    messages: list[dict] | None = None,
+) -> str:
     payload = {
         "model": session.model_name or LLAMA_MODEL,
-        "messages": _build_messages(session, memory_context, system_prompt),
+        "messages": messages if messages is not None else build_chat_messages(session, memory_context, system_prompt),
         "stream": False,
         "temperature": temperature,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},
@@ -351,10 +325,17 @@ def stream_temp_chat(messages: list[dict], thinking_enabled: bool = False, syste
     yield from _iter_stream(payload)
 
 
-def stream_chat_completion(session: Session, memory_context: str = "", thinking_enabled: bool = False, system_prompt: str | None = None, temperature: float = 0.8) -> Iterator[str | GenerationStats]:
+def stream_chat_completion(
+    session: Session,
+    memory_context: str = "",
+    thinking_enabled: bool = False,
+    system_prompt: str | None = None,
+    temperature: float = 0.8,
+    messages: list[dict] | None = None,
+) -> Iterator[str | GenerationStats]:
     payload: dict = {
         "model": session.model_name or LLAMA_MODEL,
-        "messages": _build_messages(session, memory_context, system_prompt),
+        "messages": messages if messages is not None else build_chat_messages(session, memory_context, system_prompt),
         "stream": True,
         "temperature": temperature,
         "chat_template_kwargs": {"enable_thinking": thinking_enabled},

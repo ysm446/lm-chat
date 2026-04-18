@@ -5,6 +5,7 @@ export type ApiMessage = {
   role: MessageRole;
   content: string;
   image_data: string | null;
+  has_prompt_log: boolean;
   created_at: string;
   completion_tokens: number | null;
   tokens_per_second: number | null;
@@ -52,11 +53,22 @@ export type LocalModel = {
   quantization?: string | null;
 };
 
-export type DebugPromptLogEntry = {
-  id: number;
-  label: string;
-  content: string;
+export type PromptLogContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } | string }
+  | Record<string, unknown>;
+
+export type PromptLogMessage = {
+  role: MessageRole;
+  content: string | PromptLogContentPart[];
+};
+
+export type MessagePromptLog = {
+  assistant_message_id: string;
+  session_id: string;
+  messages: PromptLogMessage[];
   created_at: string;
+  updated_at: string;
 };
 
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -230,12 +242,8 @@ export function updateSettings(patch: { show_left?: boolean; show_right?: boolea
   });
 }
 
-export function getDebugPromptLogs(limit = 100) {
-  return request<{ items: DebugPromptLogEntry[] }>(`/debug/prompt-logs?limit=${limit}`);
-}
-
-export function clearDebugPromptLogs() {
-  return request<{ cleared: number }>("/debug/prompt-logs", { method: "DELETE" });
+export function getMessagePromptLog(messageId: string) {
+  return request<MessagePromptLog>(`/history/messages/${encodeURIComponent(messageId)}/prompt-log`);
 }
 
 export function getLlamaProps() {
