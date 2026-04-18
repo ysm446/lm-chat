@@ -2451,6 +2451,9 @@ details.thinking-block[open] .thinking-chevron {
   transform: scale(1.2);
 }
 .settings-slider:focus::-webkit-slider-thumb { background: var(--accent); }
+.settings-slider.active::-webkit-slider-thumb { background: var(--accent); }
+.settings-slider.active::-webkit-slider-thumb:hover { background: var(--accent-hover); }
+.settings-slider.active { accent-color: var(--accent); }
 
 .settings-slider-labels {
   display: flex;

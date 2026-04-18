@@ -657,7 +657,7 @@ export function SettingsPanel() {
               </div>
               <p className="settings-field-hint">Documents から検索した補助情報の上限です</p>
               <input
-                className="settings-slider"
+                className={`settings-slider${documentContextChars !== DEFAULTS.document_context_chars ? " active" : ""}`}
                 type="range"
                 min={0}
                 max={6000}
@@ -689,7 +689,7 @@ export function SettingsPanel() {
               </div>
               <p className="settings-field-hint">過去会話の記憶検索から追加する補助情報の上限です</p>
               <input
-                className="settings-slider"
+                className={`settings-slider${memoryContextChars !== DEFAULTS.memory_context_chars ? " active" : ""}`}
                 type="range"
                 min={0}
                 max={6000}
