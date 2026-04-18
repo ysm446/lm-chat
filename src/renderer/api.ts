@@ -246,6 +246,10 @@ export function getMessagePromptLog(messageId: string) {
   return request<MessagePromptLog>(`/history/messages/${encodeURIComponent(messageId)}/prompt-log`);
 }
 
+export function clearAllPromptLogs() {
+  return request<{ cleared: number }>("/debug/prompt-logs", { method: "DELETE" });
+}
+
 export function getLlamaProps() {
   return request<{ n_ctx?: number; total_slots?: number }>("/llama/props");
 }

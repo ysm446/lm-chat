@@ -618,6 +618,11 @@ class SQLiteStore:
             )
         return True
 
+    def clear_all_message_prompt_logs(self) -> int:
+        with self._connect() as conn:
+            cursor = conn.execute("DELETE FROM message_prompt_logs")
+        return cursor.rowcount if cursor.rowcount is not None and cursor.rowcount >= 0 else 0
+
     def delete_message(self, message_id: str) -> bool:
         with self._connect() as conn:
             image_paths = self._collect_image_paths_for_message_ids(conn, [message_id])

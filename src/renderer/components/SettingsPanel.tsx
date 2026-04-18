@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, fetchMemoryStats, fetchSystemResources, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, SystemResources, cleanupDocuments, cleanupMemory, clearAllPromptLogs, fetchMemoryStats, fetchSystemResources, getConfig, getLlamaProps, getLlamaStatus, getSettings, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -45,6 +45,8 @@ function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
 
 export function SettingsPanel() {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
+  const currentSession = useChatStore((state) => state.currentSession());
+  const selectSession = useChatStore((state) => state.selectSession);
   const activeModelPath = useChatStore((state) => state.activeModelPath);
   const systemPromptText = useChatStore((state) => state.systemPromptText);
   const setSystemPromptText = useChatStore((state) => state.setSystemPromptText);
@@ -69,6 +71,8 @@ export function SettingsPanel() {
   const [debugPromptLog, setDebugPromptLog] = useState(false);
   const [databaseCleanupBusy, setDatabaseCleanupBusy] = useState(false);
   const [databaseCleanupResult, setDatabaseCleanupResult] = useState<string | null>(null);
+  const [promptLogCleanupBusy, setPromptLogCleanupBusy] = useState(false);
+  const [promptLogCleanupResult, setPromptLogCleanupResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
   const [sysRes, setSysRes] = useState<SystemResources | null>(null);
   const sysResIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -209,6 +213,29 @@ export function SettingsPanel() {
       setDatabaseCleanupResult(error instanceof Error ? error.message : "データベースのクリーンナップに失敗しました");
     } finally {
       setDatabaseCleanupBusy(false);
+    }
+  };
+
+  const handlePromptLogCleanup = async () => {
+    if (promptLogCleanupBusy) return;
+    const confirmed = window.confirm("保存したプロンプト全文をすべて削除します。会話履歴は残ります。続行しますか？");
+    if (!confirmed) return;
+    setPromptLogCleanupBusy(true);
+    setPromptLogCleanupResult(null);
+    try {
+      const result = await clearAllPromptLogs();
+      setPromptLogCleanupResult(
+        result.cleared > 0
+          ? `削除完了: ${result.cleared}件の保存済みプロンプトを削除しました`
+          : "削除対象の保存済みプロンプトはありませんでした"
+      );
+      if (currentSession?.id) {
+        await selectSession(currentSession.id);
+      }
+    } catch (error) {
+      setPromptLogCleanupResult(error instanceof Error ? error.message : "保存済みプロンプトの削除に失敗しました");
+    } finally {
+      setPromptLogCleanupBusy(false);
     }
   };
 
@@ -668,6 +695,24 @@ export function SettingsPanel() {
                 }}
               >
                 <span className="settings-toggle-thumb" />
+              </button>
+            </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("assistant ごとに保存されたプロンプト全文を一括削除します。会話履歴本文は消えません。")} onMouseLeave={onTipLeave}>保存済みプロンプト全文を全削除</span>
+                <span className="settings-field-hint">message_prompt_logs テーブルの内容だけを削除</span>
+                {promptLogCleanupResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{promptLogCleanupResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handlePromptLogCleanup()}
+                disabled={promptLogCleanupBusy}
+                style={{ minWidth: 96 }}
+              >
+                {promptLogCleanupBusy ? "削除中..." : "実行"}
               </button>
             </div>
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>

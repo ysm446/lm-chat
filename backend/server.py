@@ -943,6 +943,11 @@ def cleanup_documents() -> dict[str, int]:
     return store.cleanup_documents()
 
 
+@app.delete("/debug/prompt-logs")
+def clear_all_prompt_logs() -> dict[str, int]:
+    return {"cleared": store.clear_all_message_prompt_logs()}
+
+
 @app.get("/memory/stats")
 def memory_stats() -> dict[str, int]:
     return {
