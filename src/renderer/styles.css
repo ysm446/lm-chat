@@ -3140,8 +3140,8 @@ details.thinking-block[open] .thinking-chevron {
   outline: none;
   background: var(--bg);
   color: var(--text);
-  font-family: "JetBrains Mono", "Fira Mono", "Consolas", monospace;
-  font-size: 13px;
+  font-family: var(--app-font-family);
+  font-size: 1rem;
   line-height: 1.7;
   padding: 20px 28px;
   box-sizing: border-box;
@@ -3179,13 +3179,13 @@ details.thinking-block[open] .thinking-chevron {
 .doc-editor-btn.primary:hover:not(:disabled) { background: var(--accent-hover, var(--accent)); filter: brightness(1.1); }
 .doc-editor-btn.danger {
   color: var(--text-faint);
-  border-color: rgba(239,68,68,0.18);
-  background: rgba(239,68,68,0.04);
+  border-color: rgba(168,85,247,0.22);
+  background: rgba(168,85,247,0.08);
 }
 .doc-editor-btn.danger:hover:not(:disabled) {
-  color: #f3b0b0;
-  background: rgba(239,68,68,0.1);
-  border-color: rgba(239,68,68,0.3);
+  color: #e9d5ff;
+  background: rgba(168,85,247,0.16);
+  border-color: rgba(168,85,247,0.34);
 }
 
 
