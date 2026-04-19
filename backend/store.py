@@ -73,6 +73,8 @@ class SQLiteStore:
                     session_id TEXT NOT NULL,
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
+                    image_data TEXT,
+                    image_preview_data TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 );
@@ -158,6 +160,11 @@ class SQLiteStore:
             # image_data カラムのマイグレーション（既存 DB 対応）
             try:
                 conn.execute("ALTER TABLE messages ADD COLUMN image_data TEXT")
+                conn.commit()
+            except Exception:
+                pass  # already exists
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN image_preview_data TEXT")
                 conn.commit()
             except Exception:
                 pass  # already exists
@@ -250,6 +257,7 @@ class SQLiteStore:
     def _message_from_row(self, row: sqlite3.Row) -> Message:
         data = dict(row)
         data.setdefault("image_data", None)
+        data.setdefault("image_preview_data", None)
         data["has_prompt_log"] = bool(data.get("has_prompt_log", False))
         data.setdefault("prompt_tokens", None)
         data.setdefault("completion_tokens", None)
@@ -266,10 +274,21 @@ class SQLiteStore:
             return set()
         placeholders = ",".join("?" * len(message_ids))
         rows = conn.execute(
-            f"SELECT DISTINCT image_data FROM messages WHERE id IN ({placeholders}) AND image_data IS NOT NULL",
-            message_ids,
+            f"""
+            SELECT DISTINCT image_path
+            FROM (
+                SELECT image_data AS image_path
+                FROM messages
+                WHERE id IN ({placeholders}) AND image_data IS NOT NULL
+                UNION
+                SELECT image_preview_data AS image_path
+                FROM messages
+                WHERE id IN ({placeholders}) AND image_preview_data IS NOT NULL
+            )
+            """,
+            [*message_ids, *message_ids],
         ).fetchall()
-        return {str(row["image_data"]) for row in rows if row["image_data"]}
+        return {str(row["image_path"]) for row in rows if row["image_path"]}
 
     def _collect_image_paths_for_session_ids(
         self, conn: sqlite3.Connection, session_ids: list[str]
@@ -278,18 +297,29 @@ class SQLiteStore:
             return set()
         placeholders = ",".join("?" * len(session_ids))
         rows = conn.execute(
-            f"SELECT DISTINCT image_data FROM messages WHERE session_id IN ({placeholders}) AND image_data IS NOT NULL",
-            session_ids,
+            f"""
+            SELECT DISTINCT image_path
+            FROM (
+                SELECT image_data AS image_path
+                FROM messages
+                WHERE session_id IN ({placeholders}) AND image_data IS NOT NULL
+                UNION
+                SELECT image_preview_data AS image_path
+                FROM messages
+                WHERE session_id IN ({placeholders}) AND image_preview_data IS NOT NULL
+            )
+            """,
+            [*session_ids, *session_ids],
         ).fetchall()
-        return {str(row["image_data"]) for row in rows if row["image_data"]}
+        return {str(row["image_path"]) for row in rows if row["image_path"]}
 
     def _cleanup_unreferenced_images(self, conn: sqlite3.Connection, image_paths: set[str]) -> None:
         for image_path in image_paths:
             if not image_path.startswith("/assets/images/"):
                 continue
             row = conn.execute(
-                "SELECT 1 FROM messages WHERE image_data = ? LIMIT 1",
-                (image_path,),
+                "SELECT 1 FROM messages WHERE image_data = ? OR image_preview_data = ? LIMIT 1",
+                (image_path, image_path),
             ).fetchone()
             if row is not None:
                 continue
@@ -323,6 +353,7 @@ class SQLiteStore:
                     m.role,
                     m.content,
                     m.image_data,
+                    m.image_preview_data,
                     m.created_at,
                     m.prompt_tokens,
                     m.completion_tokens,
@@ -528,10 +559,10 @@ class SQLiteStore:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (message.id, session_id, message.role, message.content, message.image_data, message.created_at,
+                (message.id, session_id, message.role, message.content, message.image_data, message.image_preview_data, message.created_at,
                  message.prompt_tokens, message.completion_tokens, message.tokens_per_second, message.elapsed_seconds,
                  message.finish_reason, message.model_name),
             )
@@ -640,11 +671,18 @@ class SQLiteStore:
             ).fetchone()
             return str(row["session_id"]) if row else None
 
-    def update_message(self, message_id: str, content: str, image_data: str | None = None) -> Message | None:
+    def update_message(
+        self,
+        message_id: str,
+        content: str,
+        image_data: str | None = None,
+        image_preview_data: str | None = None,
+    ) -> Message | None:
         with self._connect() as conn:
+            image_paths = self._collect_image_paths_for_message_ids(conn, [message_id])
             row = conn.execute(
                 """
-                SELECT id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens,
+                SELECT id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens,
                        tokens_per_second, elapsed_seconds, finish_reason, model_name
                 FROM messages
                 WHERE id = ?
@@ -654,20 +692,22 @@ class SQLiteStore:
             if row is None:
                 return None
             conn.execute(
-                "UPDATE messages SET content = ?, image_data = ? WHERE id = ?",
-                (content, image_data, message_id),
+                "UPDATE messages SET content = ?, image_data = ?, image_preview_data = ? WHERE id = ?",
+                (content, image_data, image_preview_data, message_id),
             )
+            self._cleanup_unreferenced_images(conn, image_paths)
         data = dict(row)
         del data["session_id"]
         data["content"] = content
         data["image_data"] = image_data
+        data["image_preview_data"] = image_preview_data
         return Message(**data)
 
     def replace_message(self, message_id: str, payload: MessageCreate) -> Message | None:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT id, session_id, role, content, image_data, created_at, prompt_tokens, completion_tokens,
+                SELECT id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens,
                        tokens_per_second, elapsed_seconds, finish_reason, model_name
                 FROM messages
                 WHERE id = ?
@@ -708,6 +748,7 @@ class SQLiteStore:
         data["finish_reason"] = payload.finish_reason
         data["model_name"] = payload.model_name
         data.setdefault("image_data", None)
+        data.setdefault("image_preview_data", None)
         return Message(**data)
 
     def branch_session(self, session_id: str, up_to_message_id: str) -> Session | None:
@@ -729,7 +770,12 @@ class SQLiteStore:
         for msg in messages_to_copy:
             copied = self.append_message(
                 new_session.id,
-                MessageCreate(role=msg.role, content=msg.content, image_data=msg.image_data),
+                MessageCreate(
+                    role=msg.role,
+                    content=msg.content,
+                    image_data=msg.image_data,
+                    image_preview_data=msg.image_preview_data,
+                ),
             )
             if copied is not None and msg.role == "assistant":
                 self.copy_message_prompt_log(msg.id, copied.id, new_session.id)

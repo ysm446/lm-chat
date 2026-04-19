@@ -1,24 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchAutocomplete, fetchCorrect, getConfig, getSessionTokenCount } from "../api";
+import { buildImageAttachment, PendingImageAttachment } from "../imageAttachment";
 import { useChatStore } from "../stores/chatStore";
-
-function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
-}
 
 function normalizeAutocompleteSuggestion(prefix: string, completion: string) {
   const normalizedPrefix = prefix.replace(/\r\n/g, "\n");
@@ -42,7 +25,7 @@ function normalizeAutocompleteSuggestion(prefix: string, completion: string) {
 
 export function MessageInput() {
   const [value, setValue] = useState("");
-  const [imageData, setImageData] = useState<string | null>(null);
+  const [imageAttachment, setImageAttachment] = useState<PendingImageAttachment | null>(null);
   const [imageFileName, setImageFileName] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -205,8 +188,8 @@ export function MessageInput() {
   const handleAttachFile = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     try {
-      const dataUrl = await resizeImageToDataUrl(file);
-      setImageData(dataUrl);
+      const attachment = await buildImageAttachment(file);
+      setImageAttachment(attachment);
       setImageFileName(file.name);
     } catch {
       // ignore
@@ -310,11 +293,11 @@ export function MessageInput() {
   };
 
   const handleSend = async () => {
-    if (!value.trim() && !imageData) return;
+    if (!value.trim() && !imageAttachment) return;
     const text = value.trim();
-    const img = imageData;
+    const attachment = imageAttachment;
     setValue("");
-    setImageData(null);
+    setImageAttachment(null);
     setImageFileName("");
     setSuggestion("");
     setCorrection("");
@@ -322,14 +305,14 @@ export function MessageInput() {
       await sendTempMessage(text);
     } else {
       if (!currentSessionId) return;
-      await sendMessage(currentSessionId, text, img);
+      await sendMessage(currentSessionId, text, attachment);
     }
   };
 
   const modelReady = !!activeModelPath;
   const hasSelectedText = correctionEnabled && selStart !== selEnd && !!value.slice(selStart, selEnd).trim();
   const showGhost = !!suggestion && !correction && !isComposing;
-  const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageData && !tempChatMode));
+  const canSend = modelReady && !isSubmitting && (!!value.trim() || (!!imageAttachment && !tempChatMode));
 
   return (
     <>
@@ -416,13 +399,13 @@ export function MessageInput() {
           onChange={(e) => void handleFileChange(e)}
         />
 
-        {imageData && (
+        {imageAttachment && (
           <div className="image-preview-row">
-            <img src={imageData} alt={imageFileName} className="image-preview-thumb" />
+            <img src={imageAttachment.imagePreviewData} alt={imageFileName} className="image-preview-thumb" />
             <span className="image-preview-name">{imageFileName}</span>
             <button
               className="image-preview-remove"
-              onClick={() => { setImageData(null); setImageFileName(""); }}
+              onClick={() => { setImageAttachment(null); setImageFileName(""); }}
               title="画像を削除"
             >✕</button>
           </div>

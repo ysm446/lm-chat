@@ -5,6 +5,7 @@ export type ApiMessage = {
   role: MessageRole;
   content: string;
   image_data: string | null;
+  image_preview_data: string | null;
   has_prompt_log: boolean;
   created_at: string;
   prompt_tokens: number | null;
@@ -13,6 +14,11 @@ export type ApiMessage = {
   elapsed_seconds: number | null;
   finish_reason: string | null;
   model_name: string | null;
+};
+
+export type ImageAttachmentInput = {
+  imageData?: string | null;
+  imagePreviewData?: string | null;
 };
 
 export type ApiSession = {
@@ -355,10 +361,14 @@ export function deleteMessage(messageId: string) {
   });
 }
 
-export function updateMessage(messageId: string, content: string, imageData?: string | null) {
+export function updateMessage(messageId: string, content: string, image?: ImageAttachmentInput | null) {
   return request<ApiMessage>(`/history/messages/${encodeURIComponent(messageId)}`, {
     method: "PATCH",
-    body: JSON.stringify({ content, image_data: imageData ?? null })
+    body: JSON.stringify({
+      content,
+      image_data: image?.imageData ?? null,
+      image_preview_data: image?.imagePreviewData ?? null,
+    })
   });
 }
 
@@ -521,7 +531,7 @@ export async function streamRegenerateMessage(
 export async function streamChatMessage(
   sessionId: string,
   content: string,
-  imageData: string | null,
+  image: ImageAttachmentInput | null,
   memoryEnabled: boolean,
   docRagEnabled: boolean,
   thinkingEnabled: boolean,
@@ -534,7 +544,8 @@ export async function streamChatMessage(
     {
       session_id: sessionId,
       content,
-      image_data: imageData ?? null,
+      image_data: image?.imageData ?? null,
+      image_preview_data: image?.imagePreviewData ?? null,
       memory_enabled: memoryEnabled,
       doc_rag_enabled: docRagEnabled,
       thinking_enabled: thinkingEnabled,

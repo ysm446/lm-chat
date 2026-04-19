@@ -2,25 +2,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MessagePromptLog, PromptLogContentPart, fetchCorrect, getMessagePromptLog, resolveApiUrl } from "../api";
+import { buildImageAttachment, PendingImageAttachment } from "../imageAttachment";
 import { useChatStore } from "../stores/chatStore";
-
-function resizeImageToDataUrl(file: File, maxPx = 1024, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", quality));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
-}
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -142,7 +125,7 @@ export function ChatView() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
-  const [editingImageData, setEditingImageData] = useState<string | null>(null);
+  const [editingImage, setEditingImage] = useState<PendingImageAttachment | null>(null);
   const [editSelStart, setEditSelStart] = useState(0);
   const [editSelEnd, setEditSelEnd] = useState(0);
   const editImageInputRef = useRef<HTMLInputElement>(null);
@@ -380,10 +363,10 @@ export function ChatView() {
     }
   }, [editingId, editSelStart, editSelEnd, editingContent, activeModelPath, correctionEnabled]);
 
-  const startEdit = (messageId: string, content: string, imageData: string | null) => {
+  const startEdit = (messageId: string, content: string, imageData: string | null, imagePreviewData: string | null) => {
     setEditingId(messageId);
     setEditingContent(content);
-    setEditingImageData(imageData);
+    setEditingImage(imageData ? { imageData, imagePreviewData: imagePreviewData ?? imageData } : null);
     setEditSelStart(0);
     setEditSelEnd(0);
     setEditCorrection("");
@@ -392,20 +375,20 @@ export function ChatView() {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditingImageData(null);
+    setEditingImage(null);
   };
 
   const commitEdit = async (sessionId: string, messageId: string) => {
     const content = editingContent.trim();
-    if (content || editingImageData) await editMessage(sessionId, messageId, content, editingImageData);
+    if (content || editingImage) await editMessage(sessionId, messageId, content, editingImage);
     cancelEdit();
   };
 
   const handleEditImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !file.type.startsWith("image/")) return;
-    const dataUrl = await resizeImageToDataUrl(file);
-    setEditingImageData(dataUrl);
+    const attachment = await buildImageAttachment(file);
+    setEditingImage(attachment);
     e.target.value = "";
   };
 
@@ -547,7 +530,8 @@ export function ChatView() {
         {messages.map((message, messageIndex) => {
           const isMatch = matchedIds.includes(message.id);
           const isCurrent = matchedIds[matchIndex] === message.id;
-          const imageSrc = resolveApiUrl(message.image_data);
+          const previewImageSrc = resolveApiUrl(message.image_preview_data ?? message.image_data);
+          const originalImageSrc = resolveApiUrl(message.image_data ?? message.image_preview_data);
           const hasFollowingAssistant = message.role === "user" && messages[messageIndex + 1]?.role === "assistant";
           return (
           <article
@@ -591,26 +575,26 @@ export function ChatView() {
                     style={{ display: "none" }}
                     onChange={(e) => void handleEditImageChange(e)}
                   />
-                  {editingImageData && (
+                  {editingImage && (
                     <div className="edit-image-preview-row">
-                      <img src={resolveApiUrl(editingImageData)} alt="添付画像" className="edit-image-preview-thumb" />
+                      <img src={resolveApiUrl(editingImage.imagePreviewData)} alt="添付画像" className="edit-image-preview-thumb" />
                       <button
                         type="button"
                         className="edit-image-preview-remove"
-                        onClick={() => setEditingImageData(null)}
+                        onClick={() => setEditingImage(null)}
                         title="画像を削除"
                       >✕</button>
                     </div>
                   )}
                 </>
-              ) : message.image_data ? (
+              ) : (message.image_data || message.image_preview_data) ? (
                 <button
                   type="button"
                   className="message-image-button"
-                  onClick={() => setExpandedImage(imageSrc)}
+                  onClick={() => setExpandedImage(originalImageSrc)}
                   title="クリックで拡大"
                 >
-                  <img src={imageSrc} alt="添付画像" className="message-image" />
+                  <img src={previewImageSrc} alt="添付画像" className="message-image" />
                 </button>
               ) : null}
               {editingId === message.id ? (
@@ -765,7 +749,7 @@ export function ChatView() {
                   <button
                     className="msg-action-btn"
                     title="編集"
-                    onClick={() => startEdit(message.id, message.content, message.image_data ?? null)}
+                    onClick={() => startEdit(message.id, message.content, message.image_data ?? null, message.image_preview_data ?? null)}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>

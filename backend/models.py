@@ -46,6 +46,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     image_data: str | None = None
+    image_preview_data: str | None = None
     has_prompt_log: bool = False
     created_at: str = Field(default_factory=now_iso)
     prompt_tokens: int | None = None
@@ -60,6 +61,7 @@ class MessageCreate(BaseModel):
     role: Literal["user", "assistant", "system"]
     content: str
     image_data: str | None = None
+    image_preview_data: str | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     tokens_per_second: float | None = None
@@ -101,12 +103,14 @@ class SessionUpdate(BaseModel):
 class MessageUpdate(BaseModel):
     content: str
     image_data: str | None = None
+    image_preview_data: str | None = None
 
 
 class ChatSendRequest(BaseModel):
     session_id: str
     content: str
     image_data: str | None = None
+    image_preview_data: str | None = None
     memory_enabled: bool = True
     doc_rag_enabled: bool = True
     thinking_enabled: bool = False

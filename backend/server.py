@@ -229,6 +229,17 @@ def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
     return save_data_url_image(_IMAGE_DIR, session.workspace_id, session.id, image_data)
 
 
+def _prepare_image_fields(
+    session_id: str,
+    image_data: str | None,
+    image_preview_data: str | None,
+) -> tuple[str | None, str | None]:
+    return (
+        _prepare_image_data(session_id, image_data),
+        _prepare_image_data(session_id, image_preview_data),
+    )
+
+
 def _save_prompt_log_if_enabled(session_id: str, assistant_message_id: str, prompt_messages: list[dict]) -> None:
     if not get_settings_data().get("debug_prompt_log", False):
         return
@@ -741,15 +752,20 @@ def delete_message(message_id: str) -> dict[str, bool]:
 
 @app.patch("/history/messages/{message_id}", response_model=Message)
 def update_message(message_id: str, payload: MessageUpdate) -> Message:
-    stored_image_data = payload.image_data
-    if payload.image_data and payload.image_data.startswith("data:"):
-        # 新しい data: URL はファイルに保存してパスに変換する
-        session_id = store.get_message_session_id(message_id)
-        if session_id is None:
-            raise HTTPException(status_code=404, detail="Message not found")
-        stored_image_data = _prepare_image_data(session_id, payload.image_data)
-
-    message = store.update_message(message_id, payload.content, stored_image_data)
+    session_id = store.get_message_session_id(message_id)
+    if session_id is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    stored_image_data, stored_image_preview_data = _prepare_image_fields(
+        session_id,
+        payload.image_data,
+        payload.image_preview_data,
+    )
+    message = store.update_message(
+        message_id,
+        payload.content,
+        stored_image_data,
+        stored_image_preview_data,
+    )
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
     return message
@@ -813,8 +829,20 @@ def chat_temp_stream(payload: TempChatRequest) -> StreamingResponse:
 
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
-    stored_image_data = _prepare_image_data(payload.session_id, payload.image_data)
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=stored_image_data))
+    stored_image_data, stored_image_preview_data = _prepare_image_fields(
+        payload.session_id,
+        payload.image_data,
+        payload.image_preview_data,
+    )
+    user_message = store.append_message(
+        payload.session_id,
+        MessageCreate(
+            role="user",
+            content=payload.content,
+            image_data=stored_image_data,
+            image_preview_data=stored_image_preview_data,
+        ),
+    )
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -852,8 +880,20 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
 
 @app.post("/chat/send/stream")
 def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
-    stored_image_data = _prepare_image_data(payload.session_id, payload.image_data)
-    user_message = store.append_message(payload.session_id, MessageCreate(role="user", content=payload.content, image_data=stored_image_data))
+    stored_image_data, stored_image_preview_data = _prepare_image_fields(
+        payload.session_id,
+        payload.image_data,
+        payload.image_preview_data,
+    )
+    user_message = store.append_message(
+        payload.session_id,
+        MessageCreate(
+            role="user",
+            content=payload.content,
+            image_data=stored_image_data,
+            image_preview_data=stored_image_preview_data,
+        ),
+    )
     if user_message is None:
         raise HTTPException(status_code=404, detail="Session not found")
 

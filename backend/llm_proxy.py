@@ -72,11 +72,12 @@ def build_chat_messages(session: Session, memory_context: str = "", system_promp
 
     messages: list[dict] = [{"role": "system", "content": effective_prompt}]
     for message in session.messages:
-        if message.image_data:
+        image_ref = message.image_preview_data or message.image_data
+        if image_ref:
             content: list[dict] = []
             if message.content:
                 content.append({"type": "text", "text": message.content})
-            content.append({"type": "image_url", "image_url": {"url": _resolve_image_url(message.image_data)}})
+            content.append({"type": "image_url", "image_url": {"url": _resolve_image_url(image_ref)}})
             messages.append({"role": message.role, "content": content})
         else:
             messages.append({"role": message.role, "content": message.content})

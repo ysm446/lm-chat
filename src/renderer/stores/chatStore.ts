@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   ApiDocument,
+  ImageAttachmentInput,
   ApiMessage,
   ApiSession,
   ApiWorkspace,
@@ -135,22 +136,23 @@ type ChatState = {
   selectDocument: (docId: string | null) => void;
   documentsForWorkspace: (workspaceId: string) => ApiDocument[];
   deleteMessage: (sessionId: string, messageId: string) => Promise<void>;
-  editMessage: (sessionId: string, messageId: string, content: string, imageData?: string | null) => Promise<void>;
+  editMessage: (sessionId: string, messageId: string, content: string, image?: ImageAttachmentInput | null) => Promise<void>;
   branchSession: (sessionId: string, messageId: string) => Promise<void>;
   regenerateMessage: (sessionId: string, userMessageId: string) => Promise<void>;
   stopGeneration: () => void;
   continueGeneration: (sessionId: string) => Promise<void>;
-  sendMessage: (sessionId: string, content: string, imageData?: string | null) => Promise<void>;
+  sendMessage: (sessionId: string, content: string, image?: ImageAttachmentInput | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
   sessionsForCurrentWorkspace: () => ApiSession[];
 };
 
-const optimisticMessage = (role: ApiMessage["role"], content: string, imageData?: string | null): ApiMessage => ({
+const optimisticMessage = (role: ApiMessage["role"], content: string, image?: ImageAttachmentInput | null): ApiMessage => ({
   id: `tmp-${crypto.randomUUID()}`,
   role,
   content,
-  image_data: imageData ?? null,
+  image_data: image?.imageData ?? null,
+  image_preview_data: image?.imagePreviewData ?? null,
   has_prompt_log: false,
   created_at: new Date().toISOString(),
   prompt_tokens: null,
@@ -628,12 +630,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 
-  editMessage: async (sessionId, messageId, content, imageData) => {
-    const updated = await updateMessageRequest(messageId, content, imageData);
+  editMessage: async (sessionId, messageId, content, image) => {
+    const updated = await updateMessageRequest(messageId, content, image);
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.id === sessionId
-          ? { ...s, messages: s.messages.map((m) => (m.id === messageId ? { ...m, content: updated.content, image_data: updated.image_data } : m)) }
+          ? {
+              ...s,
+              messages: s.messages.map((m) => (
+                m.id === messageId
+                  ? {
+                      ...m,
+                      content: updated.content,
+                      image_data: updated.image_data,
+                      image_preview_data: updated.image_preview_data,
+                    }
+                  : m
+              )),
+            }
           : s
       )
     }));
@@ -753,11 +767,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (sessionId, content, imageData) => {
+  sendMessage: async (sessionId, content, image) => {
     const current = get().sessions.find((session) => session.id === sessionId);
     if (!current) return;
 
-    const user = optimisticMessage("user", content, imageData);
+    const user = optimisticMessage("user", content, image);
     const assistant = optimisticMessage("assistant", "");
 
     const controller = new AbortController();
@@ -777,7 +791,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      await streamChatMessage(sessionId, content, imageData ?? null, get().memoryEnabled, get().docRagEnabled, get().thinkingEnabled, {
+      await streamChatMessage(sessionId, content, image ?? null, get().memoryEnabled, get().docRagEnabled, get().thinkingEnabled, {
         onToken: (chunk) => {
           tokenCount++;
           set((state) => ({
