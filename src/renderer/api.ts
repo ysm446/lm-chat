@@ -247,6 +247,8 @@ export function getConfig() {
     n_gpu_layers: number;
     temperature: number;
     completion_length: number;
+    memory_context_top_k: number;
+    document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
   }>("/config");
@@ -257,6 +259,8 @@ export function updateConfig(patch: {
   n_gpu_layers?: number;
   temperature?: number;
   completion_length?: number;
+  memory_context_top_k?: number;
+  document_context_top_k?: number;
   memory_context_chars?: number;
   document_context_chars?: number;
 }) {
@@ -265,6 +269,8 @@ export function updateConfig(patch: {
     n_gpu_layers: number;
     temperature: number;
     completion_length: number;
+    memory_context_top_k: number;
+    document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
   }>("/config", {

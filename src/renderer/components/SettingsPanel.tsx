@@ -21,8 +21,9 @@ const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> =
 const DEFAULTS = {
   temperature: 0.8,
   ctx_size: 32768,
-  n_gpu_layers: -1,
   completion_length: 80,
+  memory_context_top_k: 5,
+  document_context_top_k: 3,
   memory_context_chars: 1500,
   document_context_chars: 2000,
 } as const;
@@ -62,9 +63,10 @@ export function SettingsPanel() {
 
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [ctxSize, setCtxSize] = useState(32768);
-  const [nGpuLayers, setNGpuLayers] = useState(-1);
   const [temperature, setTemperature] = useState(0.8);
   const [completionLength, setCompletionLength] = useState(80);
+  const [memoryContextTopK, setMemoryContextTopK] = useState<number>(DEFAULTS.memory_context_top_k);
+  const [documentContextTopK, setDocumentContextTopK] = useState<number>(DEFAULTS.document_context_top_k);
   const [memoryContextChars, setMemoryContextChars] = useState<number>(DEFAULTS.memory_context_chars);
   const [documentContextChars, setDocumentContextChars] = useState<number>(DEFAULTS.document_context_chars);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
@@ -107,9 +109,10 @@ export function SettingsPanel() {
     getConfig()
       .then((cfg) => {
         setCtxSize(cfg.ctx_size);
-        setNGpuLayers(cfg.n_gpu_layers);
         setTemperature(cfg.temperature ?? 0.8);
         setCompletionLength(cfg.completion_length ?? 80);
+        setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
+        setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
         setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
         setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
       })
@@ -181,9 +184,10 @@ export function SettingsPanel() {
 
   const handleSave = async (patch: {
     ctx_size?: number;
-    n_gpu_layers?: number;
     temperature?: number;
     completion_length?: number;
+    memory_context_top_k?: number;
+    document_context_top_k?: number;
     memory_context_chars?: number;
     document_context_chars?: number;
   }) => {
@@ -191,9 +195,10 @@ export function SettingsPanel() {
     try {
       const cfg = await updateConfig(patch);
       setCtxSize(cfg.ctx_size);
-      setNGpuLayers(cfg.n_gpu_layers);
       setTemperature(cfg.temperature ?? 0.8);
       setCompletionLength(cfg.completion_length ?? 80);
+      setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
+      setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
       setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
       setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
       setSaved(true);
@@ -325,7 +330,6 @@ export function SettingsPanel() {
   const ctxPresetOptions = CTX_SIZE_PRESETS.filter((value) => value <= ctxMax);
   const effectiveCtxPresets = ctxPresetOptions.length > 0 ? ctxPresetOptions : [ctxMax];
   const currentCtxPresetIndex = getNearestCtxPresetIndex(ctxSize, effectiveCtxPresets);
-  const gpuMax = 100;
 
   return (
     <>
@@ -500,7 +504,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row">
               <div className="settings-toggle-copy">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("テキスト選択時の校正ボタンと校正ポップアップを有効にします。補完とは独立して切り替えられます。")} onMouseLeave={onTipLeave}>校正</span>
-                <span className="settings-field-hint">補完とは独立して動作します</span>
               </div>
               <button
                 type="button"
@@ -556,9 +559,9 @@ export function SettingsPanel() {
         )}
       </section>
 
-      {/* Context and Offload */}
+      {/* Context */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("Temperature、Context Length、GPU Offload などの生成設定です。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("Temperature や Context Length などの生成設定です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>
@@ -566,7 +569,7 @@ export function SettingsPanel() {
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/>
             </svg>
           </span>
-          <span>Context and Offload</span>
+          <span>Context</span>
           <svg className={`settings-chevron${contextOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -643,6 +646,37 @@ export function SettingsPanel() {
 
             <div className="settings-field">
               <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Hits</span>
+                <div className="settings-field-controls">
+                  {documentContextTopK !== DEFAULTS.document_context_top_k && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextTopK(DEFAULTS.document_context_top_k); void handleSave({ document_context_top_k: DEFAULTS.document_context_top_k }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentContextTopK.toLocaleString()}件</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentContextTopK !== DEFAULTS.document_context_top_k ? " active" : ""}`}
+                type="range"
+                min={0}
+                max={10}
+                step={1}
+                value={documentContextTopK}
+                onChange={(e) => setDocumentContextTopK(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
+                onKeyUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
+              />
+              <div className="settings-slider-labels">
+                <span>0件</span>
+                <span>10件</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Context</span>
                 <div className="settings-field-controls">
                   {documentContextChars !== DEFAULTS.document_context_chars && (
@@ -655,7 +689,6 @@ export function SettingsPanel() {
                   <span className="settings-value-badge">{documentContextChars.toLocaleString()}字</span>
                 </div>
               </div>
-              <p className="settings-field-hint">Documents から検索した補助情報の上限です</p>
               <input
                 className={`settings-slider${documentContextChars !== DEFAULTS.document_context_chars ? " active" : ""}`}
                 type="range"
@@ -675,6 +708,37 @@ export function SettingsPanel() {
 
             <div className="settings-field">
               <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った過去記憶を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Memory Hits</span>
+                <div className="settings-field-controls">
+                  {memoryContextTopK !== DEFAULTS.memory_context_top_k && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setMemoryContextTopK(DEFAULTS.memory_context_top_k); void handleSave({ memory_context_top_k: DEFAULTS.memory_context_top_k }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{memoryContextTopK.toLocaleString()}件</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${memoryContextTopK !== DEFAULTS.memory_context_top_k ? " active" : ""}`}
+                type="range"
+                min={0}
+                max={10}
+                step={1}
+                value={memoryContextTopK}
+                onChange={(e) => setMemoryContextTopK(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ memory_context_top_k: memoryContextTopK })}
+                onKeyUp={() => void handleSave({ memory_context_top_k: memoryContextTopK })}
+              />
+              <div className="settings-slider-labels">
+                <span>0件</span>
+                <span>10件</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った過去記憶コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Memory Context</span>
                 <div className="settings-field-controls">
                   {memoryContextChars !== DEFAULTS.memory_context_chars && (
@@ -687,7 +751,6 @@ export function SettingsPanel() {
                   <span className="settings-value-badge">{memoryContextChars.toLocaleString()}字</span>
                 </div>
               </div>
-              <p className="settings-field-hint">過去会話の記憶検索から追加する補助情報の上限です</p>
               <input
                 className={`settings-slider${memoryContextChars !== DEFAULTS.memory_context_chars ? " active" : ""}`}
                 type="range"
@@ -703,40 +766,6 @@ export function SettingsPanel() {
                 <span>0字</span>
                 <span>6000字</span>
               </div>
-            </div>
-
-            <div className="settings-field">
-              <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("GPUにオフロードするレイヤー数です。-1 で全レイヤー対象になります。VRAMが足りない場合は値を下げてください。")} onMouseLeave={onTipLeave}>GPU Offload</span>
-                <div className="settings-field-controls">
-                  {nGpuLayers !== DEFAULTS.n_gpu_layers && (
-                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setNGpuLayers(DEFAULTS.n_gpu_layers); void handleSave({ n_gpu_layers: DEFAULTS.n_gpu_layers }); }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  )}
-                  <input
-                    className="settings-number-input"
-                    type="number"
-                    min={-1}
-                    max={gpuMax}
-                    value={nGpuLayers}
-                    onChange={(e) => setNGpuLayers(Number(e.target.value))}
-                    onBlur={() => void handleSave({ n_gpu_layers: nGpuLayers })}
-                    onKeyDown={(e) => { if (e.key === "Enter") void handleSave({ n_gpu_layers: nGpuLayers }); }}
-                  />
-                </div>
-              </div>
-              <input
-                className="settings-slider"
-                type="range"
-                min={-1}
-                max={gpuMax}
-                value={nGpuLayers}
-                onChange={(e) => setNGpuLayers(Number(e.target.value))}
-                onMouseUp={() => void handleSave({ n_gpu_layers: nGpuLayers })}
-              />
             </div>
 
             {saved && <p className="settings-saved-msg">保存しました</p>}
@@ -794,7 +823,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label">データをエクスポート</span>
-                <span className="settings-field-hint"><code>lm_chat.db</code>、画像、Documents、設定ファイルを zip にまとめて保存</span>
                 {dataExportResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataExportResult}</span>
                 ) : null}
@@ -812,7 +840,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label">データをインポート</span>
-                <span className="settings-field-hint">zip から data フォルダ一式を復元。実行後は再起動が必要です</span>
                 {dataImportResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataImportResult}</span>
                 ) : null}
@@ -853,7 +880,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row">
               <div className="settings-toggle-copy">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("assistant の各返信に対して、LLM へ送る直前の messages 全体を保存します。会話中のアイコンから後で確認できます。")} onMouseLeave={onTipLeave}>プロンプト全文を保存</span>
-                <span className="settings-field-hint">送信直前の messages 一式を assistant ごとに保存して確認</span>
               </div>
               <button
                 type="button"
@@ -873,7 +899,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("assistant ごとに保存されたプロンプト全文を一括削除します。会話履歴本文は消えません。")} onMouseLeave={onTipLeave}>保存済みプロンプト全文を全削除</span>
-                <span className="settings-field-hint">message_prompt_logs テーブルの内容だけを削除</span>
                 {promptLogCleanupResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{promptLogCleanupResult}</span>
                 ) : null}
@@ -891,7 +916,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("セッション・ワークスペース・documents と紐づかない孤立データをまとめて掃除します。記憶チャンク、資料チャンク、全文検索行、ベクトル行、未参照ファイルが対象です。")} onMouseLeave={onTipLeave}>データベースのクリーンナップ</span>
-                <span className="settings-field-hint">孤立した記憶データ、資料インデックス、未参照ファイルをまとめて安全に削除</span>
                 {databaseCleanupResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{databaseCleanupResult}</span>
                 ) : null}
@@ -909,7 +933,6 @@ export function SettingsPanel() {
             <div className="settings-toggle-row" style={{ marginTop: 10 }}>
               <div className="settings-toggle-copy">
                 <span className="settings-field-label">システムリソース</span>
-                <span className="settings-field-hint">CPU・RAM・GPU・VRAMの使用状況</span>
               </div>
               <button
                 type="button"

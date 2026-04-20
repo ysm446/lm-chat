@@ -9,6 +9,8 @@ _DEFAULTS: dict = {
     "n_gpu_layers": -1,
     "temperature": 0.8,
     "completion_length": 80,
+    "memory_context_top_k": 5,
+    "document_context_top_k": 3,
     "memory_context_chars": 1500,
     "document_context_chars": 2000,
 }

@@ -115,10 +115,14 @@ threading.Thread(target=warmup_embedder, daemon=True).start()
 
 def build_memory_context(session: Session, query: str) -> str:
     try:
+        config = get_config_data()
+        top_k = max(0, int(config.get("memory_context_top_k", 5)))
+        if top_k <= 0:
+            return ""
         context = memory_engine.build_prompt_context(
             session.workspace_id,
             query,
-            top_k=5,
+            top_k=top_k,
             exclude_session_id=session.id,
         )
         logger.debug("Memory context built (%d chars): %s", len(context), context[:120])
@@ -131,7 +135,11 @@ def build_memory_context(session: Session, query: str) -> str:
 def build_document_context(session: Session, query: str) -> str:
     """ワークスペース資料から関連チャンクを取得してコンテキスト文字列を組み立てる。"""
     try:
-        chunks = store.search_documents(session.workspace_id, query, top_k=3)
+        config = get_config_data()
+        top_k = max(0, int(config.get("document_context_top_k", 3)))
+        if top_k <= 0:
+            return ""
+        chunks = store.search_documents(session.workspace_id, query, top_k=top_k)
         if not chunks:
             return ""
         lines = [
