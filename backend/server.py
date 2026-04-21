@@ -138,6 +138,7 @@ def build_memory_context(session: Session, query: str) -> str:
     try:
         config = get_config_data()
         top_k = max(0, int(config.get("memory_context_top_k", 5)))
+        half_life_days = max(1, int(config.get("memory_decay_half_life_days", 30)))
         if top_k <= 0:
             return ""
         context = memory_engine.build_prompt_context(
@@ -145,6 +146,7 @@ def build_memory_context(session: Session, query: str) -> str:
             query,
             top_k=top_k,
             exclude_session_id=session.id,
+            half_life_days=half_life_days,
         )
         logger.debug("Memory context built (%d chars): %s", len(context), context[:120])
         return context
@@ -1223,7 +1225,8 @@ def save_memory(payload: MemorySaveRequest) -> dict[str, int]:
 
 @app.get("/memory/search", response_model=MemorySearchResult)
 def search_memory(query: str, workspace_id: str, top_k: int = 5) -> MemorySearchResult:
-    items = memory_engine.search(workspace_id, query, top_k)
+    half_life_days = max(1, int(get_config_data().get("memory_decay_half_life_days", 30)))
+    items = memory_engine.search(workspace_id, query, top_k, half_life_days=half_life_days)
     return MemorySearchResult(query=query, workspace_id=workspace_id, items=items)
 
 

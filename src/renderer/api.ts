@@ -257,6 +257,7 @@ export function getConfig() {
     document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
+    memory_decay_half_life_days: number;
     document_chunk_target_chars: number;
     document_chunk_max_chars: number;
     document_chunk_overlap_chars: number;
@@ -272,6 +273,7 @@ export function updateConfig(patch: {
   document_context_top_k?: number;
   memory_context_chars?: number;
   document_context_chars?: number;
+  memory_decay_half_life_days?: number;
   document_chunk_target_chars?: number;
   document_chunk_max_chars?: number;
   document_chunk_overlap_chars?: number;
@@ -285,6 +287,7 @@ export function updateConfig(patch: {
     document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
+    memory_decay_half_life_days: number;
     document_chunk_target_chars: number;
     document_chunk_max_chars: number;
     document_chunk_overlap_chars: number;

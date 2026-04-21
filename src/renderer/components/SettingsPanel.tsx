@@ -26,6 +26,7 @@ const DEFAULTS = {
   document_context_top_k: 3,
   memory_context_chars: 1500,
   document_context_chars: 2000,
+  memory_decay_half_life_days: 30,
   document_chunk_target_chars: 800,
   document_chunk_max_chars: 1000,
   document_chunk_overlap_chars: 100,
@@ -72,6 +73,7 @@ export function SettingsPanel() {
   const [documentContextTopK, setDocumentContextTopK] = useState<number>(DEFAULTS.document_context_top_k);
   const [memoryContextChars, setMemoryContextChars] = useState<number>(DEFAULTS.memory_context_chars);
   const [documentContextChars, setDocumentContextChars] = useState<number>(DEFAULTS.document_context_chars);
+  const [memoryDecayHalfLifeDays, setMemoryDecayHalfLifeDays] = useState<number>(DEFAULTS.memory_decay_half_life_days);
   const [documentChunkTargetChars, setDocumentChunkTargetChars] = useState<number>(DEFAULTS.document_chunk_target_chars);
   const [documentChunkMaxChars, setDocumentChunkMaxChars] = useState<number>(DEFAULTS.document_chunk_max_chars);
   const [documentChunkOverlapChars, setDocumentChunkOverlapChars] = useState<number>(DEFAULTS.document_chunk_overlap_chars);
@@ -80,6 +82,7 @@ export function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
@@ -124,6 +127,7 @@ export function SettingsPanel() {
         setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
         setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
         setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
+        setMemoryDecayHalfLifeDays(cfg.memory_decay_half_life_days ?? DEFAULTS.memory_decay_half_life_days);
         setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
         setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
         setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
@@ -202,6 +206,7 @@ export function SettingsPanel() {
     document_context_top_k?: number;
     memory_context_chars?: number;
     document_context_chars?: number;
+    memory_decay_half_life_days?: number;
     document_chunk_target_chars?: number;
     document_chunk_max_chars?: number;
     document_chunk_overlap_chars?: number;
@@ -216,6 +221,7 @@ export function SettingsPanel() {
       setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
       setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
       setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
+      setMemoryDecayHalfLifeDays(cfg.memory_decay_half_life_days ?? DEFAULTS.memory_decay_half_life_days);
       setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
       setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
       setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
@@ -744,6 +750,29 @@ export function SettingsPanel() {
               </div>
             </div>
 
+            {saved && <p className="settings-saved-msg">保存しました</p>}
+            {saving && <p className="settings-saved-msg">保存中…</p>}
+          </div>
+        )}
+      </section>
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setMemoryOpen((v) => !v)} onMouseEnter={onTipEnter("Memory 検索の量と新しさの効き方を調整します。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5C7.582 5 4 7.239 4 10s3.582 5 8 5 8-2.239 8-5-3.582-5-8-5z"/>
+              <path d="M6 14.5V17c0 2.209 2.686 4 6 4s6-1.791 6-4v-2.5"/>
+              <path d="M6 10.5V13"/>
+              <path d="M18 10.5V13"/>
+            </svg>
+          </span>
+          <span>Memory</span>
+          <svg className={`settings-chevron${memoryOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {memoryOpen && (
+          <div className="settings-section-body">
             <div className="settings-field">
               <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った過去記憶を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Memory Hits</span>
@@ -803,6 +832,37 @@ export function SettingsPanel() {
               <div className="settings-slider-labels">
                 <span>0字</span>
                 <span>6000字</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("古い記憶のスコアが半分になるまでの日数です。短いほど新しい会話を優先します。")} onMouseLeave={onTipLeave}>半減期</span>
+                <div className="settings-field-controls">
+                  {memoryDecayHalfLifeDays !== DEFAULTS.memory_decay_half_life_days && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setMemoryDecayHalfLifeDays(DEFAULTS.memory_decay_half_life_days); void handleSave({ memory_decay_half_life_days: DEFAULTS.memory_decay_half_life_days }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{memoryDecayHalfLifeDays.toLocaleString()}日</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${memoryDecayHalfLifeDays !== DEFAULTS.memory_decay_half_life_days ? " active" : ""}`}
+                type="range"
+                min={1}
+                max={180}
+                step={1}
+                value={memoryDecayHalfLifeDays}
+                onChange={(e) => setMemoryDecayHalfLifeDays(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ memory_decay_half_life_days: memoryDecayHalfLifeDays })}
+                onKeyUp={() => void handleSave({ memory_decay_half_life_days: memoryDecayHalfLifeDays })}
+              />
+              <div className="settings-slider-labels">
+                <span>1日</span>
+                <span>180日</span>
               </div>
             </div>
 

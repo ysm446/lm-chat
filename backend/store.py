@@ -863,6 +863,7 @@ class SQLiteStore:
         query: str,
         top_k: int,
         exclude_session_id: str | None = None,
+        half_life_days: int = 30,
     ) -> list[MemoryChunk]:
         from .memory.embedder import embed
         import math
@@ -871,7 +872,7 @@ class SQLiteStore:
         logger = logging.getLogger(__name__)
         query_vec = embed(query)
         rrf_k = 60
-        half_life_days = 30
+        half_life_days = max(1, int(half_life_days))
         scores: dict[str, float] = {}
         exclude_clause = " AND mc.session_id != ?" if exclude_session_id else ""
         exclude_params = (exclude_session_id,) if exclude_session_id else ()

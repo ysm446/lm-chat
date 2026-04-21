@@ -19,12 +19,14 @@ class MemoryEngine:
         query: str,
         top_k: int,
         exclude_session_id: str | None = None,
+        half_life_days: int = 30,
     ) -> list[MemoryChunk]:
         return self.store.search_memory(
             workspace_id,
             query,
             top_k,
             exclude_session_id=exclude_session_id,
+            half_life_days=half_life_days,
         )
 
     def build_prompt_context(
@@ -33,8 +35,15 @@ class MemoryEngine:
         query: str,
         top_k: int = 5,
         exclude_session_id: str | None = None,
+        half_life_days: int = 30,
     ) -> str:
-        items = self.search(workspace_id, query, top_k, exclude_session_id=exclude_session_id)
+        items = self.search(
+            workspace_id,
+            query,
+            top_k,
+            exclude_session_id=exclude_session_id,
+            half_life_days=half_life_days,
+        )
         if not items:
             return ""
 
