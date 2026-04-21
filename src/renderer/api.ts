@@ -298,11 +298,71 @@ export function updateConfig(patch: {
 }
 
 export function getSettings() {
-  return request<{ show_left: boolean; show_right: boolean; ui_font: string; ui_font_size: number; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings");
+  return request<{
+    show_left: boolean;
+    show_right: boolean;
+    sidebar_expanded_workspace_ids: string[];
+    sidebar_expanded_document_workspace_ids: string[];
+    ui_font: string;
+    ui_font_size: number;
+    correction_enabled: boolean;
+    correction_prompt_mode: string;
+    correction_custom_prompt: string;
+    debug_prompt_log: boolean;
+    settings_context_open: boolean;
+    settings_memory_open: boolean;
+    settings_documents_open: boolean;
+    settings_advanced_open: boolean;
+    settings_system_prompt_open: boolean;
+    settings_interface_open: boolean;
+    settings_completion_open: boolean;
+    settings_data_open: boolean;
+    settings_debug_open: boolean;
+  }>("/settings");
 }
 
-export function updateSettings(patch: { show_left?: boolean; show_right?: boolean; ui_font?: string; ui_font_size?: number; correction_enabled?: boolean; correction_prompt_mode?: string; correction_custom_prompt?: string; debug_prompt_log?: boolean }) {
-  return request<{ show_left: boolean; show_right: boolean; ui_font: string; ui_font_size: number; correction_enabled: boolean; correction_prompt_mode: string; correction_custom_prompt: string; debug_prompt_log: boolean }>("/settings", {
+export function updateSettings(patch: {
+  show_left?: boolean;
+  show_right?: boolean;
+  sidebar_expanded_workspace_ids?: string[];
+  sidebar_expanded_document_workspace_ids?: string[];
+  ui_font?: string;
+  ui_font_size?: number;
+  correction_enabled?: boolean;
+  correction_prompt_mode?: string;
+  correction_custom_prompt?: string;
+  debug_prompt_log?: boolean;
+  settings_context_open?: boolean;
+  settings_memory_open?: boolean;
+  settings_documents_open?: boolean;
+  settings_advanced_open?: boolean;
+  settings_system_prompt_open?: boolean;
+  settings_interface_open?: boolean;
+  settings_completion_open?: boolean;
+  settings_data_open?: boolean;
+  settings_debug_open?: boolean;
+}) {
+  return request<{
+    show_left: boolean;
+    show_right: boolean;
+    sidebar_expanded_workspace_ids: string[];
+    sidebar_expanded_document_workspace_ids: string[];
+    ui_font: string;
+    ui_font_size: number;
+    correction_enabled: boolean;
+    correction_prompt_mode: string;
+    correction_custom_prompt: string;
+    debug_prompt_log: boolean;
+    settings_context_open: boolean;
+    settings_memory_open: boolean;
+    settings_documents_open: boolean;
+    settings_advanced_open: boolean;
+    settings_system_prompt_open: boolean;
+    settings_interface_open: boolean;
+    settings_completion_open: boolean;
+    settings_data_open: boolean;
+    settings_debug_open: boolean;
+  }>("/settings", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

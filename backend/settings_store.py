@@ -7,12 +7,23 @@ _PATH = Path(__file__).resolve().parent.parent / "data" / "settings.json"
 _DEFAULTS: dict = {
     "show_left": True,
     "show_right": True,
+    "sidebar_expanded_workspace_ids": [],
+    "sidebar_expanded_document_workspace_ids": [],
     "ui_font": "default-sans",
     "ui_font_size": 14,
     "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",
     "debug_prompt_log": False,
+    "settings_context_open": False,
+    "settings_memory_open": False,
+    "settings_documents_open": False,
+    "settings_advanced_open": False,
+    "settings_system_prompt_open": False,
+    "settings_interface_open": False,
+    "settings_completion_open": False,
+    "settings_data_open": False,
+    "settings_debug_open": False,
 }
 
 

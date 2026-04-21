@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiDocument } from "../api";
+import { ApiDocument, getSettings, updateSettings } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type WsMenu = { id: string; name: string; description: string; x: number; y: number };
@@ -72,13 +72,36 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const isSearching = normalizedSearchQuery.length > 0;
   const isRenaming = editingWsId !== null || editingSessionId !== null;
+  const sidebarStateLoadedRef = useRef(false);
 
   // 現在のワークスペースが切り替わったら自動展開
+  useEffect(() => {
+    getSettings()
+      .then((settings) => {
+        setExpanded(new Set(settings.sidebar_expanded_workspace_ids ?? []));
+        setDocsExpanded(new Set(settings.sidebar_expanded_document_workspace_ids ?? []));
+        sidebarStateLoadedRef.current = true;
+      })
+      .catch(() => {
+        sidebarStateLoadedRef.current = true;
+      });
+  }, []);
+
   useEffect(() => {
     if (currentWorkspaceId) {
       setExpanded((prev) => new Set([...prev, currentWorkspaceId]));
     }
   }, [currentWorkspaceId]);
+
+  useEffect(() => {
+    if (!sidebarStateLoadedRef.current) return;
+    void updateSettings({ sidebar_expanded_workspace_ids: Array.from(expanded) });
+  }, [expanded]);
+
+  useEffect(() => {
+    if (!sidebarStateLoadedRef.current) return;
+    void updateSettings({ sidebar_expanded_document_workspace_ids: Array.from(docsExpanded) });
+  }, [docsExpanded]);
 
   useEffect(() => { if (showNewWs) newWsInputRef.current?.focus(); }, [showNewWs]);
   useEffect(() => { if (editingWsId) { editWsNameRef.current?.focus(); editWsNameRef.current?.select(); } }, [editingWsId]);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type Dispatch, type SetStateAction } from "react";
 import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, exportDataArchive, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, importDataArchive, listSystemPrompts, reindexDocuments, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
@@ -112,6 +112,7 @@ export function SettingsPanel() {
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
   const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
+  const settingsOpenStateLoadedRef = useRef(false);
 
   const loadMemoryStats = useCallback(() => {
     fetchMemoryStats().then(setStats).catch(() => {});
@@ -152,8 +153,20 @@ export function SettingsPanel() {
         setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
         setCustomCorrectionPrompt(s.correction_custom_prompt || "");
         setDebugPromptLog(s.debug_prompt_log ?? false);
+        setContextOpen(s.settings_context_open ?? false);
+        setMemoryOpen(s.settings_memory_open ?? false);
+        setDocumentsOpen(s.settings_documents_open ?? false);
+        setAdvancedOpen(s.settings_advanced_open ?? false);
+        setSystemPromptOpen(s.settings_system_prompt_open ?? false);
+        setInterfaceOpen(s.settings_interface_open ?? false);
+        setCompletionOpen(s.settings_completion_open ?? false);
+        setDataOpen(s.settings_data_open ?? false);
+        setDebugOpen(s.settings_debug_open ?? false);
+        settingsOpenStateLoadedRef.current = true;
       })
-      .catch(() => {});
+      .catch(() => {
+        settingsOpenStateLoadedRef.current = true;
+      });
   }, []);
 
   useEffect(() => {
@@ -370,6 +383,31 @@ export function SettingsPanel() {
     setTooltip(null);
   }, []);
 
+  const toggleSettingsSection = useCallback(
+    (
+      setter: Dispatch<SetStateAction<boolean>>,
+      key:
+        | "settings_context_open"
+        | "settings_memory_open"
+        | "settings_documents_open"
+        | "settings_advanced_open"
+        | "settings_system_prompt_open"
+        | "settings_interface_open"
+        | "settings_completion_open"
+        | "settings_data_open"
+        | "settings_debug_open"
+    ) => {
+      setter((prev) => {
+        const next = !prev;
+        if (settingsOpenStateLoadedRef.current) {
+          void updateSettings({ [key]: next });
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   const ctxMax = modelMaxCtx ?? 131072;
   const ctxPresetOptions = CTX_SIZE_PRESETS.filter((value) => value <= ctxMax);
   const effectiveCtxPresets = ctxPresetOptions.length > 0 ? ctxPresetOptions : [ctxMax];
@@ -380,7 +418,7 @@ export function SettingsPanel() {
     <div className="settings-stack">
       {/* System Prompt */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setSystemPromptOpen((v) => !v)} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存や呼び出しもできます。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setSystemPromptOpen, "settings_system_prompt_open")} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存や呼び出しもできます。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -415,7 +453,7 @@ export function SettingsPanel() {
 
       {/* Interface */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setInterfaceOpen((v) => !v)} onMouseEnter={onTipEnter("Switch the UI text font for the app.")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setInterfaceOpen, "settings_interface_open")} onMouseEnter={onTipEnter("Switch the UI text font for the app.")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
@@ -496,7 +534,7 @@ export function SettingsPanel() {
 
       {/* Completion */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setCompletionOpen((v) => !v)} onMouseEnter={onTipEnter("インライン補完の長さと、校正機能・校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setCompletionOpen, "settings_completion_open")} onMouseEnter={onTipEnter("インライン補完の長さと、校正機能・校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
@@ -605,7 +643,7 @@ export function SettingsPanel() {
 
       {/* Context */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setContextOpen((v) => !v)} onMouseEnter={onTipEnter("Temperature や Context Length などの生成設定です。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setContextOpen, "settings_context_open")} onMouseEnter={onTipEnter("Temperature や Context Length などの生成設定です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>
@@ -688,75 +726,13 @@ export function SettingsPanel() {
               />
             </div>
 
-            <div className="settings-field">
-              <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Hits</span>
-                <div className="settings-field-controls">
-                  {documentContextTopK !== DEFAULTS.document_context_top_k && (
-                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextTopK(DEFAULTS.document_context_top_k); void handleSave({ document_context_top_k: DEFAULTS.document_context_top_k }); }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  )}
-                  <span className="settings-value-badge">{documentContextTopK.toLocaleString()}件</span>
-                </div>
-              </div>
-              <input
-                className={`settings-slider${documentContextTopK !== DEFAULTS.document_context_top_k ? " active" : ""}`}
-                type="range"
-                min={0}
-                max={10}
-                step={1}
-                value={documentContextTopK}
-                onChange={(e) => setDocumentContextTopK(Number(e.target.value))}
-                onMouseUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
-                onKeyUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
-              />
-              <div className="settings-slider-labels">
-                <span>0件</span>
-                <span>10件</span>
-              </div>
-            </div>
-
-            <div className="settings-field">
-              <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Context</span>
-                <div className="settings-field-controls">
-                  {documentContextChars !== DEFAULTS.document_context_chars && (
-                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextChars(DEFAULTS.document_context_chars); void handleSave({ document_context_chars: DEFAULTS.document_context_chars }); }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  )}
-                  <span className="settings-value-badge">{documentContextChars.toLocaleString()}字</span>
-                </div>
-              </div>
-              <input
-                className={`settings-slider${documentContextChars !== DEFAULTS.document_context_chars ? " active" : ""}`}
-                type="range"
-                min={0}
-                max={6000}
-                step={100}
-                value={documentContextChars}
-                onChange={(e) => setDocumentContextChars(Number(e.target.value))}
-                onMouseUp={() => void handleSave({ document_context_chars: documentContextChars })}
-                onKeyUp={() => void handleSave({ document_context_chars: documentContextChars })}
-              />
-              <div className="settings-slider-labels">
-                <span>0字</span>
-                <span>6000字</span>
-              </div>
-            </div>
-
             {saved && <p className="settings-saved-msg">保存しました</p>}
             {saving && <p className="settings-saved-msg">保存中…</p>}
           </div>
         )}
       </section>
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setMemoryOpen((v) => !v)} onMouseEnter={onTipEnter("Memory 検索の量と新しさの効き方を調整します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setMemoryOpen, "settings_memory_open")} onMouseEnter={onTipEnter("Memory 検索の量と新しさの効き方を調整します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5C7.582 5 4 7.239 4 10s3.582 5 8 5 8-2.239 8-5-3.582-5-8-5z"/>
@@ -872,7 +848,7 @@ export function SettingsPanel() {
         )}
       </section>
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setDocumentsOpen((v) => !v)} onMouseEnter={onTipEnter("Documents の分割設定と再インデックスを管理します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setDocumentsOpen, "settings_documents_open")} onMouseEnter={onTipEnter("Documents の分割設定と再インデックスを管理します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -889,6 +865,68 @@ export function SettingsPanel() {
 
         {documentsOpen && (
           <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Hits</span>
+                <div className="settings-field-controls">
+                  {documentContextTopK !== DEFAULTS.document_context_top_k && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextTopK(DEFAULTS.document_context_top_k); void handleSave({ document_context_top_k: DEFAULTS.document_context_top_k }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentContextTopK.toLocaleString()}件</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentContextTopK !== DEFAULTS.document_context_top_k ? " active" : ""}`}
+                type="range"
+                min={0}
+                max={10}
+                step={1}
+                value={documentContextTopK}
+                onChange={(e) => setDocumentContextTopK(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
+                onKeyUp={() => void handleSave({ document_context_top_k: documentContextTopK })}
+              />
+              <div className="settings-slider-labels">
+                <span>0件</span>
+                <span>10件</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った資料コンテキストを最大何文字までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Document Context</span>
+                <div className="settings-field-controls">
+                  {documentContextChars !== DEFAULTS.document_context_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentContextChars(DEFAULTS.document_context_chars); void handleSave({ document_context_chars: DEFAULTS.document_context_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentContextChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentContextChars !== DEFAULTS.document_context_chars ? " active" : ""}`}
+                type="range"
+                min={0}
+                max={6000}
+                step={100}
+                value={documentContextChars}
+                onChange={(e) => setDocumentContextChars(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ document_context_chars: documentContextChars })}
+                onKeyUp={() => void handleSave({ document_context_chars: documentContextChars })}
+              />
+              <div className="settings-slider-labels">
+                <span>0字</span>
+                <span>6000字</span>
+              </div>
+            </div>
+
             <div className="settings-field">
               <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("1チャンクをどのくらいの長さに寄せるかの目安です。")} onMouseLeave={onTipLeave}>目標サイズ</span>
@@ -1017,7 +1055,7 @@ export function SettingsPanel() {
       </section>
       {/* Advanced */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="4 6 20 6"/><polyline points="4 12 20 12"/><polyline points="4 18 14 18"/>
@@ -1048,7 +1086,7 @@ export function SettingsPanel() {
       </section>
       {/* Data */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setDataOpen((v) => !v)} onMouseEnter={onTipEnter("会話履歴、画像、Documents、設定を zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setDataOpen, "settings_data_open")} onMouseEnter={onTipEnter("会話履歴、画像、Documents、設定を zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -1101,7 +1139,7 @@ export function SettingsPanel() {
       </section>
       {/* Debug */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => setDebugOpen((v) => !v)} onMouseEnter={onTipEnter("デバッグ用の設定です。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setDebugOpen, "settings_debug_open")} onMouseEnter={onTipEnter("デバッグ用の設定です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
