@@ -1211,6 +1211,17 @@ class SQLiteStore:
             ).fetchall()
         return [self._document_from_row(r) for r in rows]
 
+    def list_all_workspace_documents(self) -> list[Document]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM documents
+                WHERE scope = 'workspace'
+                ORDER BY created_at DESC
+                """
+            ).fetchall()
+        return [self._document_from_row(r) for r in rows]
+
     def reorder_documents(self, ids: list[str]) -> None:
         with self._connect() as conn:
             for order, doc_id in enumerate(ids):

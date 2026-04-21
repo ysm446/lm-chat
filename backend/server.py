@@ -1167,6 +1167,28 @@ def cleanup_documents() -> dict[str, int]:
     return store.cleanup_documents()
 
 
+@app.post("/documents/reindex")
+def reindex_workspace_documents() -> dict[str, int]:
+    docs = store.list_all_workspace_documents()
+    total = len(docs)
+    succeeded = 0
+    failed = 0
+
+    for doc in docs:
+        file_path = _DOCUMENT_DIR / doc.file_path
+        store.set_document_indexed_at(doc.id, None)
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            chunks = chunk_document(doc.file_name, content)
+            store.index_document_chunks(doc.id, chunks)
+            succeeded += 1
+        except Exception as exc:
+            failed += 1
+            logger.warning("Document re-indexing failed for %s: %s", doc.id, exc)
+
+    return {"total": total, "succeeded": succeeded, "failed": failed}
+
+
 @app.delete("/debug/prompt-logs")
 def clear_all_prompt_logs() -> dict[str, int]:
     return {"cleared": store.clear_all_message_prompt_logs()}

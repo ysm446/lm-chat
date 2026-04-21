@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import re
 
-CHUNK_TARGET = 400   # 目標チャンクサイズ（文字数）
-CHUNK_MAX = 500      # 最大チャンクサイズ（文字数）
-OVERLAP = 50         # チャンク間のオーバーラップ（文字数）
+CHUNK_TARGET = 800   # 目標チャンクサイズ（文字数）
+CHUNK_MAX = 1000     # 最大チャンクサイズ（文字数）
+OVERLAP = 100        # チャンク間のオーバーラップ（文字数）
 
 
 def chunk_document(file_name: str, content: str) -> list[str]:

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, exportDataArchive, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, importDataArchive, listSystemPrompts, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, exportDataArchive, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, importDataArchive, listSystemPrompts, reindexDocuments, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -89,6 +89,8 @@ export function SettingsPanel() {
   const [dataExportResult, setDataExportResult] = useState<string | null>(null);
   const [dataImportBusy, setDataImportBusy] = useState(false);
   const [dataImportResult, setDataImportResult] = useState<string | null>(null);
+  const [documentReindexBusy, setDocumentReindexBusy] = useState(false);
+  const [documentReindexResult, setDocumentReindexResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
 
   // System prompt state
@@ -295,6 +297,26 @@ export function SettingsPanel() {
       setDataImportResult(error instanceof Error ? error.message : "データのインポートに失敗しました");
     } finally {
       setDataImportBusy(false);
+    }
+  };
+
+  const handleDocumentReindex = async () => {
+    if (documentReindexBusy) return;
+    const confirmed = window.confirm("既存の workspace 資料を現在のチャンクサイズで再インデックスします。続行しますか？");
+    if (!confirmed) return;
+    setDocumentReindexBusy(true);
+    setDocumentReindexResult(null);
+    try {
+      const result = await reindexDocuments();
+      setDocumentReindexResult(
+        result.failed > 0
+          ? `再インデックス完了: 対象 ${result.total} 件 / 成功 ${result.succeeded} 件 / 失敗 ${result.failed} 件`
+          : `再インデックス完了: ${result.succeeded} / ${result.total} 件`
+      );
+    } catch (error) {
+      setDocumentReindexResult(error instanceof Error ? error.message : "資料の再インデックスに失敗しました");
+    } finally {
+      setDocumentReindexBusy(false);
     }
   };
 
@@ -852,6 +874,23 @@ export function SettingsPanel() {
                 style={{ minWidth: 96 }}
               >
                 {dataImportBusy ? "読込中..." : "実行"}
+              </button>
+            </div>
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label">資料を再インデックス</span>
+                {documentReindexResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{documentReindexResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleDocumentReindex()}
+                disabled={documentReindexBusy}
+                style={{ minWidth: 96 }}
+              >
+                {documentReindexBusy ? "実行中..." : "実行"}
               </button>
             </div>
           </div>

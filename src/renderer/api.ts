@@ -227,6 +227,12 @@ export function cleanupDocuments() {
   });
 }
 
+export function reindexDocuments() {
+  return request<{ total: number; succeeded: number; failed: number }>("/documents/reindex", {
+    method: "POST",
+  });
+}
+
 export function fetchAutocomplete(text: string) {
   return request<{ completion: string }>("/autocomplete", {
     method: "POST",
