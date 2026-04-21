@@ -311,15 +311,29 @@ def _resolve_unique_document_path(workspace_id: str, file_name: str) -> Path:
 
 
 def _start_document_indexing(doc_id: str, file_name: str, content: str, *, action: str) -> None:
+    chunking = _get_document_chunking_config()
+
     def _index_document() -> None:
         try:
-            chunks = chunk_document(file_name, content)
+            chunks = chunk_document(file_name, content, **chunking)
             store.index_document_chunks(doc_id, chunks)
             logger.info("Document %s: %s (%d chunks)", action, doc_id, len(chunks))
         except Exception as exc:
             logger.warning("Document %s failed: %s", action, exc)
 
     _start_background_task(_index_document, name=f"document-index-{doc_id}")
+
+
+def _get_document_chunking_config() -> dict[str, int]:
+    config = get_config_data()
+    target = max(100, int(config.get("document_chunk_target_chars", 800)))
+    max_chars = max(target, int(config.get("document_chunk_max_chars", 1000)))
+    overlap = max(0, min(int(config.get("document_chunk_overlap_chars", 100)), max_chars - 1))
+    return {
+        "chunk_target": target,
+        "chunk_max": max_chars,
+        "overlap": overlap,
+    }
 
 
 def _normalize_archive_path(raw_path: str) -> Path:
@@ -1239,13 +1253,14 @@ def reindex_workspace_documents() -> dict[str, int]:
     total = len(docs)
     succeeded = 0
     failed = 0
+    chunking = _get_document_chunking_config()
 
     for doc in docs:
         file_path = _DOCUMENT_DIR / doc.file_path
         store.set_document_indexed_at(doc.id, None)
         try:
             content = file_path.read_text(encoding="utf-8")
-            chunks = chunk_document(doc.file_name, content)
+            chunks = chunk_document(doc.file_name, content, **chunking)
             store.index_document_chunks(doc.id, chunks)
             succeeded += 1
         except Exception as exc:

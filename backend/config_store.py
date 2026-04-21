@@ -13,6 +13,9 @@ _DEFAULTS: dict = {
     "document_context_top_k": 3,
     "memory_context_chars": 1500,
     "document_context_chars": 2000,
+    "document_chunk_target_chars": 800,
+    "document_chunk_max_chars": 1000,
+    "document_chunk_overlap_chars": 100,
 }
 
 

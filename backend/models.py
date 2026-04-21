@@ -151,6 +151,9 @@ class ConfigUpdate(BaseModel):
     document_context_top_k: int | None = None
     memory_context_chars: int | None = None
     document_context_chars: int | None = None
+    document_chunk_target_chars: int | None = None
+    document_chunk_max_chars: int | None = None
+    document_chunk_overlap_chars: int | None = None
 
 
 class DataArchivePathRequest(BaseModel):

@@ -257,6 +257,9 @@ export function getConfig() {
     document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
+    document_chunk_target_chars: number;
+    document_chunk_max_chars: number;
+    document_chunk_overlap_chars: number;
   }>("/config");
 }
 
@@ -269,6 +272,9 @@ export function updateConfig(patch: {
   document_context_top_k?: number;
   memory_context_chars?: number;
   document_context_chars?: number;
+  document_chunk_target_chars?: number;
+  document_chunk_max_chars?: number;
+  document_chunk_overlap_chars?: number;
 }) {
   return request<{
     ctx_size: number;
@@ -279,6 +285,9 @@ export function updateConfig(patch: {
     document_context_top_k: number;
     memory_context_chars: number;
     document_context_chars: number;
+    document_chunk_target_chars: number;
+    document_chunk_max_chars: number;
+    document_chunk_overlap_chars: number;
   }>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),

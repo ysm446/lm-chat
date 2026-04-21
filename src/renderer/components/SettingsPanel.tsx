@@ -26,6 +26,9 @@ const DEFAULTS = {
   document_context_top_k: 3,
   memory_context_chars: 1500,
   document_context_chars: 2000,
+  document_chunk_target_chars: 800,
+  document_chunk_max_chars: 1000,
+  document_chunk_overlap_chars: 100,
 } as const;
 const CTX_SIZE_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072, 262144] as const;
 
@@ -69,11 +72,15 @@ export function SettingsPanel() {
   const [documentContextTopK, setDocumentContextTopK] = useState<number>(DEFAULTS.document_context_top_k);
   const [memoryContextChars, setMemoryContextChars] = useState<number>(DEFAULTS.memory_context_chars);
   const [documentContextChars, setDocumentContextChars] = useState<number>(DEFAULTS.document_context_chars);
+  const [documentChunkTargetChars, setDocumentChunkTargetChars] = useState<number>(DEFAULTS.document_chunk_target_chars);
+  const [documentChunkMaxChars, setDocumentChunkMaxChars] = useState<number>(DEFAULTS.document_chunk_max_chars);
+  const [documentChunkOverlapChars, setDocumentChunkOverlapChars] = useState<number>(DEFAULTS.document_chunk_overlap_chars);
   const [modelMaxCtx, setModelMaxCtx] = useState<number | null>(null);
   const [llamaServerVersion, setLlamaServerVersion] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [documentsOpen, setDocumentsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [interfaceOpen, setInterfaceOpen] = useState(false);
@@ -117,6 +124,9 @@ export function SettingsPanel() {
         setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
         setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
         setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
+        setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
+        setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
+        setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
       })
       .catch(() => {});
     listSystemPrompts()
@@ -192,6 +202,9 @@ export function SettingsPanel() {
     document_context_top_k?: number;
     memory_context_chars?: number;
     document_context_chars?: number;
+    document_chunk_target_chars?: number;
+    document_chunk_max_chars?: number;
+    document_chunk_overlap_chars?: number;
   }) => {
     setSaving(true);
     try {
@@ -203,6 +216,9 @@ export function SettingsPanel() {
       setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
       setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
       setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
+      setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
+      setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
+      setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
@@ -795,6 +811,150 @@ export function SettingsPanel() {
           </div>
         )}
       </section>
+      <section className="settings-section">
+        <button className="settings-section-header" onClick={() => setDocumentsOpen((v) => !v)} onMouseEnter={onTipEnter("Documents の分割設定と再インデックスを管理します。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6"/>
+              <path d="M8 13h8"/>
+              <path d="M8 17h6"/>
+            </svg>
+          </span>
+          <span>Documents</span>
+          <svg className={`settings-chevron${documentsOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {documentsOpen && (
+          <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("1チャンクをどのくらいの長さに寄せるかの目安です。")} onMouseLeave={onTipLeave}>目標サイズ</span>
+                <div className="settings-field-controls">
+                  {documentChunkTargetChars !== DEFAULTS.document_chunk_target_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentChunkTargetChars(DEFAULTS.document_chunk_target_chars); void handleSave({ document_chunk_target_chars: DEFAULTS.document_chunk_target_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentChunkTargetChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentChunkTargetChars !== DEFAULTS.document_chunk_target_chars ? " active" : ""}`}
+                type="range"
+                min={200}
+                max={2000}
+                step={50}
+                value={documentChunkTargetChars}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setDocumentChunkTargetChars(next);
+                  if (documentChunkMaxChars < next) setDocumentChunkMaxChars(next);
+                }}
+                onMouseUp={() => void handleSave({
+                  document_chunk_target_chars: documentChunkTargetChars,
+                  document_chunk_max_chars: Math.max(documentChunkMaxChars, documentChunkTargetChars),
+                })}
+                onKeyUp={() => void handleSave({
+                  document_chunk_target_chars: documentChunkTargetChars,
+                  document_chunk_max_chars: Math.max(documentChunkMaxChars, documentChunkTargetChars),
+                })}
+              />
+              <div className="settings-slider-labels">
+                <span>200字</span>
+                <span>2000字</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("この長さを超える塊はさらに分割します。目標サイズ以上にしてください。")} onMouseLeave={onTipLeave}>最大サイズ</span>
+                <div className="settings-field-controls">
+                  {documentChunkMaxChars !== DEFAULTS.document_chunk_max_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentChunkMaxChars(DEFAULTS.document_chunk_max_chars); void handleSave({ document_chunk_max_chars: DEFAULTS.document_chunk_max_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentChunkMaxChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentChunkMaxChars !== DEFAULTS.document_chunk_max_chars ? " active" : ""}`}
+                type="range"
+                min={200}
+                max={3000}
+                step={50}
+                value={documentChunkMaxChars}
+                onChange={(e) => setDocumentChunkMaxChars(Math.max(Number(e.target.value), documentChunkTargetChars))}
+                onMouseUp={() => void handleSave({ document_chunk_max_chars: Math.max(documentChunkMaxChars, documentChunkTargetChars) })}
+                onKeyUp={() => void handleSave({ document_chunk_max_chars: Math.max(documentChunkMaxChars, documentChunkTargetChars) })}
+              />
+              <div className="settings-slider-labels">
+                <span>200字</span>
+                <span>3000字</span>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("前後の文脈を残すため、隣のチャンクへ重ねて持たせる文字数です。")} onMouseLeave={onTipLeave}>オーバーラップ</span>
+                <div className="settings-field-controls">
+                  {documentChunkOverlapChars !== DEFAULTS.document_chunk_overlap_chars && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setDocumentChunkOverlapChars(DEFAULTS.document_chunk_overlap_chars); void handleSave({ document_chunk_overlap_chars: DEFAULTS.document_chunk_overlap_chars }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                  <span className="settings-value-badge">{documentChunkOverlapChars.toLocaleString()}字</span>
+                </div>
+              </div>
+              <input
+                className={`settings-slider${documentChunkOverlapChars !== DEFAULTS.document_chunk_overlap_chars ? " active" : ""}`}
+                type="range"
+                min={0}
+                max={500}
+                step={25}
+                value={documentChunkOverlapChars}
+                onChange={(e) => setDocumentChunkOverlapChars(Number(e.target.value))}
+                onMouseUp={() => void handleSave({ document_chunk_overlap_chars: documentChunkOverlapChars })}
+                onKeyUp={() => void handleSave({ document_chunk_overlap_chars: documentChunkOverlapChars })}
+              />
+              <div className="settings-slider-labels">
+                <span>0字</span>
+                <span>500字</span>
+              </div>
+            </div>
+
+            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("既存の workspace 資料を、現在の分割設定で再インデックスします。")} onMouseLeave={onTipLeave}>資料を再インデックス</span>
+                {documentReindexResult ? (
+                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{documentReindexResult}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className="debug-clear-btn"
+                onClick={() => void handleDocumentReindex()}
+                disabled={documentReindexBusy}
+                style={{ minWidth: 96 }}
+              >
+                {documentReindexBusy ? "実行中..." : "実行"}
+              </button>
+            </div>
+
+            {saved && <p className="settings-saved-msg">保存しました</p>}
+            {saving && <p className="settings-saved-msg">保存中…</p>}
+          </div>
+        )}
+      </section>
       {/* Advanced */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => setAdvancedOpen((v) => !v)} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
@@ -874,23 +1034,6 @@ export function SettingsPanel() {
                 style={{ minWidth: 96 }}
               >
                 {dataImportBusy ? "読込中..." : "実行"}
-              </button>
-            </div>
-            <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
-              <div className="settings-toggle-copy">
-                <span className="settings-field-label">資料を再インデックス</span>
-                {documentReindexResult ? (
-                  <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{documentReindexResult}</span>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                className="debug-clear-btn"
-                onClick={() => void handleDocumentReindex()}
-                disabled={documentReindexBusy}
-                style={{ minWidth: 96 }}
-              >
-                {documentReindexBusy ? "実行中..." : "実行"}
               </button>
             </div>
           </div>
