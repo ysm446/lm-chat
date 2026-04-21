@@ -1375,9 +1375,12 @@ class SQLiteStore:
                 result.append(DocumentChunk(**data))
         return result
 
-    def update_document_file_size(self, doc_id: str, file_size: int) -> None:
+    def update_document_file_metadata(self, doc_id: str, file_size: int, file_hash: str) -> None:
         with self._connect() as conn:
-            conn.execute("UPDATE documents SET file_size = ? WHERE id = ?", (file_size, doc_id))
+            conn.execute(
+                "UPDATE documents SET file_size = ?, file_hash = ? WHERE id = ?",
+                (file_size, file_hash, doc_id),
+            )
 
     def rename_document(self, doc_id: str, new_name: str) -> Document | None:
         doc = self.get_document(doc_id)

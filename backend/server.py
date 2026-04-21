@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
 import shutil
 import struct
 import tempfile
+import threading
 from pathlib import Path
 import zipfile
 
@@ -47,7 +49,6 @@ from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, reorder_prompts, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_llama_server_version, get_model_props, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, build_chat_messages, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
-from .memory.embedder import warmup as warmup_embedder
 from .memory.engine import MemoryEngine
 from .documents.chunker import chunk_document
 from .models import (
@@ -107,10 +108,30 @@ _EXPORT_ITEMS = (
     Path("assets") / "images",
     Path("assets") / "documents",
 )
+_DOCUMENT_MIME_TYPES = {
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".json": "application/json",
+}
+_DOCUMENT_ALLOWED_EXTENSIONS = tuple(_DOCUMENT_MIME_TYPES)
 
-# 蝓九ａ霎ｼ縺ｿ繝｢繝・Ν繧偵ヰ繝・け繧ｰ繝ｩ繧ｦ繝ｳ繝峨〒繧ｦ繧ｩ繝ｼ繝繧｢繝・・・亥・蝗槭Μ繧ｯ繧ｨ繧ｹ繝医・驕・ｻｶ繧帝亟縺撰ｼ・
-import threading
-threading.Thread(target=warmup_embedder, daemon=True).start()
+
+def _start_background_task(target, *, name: str) -> None:
+    threading.Thread(target=target, name=name, daemon=True).start()
+
+
+def _warmup_embedder() -> None:
+    try:
+        from .memory.embedder import warmup
+
+        warmup()
+    except Exception as exc:
+        logger.warning("Embedder warmup failed: %s", exc)
+
+
+@app.on_event("startup")
+def startup_background_tasks() -> None:
+    _start_background_task(_warmup_embedder, name="embedder-warmup")
 
 
 def build_memory_context(session: Session, query: str) -> str:
@@ -254,6 +275,51 @@ def _save_prompt_log_if_enabled(session_id: str, assistant_message_id: str, prom
     saved = store.save_message_prompt_log(assistant_message_id, session_id, prompt_messages)
     if saved is None:
         logger.warning("Prompt log save failed for message %s", assistant_message_id)
+
+
+def _validate_document_extension(file_name: str) -> str:
+    ext = Path(file_name).suffix.lower()
+    if ext not in _DOCUMENT_ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Only .txt, .md, .json are allowed",
+        )
+    return ext
+
+
+def _document_mime_type(file_name: str) -> str:
+    return _DOCUMENT_MIME_TYPES[_validate_document_extension(file_name)]
+
+
+def _hash_document_content(content: str) -> tuple[bytes, str]:
+    content_bytes = content.encode("utf-8")
+    return content_bytes, hashlib.sha256(content_bytes).hexdigest()
+
+
+def _resolve_unique_document_path(workspace_id: str, file_name: str) -> Path:
+    workspace_dir = _DOCUMENT_DIR / workspace_id
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(file_name).suffix.lower()
+    stem = Path(file_name).stem
+    target = workspace_dir / file_name
+    counter = 1
+    while target.exists():
+        target = workspace_dir / f"{stem}_{counter}{ext}"
+        counter += 1
+    return target
+
+
+def _start_document_indexing(doc_id: str, file_name: str, content: str, *, action: str) -> None:
+    def _index_document() -> None:
+        try:
+            chunks = chunk_document(file_name, content)
+            store.index_document_chunks(doc_id, chunks)
+            logger.info("Document %s: %s (%d chunks)", action, doc_id, len(chunks))
+        except Exception as exc:
+            logger.warning("Document %s failed: %s", action, exc)
+
+    _start_background_task(_index_document, name=f"document-index-{doc_id}")
 
 
 def _normalize_archive_path(raw_path: str) -> Path:
@@ -1216,36 +1282,13 @@ def reorder_documents(payload: DocumentReorderRequest) -> dict[str, bool]:
 
 @app.post("/documents", response_model=Document)
 def create_document(payload: DocumentUploadRequest) -> Document:
-    import hashlib
-
     if not store.has_workspace(payload.workspace_id):
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-    ext = Path(payload.file_name).suffix.lower()
-    if ext not in (".txt", ".md", ".json"):
-        raise HTTPException(status_code=400, detail="Unsupported file type. Only .txt, .md, .json are allowed")
-
-    # MIME type
-    mime_map = {".txt": "text/plain", ".md": "text/markdown", ".json": "application/json"}
-    mime_type = mime_map.get(ext, "text/plain")
-
-    # ファイルハッシュ
-    content_bytes = payload.content.encode("utf-8")
-    file_hash = hashlib.sha256(content_bytes).hexdigest()
-
-    # 保存パス（workspace_id 配下）
-    workspace_dir = _DOCUMENT_DIR / payload.workspace_id
-    workspace_dir.mkdir(parents=True, exist_ok=True)
-
-    # 同名ファイルが存在する場合はサフィックスを付ける
-    target = workspace_dir / payload.file_name
-    stem = Path(payload.file_name).stem
-    suffix = ext
-    counter = 1
-    while target.exists():
-        target = workspace_dir / f"{stem}_{counter}{suffix}"
-        counter += 1
-
+    _validate_document_extension(payload.file_name)
+    mime_type = _document_mime_type(payload.file_name)
+    content_bytes, file_hash = _hash_document_content(payload.content)
+    target = _resolve_unique_document_path(payload.workspace_id, payload.file_name)
     target.write_text(payload.content, encoding="utf-8")
     relative_path = f"{payload.workspace_id}/{target.name}"
 
@@ -1262,17 +1305,7 @@ def create_document(payload: DocumentUploadRequest) -> Document:
         )
     )
 
-    # バックグラウンドでインデックス
-    import threading
-    def _index():
-        try:
-            chunks = chunk_document(doc.file_name, payload.content)
-            store.index_document_chunks(doc.id, chunks)
-            logger.info("Document indexed: %s (%d chunks)", doc.id, len(chunks))
-        except Exception as e:
-            logger.warning("Document indexing failed: %s", e)
-
-    threading.Thread(target=_index, daemon=True).start()
+    _start_document_indexing(doc.id, doc.file_name, payload.content, action="indexed")
     return doc
 
 
@@ -1292,18 +1325,13 @@ def get_document(doc_id: str) -> dict:
 
 @app.patch("/documents/{doc_id}", response_model=Document)
 def update_document(doc_id: str, payload: DocumentUpdateRequest) -> Document:
-    import hashlib
-    import threading
-
     doc = store.get_document(doc_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
     # ファイル名変更
     if payload.file_name is not None and payload.file_name != doc.file_name:
-        new_ext = Path(payload.file_name).suffix.lower()
-        if new_ext not in (".txt", ".md", ".json"):
-            raise HTTPException(status_code=400, detail="Unsupported file type. Only .txt, .md, .json are allowed")
+        _validate_document_extension(payload.file_name)
         renamed = store.rename_document(doc_id, payload.file_name)
         if renamed is None:
             raise HTTPException(status_code=500, detail="Failed to rename file")
@@ -1311,28 +1339,16 @@ def update_document(doc_id: str, payload: DocumentUpdateRequest) -> Document:
 
     # 内容更新
     if payload.content is not None:
-        content_bytes = payload.content.encode("utf-8")
-        file_hash = hashlib.sha256(content_bytes).hexdigest()
+        content_bytes, file_hash = _hash_document_content(payload.content)
         file_path = _DOCUMENT_DIR / doc.file_path
         try:
             file_path.write_text(payload.content, encoding="utf-8")
         except OSError as e:
             raise HTTPException(status_code=500, detail=f"Failed to write file: {e}") from e
 
-        store.update_document_file_size(doc_id, len(content_bytes))
+        store.update_document_file_metadata(doc_id, len(content_bytes), file_hash)
         store.set_document_indexed_at(doc_id, None)
-        content_for_index = payload.content
-        file_name_for_index = doc.file_name
-
-        def _reindex():
-            try:
-                chunks = chunk_document(file_name_for_index, content_for_index)
-                store.index_document_chunks(doc_id, chunks)
-                logger.info("Document re-indexed: %s (%d chunks)", doc_id, len(chunks))
-            except Exception as e:
-                logger.warning("Document re-indexing failed: %s", e)
-
-        threading.Thread(target=_reindex, daemon=True).start()
+        _start_document_indexing(doc_id, doc.file_name, payload.content, action="re-indexed")
 
     updated = store.get_document(doc_id)
     if updated is None:
