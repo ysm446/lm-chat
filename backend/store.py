@@ -872,7 +872,7 @@ class SQLiteStore:
         logger = logging.getLogger(__name__)
         query_vec = embed(query)
         rrf_k = 60
-        half_life_days = max(1, int(half_life_days))
+        half_life_days = max(0, int(half_life_days))
         scores: dict[str, float] = {}
         exclude_clause = " AND mc.session_id != ?" if exclude_session_id else ""
         exclude_params = (exclude_session_id,) if exclude_session_id else ()
@@ -947,7 +947,7 @@ class SQLiteStore:
                 if created.tzinfo is None:
                     created = created.replace(tzinfo=timezone.utc)
                 days_elapsed = (now - created).total_seconds() / 86400
-                decay = math.pow(0.5, days_elapsed / half_life_days)
+                decay = 1.0 if half_life_days <= 0 else math.pow(0.5, days_elapsed / half_life_days)
             except Exception:
                 decay = 1.0
             return scores[chunk_id] * decay

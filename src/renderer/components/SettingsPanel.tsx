@@ -822,13 +822,13 @@ export function SettingsPanel() {
                       </svg>
                     </button>
                   )}
-                  <span className="settings-value-badge">{memoryDecayHalfLifeDays.toLocaleString()}日</span>
+                  <span className="settings-value-badge">{memoryDecayHalfLifeDays <= 0 ? "なし" : `${memoryDecayHalfLifeDays.toLocaleString()}日`}</span>
                 </div>
               </div>
               <input
                 className={`settings-slider${memoryDecayHalfLifeDays !== DEFAULTS.memory_decay_half_life_days ? " active" : ""}`}
                 type="range"
-                min={1}
+                min={0}
                 max={180}
                 step={1}
                 value={memoryDecayHalfLifeDays}
@@ -837,7 +837,7 @@ export function SettingsPanel() {
                 onKeyUp={() => void handleSave({ memory_decay_half_life_days: memoryDecayHalfLifeDays })}
               />
               <div className="settings-slider-labels">
-                <span>1日</span>
+                <span>なし</span>
                 <span>180日</span>
               </div>
             </div>
