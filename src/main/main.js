@@ -1,6 +1,8 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const path = require("node:path");
 
+let mainWindow = null;
+
 function buildExportFileName() {
   const now = new Date();
   const pad = (value) => value.toString().padStart(2, "0");
@@ -34,47 +36,74 @@ function createWindow() {
   win.once("ready-to-show", () => {
     win.show();
   });
+
+  win.on("closed", () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+  });
+
+  mainWindow = win;
 }
 
 app.commandLine.appendSwitch("disable-gpu-disk-cache");
 
-app.whenReady().then(() => {
-  ipcMain.handle("lm-chat:choose-export-archive-path", async () => {
-    const focusedWindow = BrowserWindow.getFocusedWindow();
-    const options = {
-      title: "データをエクスポート",
-      buttonLabel: "保存",
-      defaultPath: path.join(app.getPath("documents"), buildExportFileName()),
-      filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
-    };
-    const result = focusedWindow
-      ? await dialog.showSaveDialog(focusedWindow, options)
-      : await dialog.showSaveDialog(options);
-    return result.canceled ? null : (result.filePath ?? null);
-  });
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
-  ipcMain.handle("lm-chat:choose-import-archive-path", async () => {
-    const focusedWindow = BrowserWindow.getFocusedWindow();
-    const options = {
-      title: "データをインポート",
-      buttonLabel: "選択",
-      properties: ["openFile"],
-      filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
-    };
-    const result = focusedWindow
-      ? await dialog.showOpenDialog(focusedWindow, options)
-      : await dialog.showOpenDialog(options);
-    return result.canceled ? null : (result.filePaths[0] ?? null);
-  });
-
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = mainWindow;
+    if (!win) {
+      return;
     }
+
+    if (win.isMinimized()) {
+      win.restore();
+    }
+    win.show();
+    win.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    ipcMain.handle("lm-chat:choose-export-archive-path", async () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      const options = {
+        title: "データをエクスポート",
+        buttonLabel: "保存",
+        defaultPath: path.join(app.getPath("documents"), buildExportFileName()),
+        filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
+      };
+      const result = focusedWindow
+        ? await dialog.showSaveDialog(focusedWindow, options)
+        : await dialog.showSaveDialog(options);
+      return result.canceled ? null : (result.filePath ?? null);
+    });
+
+    ipcMain.handle("lm-chat:choose-import-archive-path", async () => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      const options = {
+        title: "データをインポート",
+        buttonLabel: "選択",
+        properties: ["openFile"],
+        filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
+      };
+      const result = focusedWindow
+        ? await dialog.showOpenDialog(focusedWindow, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
