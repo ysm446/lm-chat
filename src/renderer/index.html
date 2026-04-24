@@ -4,8 +4,96 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LM Chat</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Inter", "Segoe UI", "Noto Sans JP", system-ui, sans-serif;
+      }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: #0d0f14;
+        color: #e2e4ef;
+      }
+
+      body {
+        overflow: hidden;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      .boot-splash {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(124, 90, 247, 0.18), transparent 42%),
+          linear-gradient(180deg, #111318 0%, #0d0f14 100%);
+      }
+
+      .boot-splash[hidden] {
+        display: none;
+      }
+
+      .boot-card {
+        width: min(420px, calc(100vw - 48px));
+        padding: 28px 24px;
+        border: 1px solid rgba(124, 90, 247, 0.16);
+        border-radius: 18px;
+        background: rgba(19, 22, 30, 0.92);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      .boot-title {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #f3f4fb;
+      }
+
+      .boot-subtitle {
+        margin-top: 8px;
+        font-size: 13px;
+        color: #9499b0;
+      }
+
+      .boot-progress {
+        margin-top: 18px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .boot-progress::before {
+        content: "";
+        display: block;
+        width: 45%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, transparent, #7c5af7, #b38cff, transparent);
+        animation: boot-slide 1.2s linear infinite;
+      }
+
+      @keyframes boot-slide {
+        from { transform: translateX(-140%); }
+        to { transform: translateX(320%); }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-splash" class="boot-splash" aria-hidden="true">
+      <div class="boot-card">
+        <div class="boot-title">LM Chat</div>
+        <div class="boot-subtitle">Starting workspace...</div>
+        <div class="boot-progress"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

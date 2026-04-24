@@ -92,6 +92,60 @@ export type DataImportResult = {
   file_name: string;
 };
 
+export type AppConfig = {
+  ctx_size: number;
+  n_gpu_layers: number;
+  temperature: number;
+  completion_length: number;
+  memory_context_top_k: number;
+  document_context_top_k: number;
+  memory_context_chars: number;
+  document_context_chars: number;
+  memory_decay_half_life_days: number;
+  document_chunk_target_chars: number;
+  document_chunk_max_chars: number;
+  document_chunk_overlap_chars: number;
+};
+
+export type AppConfigPatch = Partial<AppConfig>;
+
+export type SettingsSectionKey =
+  | "settings_context_open"
+  | "settings_memory_open"
+  | "settings_documents_open"
+  | "settings_advanced_open"
+  | "settings_system_prompt_open"
+  | "settings_interface_open"
+  | "settings_completion_open"
+  | "settings_data_open"
+  | "settings_debug_open";
+
+export type AppSettings = {
+  show_left: boolean;
+  show_right: boolean;
+  sidebar_expanded_workspace_ids: string[];
+  sidebar_expanded_document_workspace_ids: string[];
+  ui_font: string;
+  ui_font_size: number;
+  correction_enabled: boolean;
+  correction_prompt_mode: string;
+  correction_custom_prompt: string;
+  debug_prompt_log: boolean;
+} & Record<SettingsSectionKey, boolean>;
+
+export type AppSettingsPatch = Partial<{
+  show_left: boolean;
+  show_right: boolean;
+  sidebar_expanded_workspace_ids: string[];
+  sidebar_expanded_document_workspace_ids: string[];
+  ui_font: string;
+  ui_font_size: number;
+  correction_enabled: boolean;
+  correction_prompt_mode: string;
+  correction_custom_prompt: string;
+  debug_prompt_log: boolean;
+} & Record<SettingsSectionKey, boolean>>;
+
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 const API_ROOT = API_BASE.replace(/\/$/, "");
 
@@ -248,121 +302,22 @@ export function fetchCorrect(text: string) {
 }
 
 export function getConfig() {
-  return request<{
-    ctx_size: number;
-    n_gpu_layers: number;
-    temperature: number;
-    completion_length: number;
-    memory_context_top_k: number;
-    document_context_top_k: number;
-    memory_context_chars: number;
-    document_context_chars: number;
-    memory_decay_half_life_days: number;
-    document_chunk_target_chars: number;
-    document_chunk_max_chars: number;
-    document_chunk_overlap_chars: number;
-  }>("/config");
+  return request<AppConfig>("/config");
 }
 
-export function updateConfig(patch: {
-  ctx_size?: number;
-  n_gpu_layers?: number;
-  temperature?: number;
-  completion_length?: number;
-  memory_context_top_k?: number;
-  document_context_top_k?: number;
-  memory_context_chars?: number;
-  document_context_chars?: number;
-  memory_decay_half_life_days?: number;
-  document_chunk_target_chars?: number;
-  document_chunk_max_chars?: number;
-  document_chunk_overlap_chars?: number;
-}) {
-  return request<{
-    ctx_size: number;
-    n_gpu_layers: number;
-    temperature: number;
-    completion_length: number;
-    memory_context_top_k: number;
-    document_context_top_k: number;
-    memory_context_chars: number;
-    document_context_chars: number;
-    memory_decay_half_life_days: number;
-    document_chunk_target_chars: number;
-    document_chunk_max_chars: number;
-    document_chunk_overlap_chars: number;
-  }>("/config", {
+export function updateConfig(patch: AppConfigPatch) {
+  return request<AppConfig>("/config", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
 }
 
 export function getSettings() {
-  return request<{
-    show_left: boolean;
-    show_right: boolean;
-    sidebar_expanded_workspace_ids: string[];
-    sidebar_expanded_document_workspace_ids: string[];
-    ui_font: string;
-    ui_font_size: number;
-    correction_enabled: boolean;
-    correction_prompt_mode: string;
-    correction_custom_prompt: string;
-    debug_prompt_log: boolean;
-    settings_context_open: boolean;
-    settings_memory_open: boolean;
-    settings_documents_open: boolean;
-    settings_advanced_open: boolean;
-    settings_system_prompt_open: boolean;
-    settings_interface_open: boolean;
-    settings_completion_open: boolean;
-    settings_data_open: boolean;
-    settings_debug_open: boolean;
-  }>("/settings");
+  return request<AppSettings>("/settings");
 }
 
-export function updateSettings(patch: {
-  show_left?: boolean;
-  show_right?: boolean;
-  sidebar_expanded_workspace_ids?: string[];
-  sidebar_expanded_document_workspace_ids?: string[];
-  ui_font?: string;
-  ui_font_size?: number;
-  correction_enabled?: boolean;
-  correction_prompt_mode?: string;
-  correction_custom_prompt?: string;
-  debug_prompt_log?: boolean;
-  settings_context_open?: boolean;
-  settings_memory_open?: boolean;
-  settings_documents_open?: boolean;
-  settings_advanced_open?: boolean;
-  settings_system_prompt_open?: boolean;
-  settings_interface_open?: boolean;
-  settings_completion_open?: boolean;
-  settings_data_open?: boolean;
-  settings_debug_open?: boolean;
-}) {
-  return request<{
-    show_left: boolean;
-    show_right: boolean;
-    sidebar_expanded_workspace_ids: string[];
-    sidebar_expanded_document_workspace_ids: string[];
-    ui_font: string;
-    ui_font_size: number;
-    correction_enabled: boolean;
-    correction_prompt_mode: string;
-    correction_custom_prompt: string;
-    debug_prompt_log: boolean;
-    settings_context_open: boolean;
-    settings_memory_open: boolean;
-    settings_documents_open: boolean;
-    settings_advanced_open: boolean;
-    settings_system_prompt_open: boolean;
-    settings_interface_open: boolean;
-    settings_completion_open: boolean;
-    settings_data_open: boolean;
-    settings_debug_open: boolean;
-  }>("/settings", {
+export function updateSettings(patch: AppSettingsPatch) {
+  return request<AppSettings>("/settings", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });

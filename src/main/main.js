@@ -13,6 +13,7 @@ function createWindow() {
     height: 980,
     minWidth: 1200,
     minHeight: 760,
+    show: false,
     backgroundColor: "#0f141c",
     autoHideMenuBar: true,
     icon: path.join(__dirname, "../../assets/icon.ico"),
@@ -29,6 +30,10 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
+
+  win.once("ready-to-show", () => {
+    win.show();
+  });
 }
 
 app.commandLine.appendSwitch("disable-gpu-disk-cache");

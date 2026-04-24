@@ -1,5 +1,26 @@
 import { useEffect, useRef, useState, useCallback, type Dispatch, type SetStateAction } from "react";
-import { SavedSystemPrompt, cleanupDocuments, cleanupMemory, clearAllPromptLogs, exportDataArchive, fetchMemoryStats, getConfig, getLlamaProps, getLlamaStatus, getSettings, importDataArchive, listSystemPrompts, reindexDocuments, saveActiveSystemPrompt, updateConfig, updateSettings } from "../api";
+import {
+  type AppConfig,
+  type AppConfigPatch,
+  type AppSettings,
+  type SettingsSectionKey,
+  SavedSystemPrompt,
+  cleanupDocuments,
+  cleanupMemory,
+  clearAllPromptLogs,
+  exportDataArchive,
+  fetchMemoryStats,
+  getConfig,
+  getLlamaProps,
+  getLlamaStatus,
+  getSettings,
+  importDataArchive,
+  listSystemPrompts,
+  reindexDocuments,
+  saveActiveSystemPrompt,
+  updateConfig,
+  updateSettings
+} from "../api";
 import { applyFontSize, applyUIFont, DEFAULT_FONT_SIZE, DEFAULT_UI_FONT, FONT_SIZE_MAX, FONT_SIZE_MIN, UI_FONT_OPTIONS } from "../fontOptions";
 import { useChatStore } from "../stores/chatStore";
 
@@ -32,6 +53,17 @@ const DEFAULTS = {
   document_chunk_overlap_chars: 100,
 } as const;
 const CTX_SIZE_PRESETS = [4096, 8192, 16384, 32768, 65536, 131072, 262144] as const;
+const SETTINGS_SECTION_KEYS: SettingsSectionKey[] = [
+  "settings_context_open",
+  "settings_memory_open",
+  "settings_documents_open",
+  "settings_advanced_open",
+  "settings_system_prompt_open",
+  "settings_interface_open",
+  "settings_completion_open",
+  "settings_data_open",
+  "settings_debug_open",
+];
 
 function formatCtxSizeLabel(value: number) {
   if (value >= 1024) {
@@ -53,6 +85,12 @@ function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
     }
   }
   return nearestIndex;
+}
+
+function normalizeCorrectionMode(mode: string | undefined): CorrectionMode {
+  return CORRECTION_MODE_OPTIONS.some((option) => option.value === mode)
+    ? (mode as CorrectionMode)
+    : "standard";
 }
 
 export function SettingsPanel() {
@@ -114,25 +152,58 @@ export function SettingsPanel() {
   const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
   const settingsOpenStateLoadedRef = useRef(false);
 
+  const applyConfigState = useCallback((cfg: AppConfig) => {
+    setCtxSize(cfg.ctx_size);
+    setTemperature(cfg.temperature ?? DEFAULTS.temperature);
+    setCompletionLength(cfg.completion_length ?? DEFAULTS.completion_length);
+    setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
+    setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
+    setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
+    setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
+    setMemoryDecayHalfLifeDays(cfg.memory_decay_half_life_days ?? DEFAULTS.memory_decay_half_life_days);
+    setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
+    setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
+    setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
+  }, []);
+
+  const applySettingsState = useCallback((settings: AppSettings) => {
+    const nextUIFont = settings.ui_font || DEFAULT_UI_FONT;
+    setUIFont(nextUIFont);
+    applyUIFont(nextUIFont);
+
+    const nextFontSize = settings.ui_font_size ?? DEFAULT_FONT_SIZE;
+    setUIFontSize(nextFontSize);
+    applyFontSize(nextFontSize);
+
+    setCorrectionEnabled(settings.correction_enabled ?? true);
+    setCorrectionMode(normalizeCorrectionMode(settings.correction_prompt_mode));
+    setCustomCorrectionPrompt(settings.correction_custom_prompt || "");
+    setDebugPromptLog(settings.debug_prompt_log ?? false);
+
+    const sectionSetters: Record<SettingsSectionKey, Dispatch<SetStateAction<boolean>>> = {
+      settings_context_open: setContextOpen,
+      settings_memory_open: setMemoryOpen,
+      settings_documents_open: setDocumentsOpen,
+      settings_advanced_open: setAdvancedOpen,
+      settings_system_prompt_open: setSystemPromptOpen,
+      settings_interface_open: setInterfaceOpen,
+      settings_completion_open: setCompletionOpen,
+      settings_data_open: setDataOpen,
+      settings_debug_open: setDebugOpen,
+    };
+
+    for (const key of SETTINGS_SECTION_KEYS) {
+      sectionSetters[key](settings[key] ?? false);
+    }
+  }, [setCorrectionEnabled]);
+
   const loadMemoryStats = useCallback(() => {
     fetchMemoryStats().then(setStats).catch(() => {});
   }, []);
 
   useEffect(() => {
     getConfig()
-      .then((cfg) => {
-        setCtxSize(cfg.ctx_size);
-        setTemperature(cfg.temperature ?? 0.8);
-        setCompletionLength(cfg.completion_length ?? 80);
-        setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
-        setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
-        setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
-        setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
-        setMemoryDecayHalfLifeDays(cfg.memory_decay_half_life_days ?? DEFAULTS.memory_decay_half_life_days);
-        setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
-        setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
-        setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
-      })
+      .then(applyConfigState)
       .catch(() => {});
     listSystemPrompts()
       .then((data) => {
@@ -141,33 +212,14 @@ export function SettingsPanel() {
       })
       .catch(() => {});
     getSettings()
-      .then((s) => {
-        const nextUIFont = s.ui_font || DEFAULT_UI_FONT;
-        setUIFont(nextUIFont);
-        applyUIFont(nextUIFont);
-        const nextSize = s.ui_font_size ?? DEFAULT_FONT_SIZE;
-        setUIFontSize(nextSize);
-        applyFontSize(nextSize);
-        setCorrectionEnabled(s.correction_enabled ?? true);
-        const mode = (s.correction_prompt_mode || "standard") as CorrectionMode;
-        setCorrectionMode(CORRECTION_MODE_OPTIONS.some((option) => option.value === mode) ? mode : "standard");
-        setCustomCorrectionPrompt(s.correction_custom_prompt || "");
-        setDebugPromptLog(s.debug_prompt_log ?? false);
-        setContextOpen(s.settings_context_open ?? false);
-        setMemoryOpen(s.settings_memory_open ?? false);
-        setDocumentsOpen(s.settings_documents_open ?? false);
-        setAdvancedOpen(s.settings_advanced_open ?? false);
-        setSystemPromptOpen(s.settings_system_prompt_open ?? false);
-        setInterfaceOpen(s.settings_interface_open ?? false);
-        setCompletionOpen(s.settings_completion_open ?? false);
-        setDataOpen(s.settings_data_open ?? false);
-        setDebugOpen(s.settings_debug_open ?? false);
+      .then((settings) => {
+        applySettingsState(settings);
         settingsOpenStateLoadedRef.current = true;
       })
       .catch(() => {
         settingsOpenStateLoadedRef.current = true;
       });
-  }, []);
+  }, [applyConfigState, applySettingsState]);
 
   useEffect(() => {
     Promise.all([getLlamaProps(), getLlamaStatus()])
@@ -211,33 +263,11 @@ export function SettingsPanel() {
     };
   }, [sysResOpen]);
 
-  const handleSave = async (patch: {
-    ctx_size?: number;
-    temperature?: number;
-    completion_length?: number;
-    memory_context_top_k?: number;
-    document_context_top_k?: number;
-    memory_context_chars?: number;
-    document_context_chars?: number;
-    memory_decay_half_life_days?: number;
-    document_chunk_target_chars?: number;
-    document_chunk_max_chars?: number;
-    document_chunk_overlap_chars?: number;
-  }) => {
+  const handleSave = async (patch: AppConfigPatch) => {
     setSaving(true);
     try {
       const cfg = await updateConfig(patch);
-      setCtxSize(cfg.ctx_size);
-      setTemperature(cfg.temperature ?? 0.8);
-      setCompletionLength(cfg.completion_length ?? 80);
-      setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
-      setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
-      setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
-      setDocumentContextChars(cfg.document_context_chars ?? DEFAULTS.document_context_chars);
-      setMemoryDecayHalfLifeDays(cfg.memory_decay_half_life_days ?? DEFAULTS.memory_decay_half_life_days);
-      setDocumentChunkTargetChars(cfg.document_chunk_target_chars ?? DEFAULTS.document_chunk_target_chars);
-      setDocumentChunkMaxChars(cfg.document_chunk_max_chars ?? DEFAULTS.document_chunk_max_chars);
-      setDocumentChunkOverlapChars(cfg.document_chunk_overlap_chars ?? DEFAULTS.document_chunk_overlap_chars);
+      applyConfigState(cfg);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
@@ -386,16 +416,7 @@ export function SettingsPanel() {
   const toggleSettingsSection = useCallback(
     (
       setter: Dispatch<SetStateAction<boolean>>,
-      key:
-        | "settings_context_open"
-        | "settings_memory_open"
-        | "settings_documents_open"
-        | "settings_advanced_open"
-        | "settings_system_prompt_open"
-        | "settings_interface_open"
-        | "settings_completion_open"
-        | "settings_data_open"
-        | "settings_debug_open"
+      key: SettingsSectionKey
     ) => {
       setter((prev) => {
         const next = !prev;
@@ -1053,7 +1074,7 @@ export function SettingsPanel() {
           </div>
         )}
       </section>
-      {/* Advanced */}
+      {/* System Info */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
@@ -1061,7 +1082,7 @@ export function SettingsPanel() {
               <polyline points="4 6 20 6"/><polyline points="4 12 20 12"/><polyline points="4 18 14 18"/>
             </svg>
           </span>
-          <span>Advanced</span>
+          <span>System Info</span>
           <svg className={`settings-chevron${advancedOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
