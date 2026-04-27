@@ -1228,6 +1228,60 @@ class SQLiteStore:
             for order, doc_id in enumerate(ids):
                 conn.execute("UPDATE documents SET sort_order = ? WHERE id = ?", (order, doc_id))
 
+    def move_document(self, doc_id: str, target_workspace_id: str) -> Document | None:
+        doc = self.get_document(doc_id)
+        if doc is None:
+            return None
+        if doc.workspace_id == target_workspace_id:
+            return doc
+
+        old_path = self.document_root / doc.file_path
+        target_dir = self.document_root / target_workspace_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        stem = Path(doc.file_name).stem
+        suffix = Path(doc.file_name).suffix
+        new_path = target_dir / doc.file_name
+        counter = 1
+        while new_path.exists():
+            new_path = target_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+        try:
+            if old_path.exists():
+                old_path.rename(new_path)
+        except OSError:
+            return None
+
+        new_relative = f"{target_workspace_id}/{new_path.name}"
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM documents WHERE workspace_id = ? AND scope = ?",
+                (target_workspace_id, doc.scope),
+            ).fetchone()
+            next_order = int(row["max_order"]) + 1 if row is not None else 0
+            conn.execute(
+                """
+                UPDATE documents
+                SET workspace_id = ?, sort_order = ?, file_name = ?, file_path = ?
+                WHERE id = ?
+                """,
+                (target_workspace_id, next_order, new_path.name, new_relative, doc_id),
+            )
+            conn.execute(
+                "UPDATE document_chunks SET workspace_id = ? WHERE document_id = ?",
+                (target_workspace_id, doc_id),
+            )
+
+        try:
+            for parent in old_path.parents:
+                if parent == self.document_root or self.document_root not in parent.parents:
+                    break
+                parent.rmdir()
+        except OSError:
+            pass
+        return self.get_document(doc_id)
+
     def delete_document(self, doc_id: str) -> bool:
         doc = self.get_document(doc_id)
         if doc is None:

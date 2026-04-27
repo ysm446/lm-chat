@@ -625,6 +625,13 @@ export function reorderDocuments(orderedIds: string[]) {
   });
 }
 
+export function moveDocument(docId: string, targetWorkspaceId: string) {
+  return request<ApiDocument>(`/documents/${encodeURIComponent(docId)}/move`, {
+    method: "POST",
+    body: JSON.stringify({ workspace_id: targetWorkspaceId }),
+  });
+}
+
 export function createDocument(payload: {
   workspace_id: string;
   session_id?: string | null;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiDocument, getSettings, updateSettings } from "../api";
+import { ApiDocument, getDocument, getSettings, updateSettings } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type WsMenu = { id: string; name: string; description: string; x: number; y: number };
@@ -29,6 +29,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const removeDocument = useChatStore((s) => s.removeDocument);
   const loadDocuments = useChatStore((s) => s.loadDocuments);
   const addDocument = useChatStore((s) => s.addDocument);
+  const moveDocument = useChatStore((s) => s.moveDocument);
   const reorderDocuments = useChatStore((s) => s.reorderDocuments);
   const reorderWorkspaces = useChatStore((s) => s.reorderWorkspaces);
   const reorderSessions = useChatStore((s) => s.reorderSessions);
@@ -59,6 +60,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [sessionDragOverWsId, setSessionDragOverWsId] = useState<string | null>(null);
   const [docDragId, setDocDragId] = useState<string | null>(null);
   const [docDragOverId, setDocDragOverId] = useState<string | null>(null);
+  const [docDragOverWsId, setDocDragOverWsId] = useState<string | null>(null);
 
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
@@ -295,6 +297,20 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     onSelectDocument?.(doc.id);
   };
 
+  const openDocMenu = (doc: ApiDocument, x: number, y: number) => {
+    setWsMenu(null);
+    setSessionMenu(null);
+    setDocMenu({ id: doc.id, file_name: doc.file_name, x, y });
+  };
+
+  const handleDuplicateDoc = async (docId: string) => {
+    const source = await getDocument(docId);
+    const doc = await addDocument(source.workspace_id, source.file_name, source.content);
+    setDocsExpanded((prev) => new Set([...prev, source.workspace_id]));
+    handleSelectDoc(doc);
+    setDocMenu(null);
+  };
+
   const handleDeleteDoc = async (docId: string, fileName: string) => {
     const ok = window.confirm(`資料「${fileName}」を削除しますか？`);
     if (!ok) return;
@@ -393,7 +409,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
           return (
             <div
             key={ws.id}
-            className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}${sessionDragOverWsId === ws.id ? " session-drop-target" : ""}`}
+            className={`sidebar-ws-group${dragOverId === ws.id && dragId !== ws.id ? " drag-over" : ""}${dragId === ws.id ? " dragging" : ""}${sessionDragOverWsId === ws.id ? " session-drop-target" : ""}${docDragOverWsId === ws.id ? " document-drop-target" : ""}`}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
@@ -405,11 +421,19 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                   setSessionDragOverId(null);
                 }
               }
+              if (docDragId) {
+                const draggedDoc = documents.find((d) => d.id === docDragId);
+                if (draggedDoc && draggedDoc.workspace_id !== ws.id) {
+                  setDocDragOverWsId(ws.id);
+                  setDocDragOverId(null);
+                }
+              }
             }}
             onDragLeave={(e) => {
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                 setDragOverId(null);
                 setSessionDragOverWsId(null);
+                setDocDragOverWsId(null);
               }
             }}
             onDrop={(e) => {
@@ -420,6 +444,13 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                   void moveSession(sessionDragId, ws.id);
                 }
                 setSessionDragId(null); setSessionDragOverId(null); setSessionDragOverWsId(null); return;
+              }
+              if (docDragId) {
+                const draggedDoc = documents.find((d) => d.id === docDragId);
+                if (draggedDoc && draggedDoc.workspace_id !== ws.id) {
+                  void moveDocument(docDragId, ws.id);
+                }
+                setDocDragId(null); setDocDragOverId(null); setDocDragOverWsId(null); return;
               }
               if (!dragId || dragId === ws.id) { setDragId(null); setDragOverId(null); return; }
               const from = workspaces.findIndex((w) => w.id === dragId);
@@ -432,7 +463,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
               setDragId(null);
               setDragOverId(null);
             }}
-            onDragEnd={() => { setDragId(null); setDragOverId(null); setSessionDragOverWsId(null); }}
+            onDragEnd={() => { setDragId(null); setDragOverId(null); setSessionDragOverWsId(null); setDocDragOverWsId(null); }}
           >
               {editingWsId === ws.id ? (
                 <div className="sidebar-ws-edit">
@@ -560,6 +591,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                   onDragStart={(e) => {
                                     if (isSearching || isRenaming) return;
                                     setDocDragId(doc.id);
+                                    setDocDragOverWsId(null);
                                     e.dataTransfer.effectAllowed = "move";
                                     e.dataTransfer.setData("text/plain", doc.id);
                                   }}
@@ -567,6 +599,12 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = "move";
                                     if (!docDragId || docDragId === doc.id) return;
+                                    const draggedDoc = documents.find((item) => item.id === docDragId);
+                                    if (draggedDoc && draggedDoc.workspace_id !== ws.id) {
+                                      setDocDragOverWsId(ws.id);
+                                      setDocDragOverId(null);
+                                      return;
+                                    }
                                     setDocDragOverId(doc.id);
                                   }}
                                   onDragLeave={(e) => {
@@ -579,21 +617,41 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                     if (!docDragId || docDragId === doc.id) {
                                       setDocDragId(null);
                                       setDocDragOverId(null);
+                                      setDocDragOverWsId(null);
+                                      return;
+                                    }
+                                    const draggedDoc = documents.find((item) => item.id === docDragId);
+                                    if (draggedDoc && draggedDoc.workspace_id !== ws.id) {
+                                      void moveDocument(docDragId, ws.id);
+                                      setDocDragId(null);
+                                      setDocDragOverId(null);
+                                      setDocDragOverWsId(null);
                                       return;
                                     }
                                     const from = wsDocs.findIndex((item) => item.id === docDragId);
                                     const to = wsDocs.findIndex((item) => item.id === doc.id);
-                                    if (from < 0 || to < 0) return;
+                                    if (from < 0 || to < 0) {
+                                      setDocDragId(null);
+                                      setDocDragOverId(null);
+                                      setDocDragOverWsId(null);
+                                      return;
+                                    }
                                     const next = [...wsDocs];
                                     const [moved] = next.splice(from, 1);
                                     next.splice(to, 0, moved);
                                     void reorderDocuments(ws.id, next.map((item) => item.id));
                                     setDocDragId(null);
                                     setDocDragOverId(null);
+                                    setDocDragOverWsId(null);
                                   }}
                                   onDragEnd={() => {
                                     setDocDragId(null);
                                     setDocDragOverId(null);
+                                    setDocDragOverWsId(null);
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    openDocMenu(doc, e.clientX, e.clientY);
                                   }}
                                 >
                                   <button
@@ -611,7 +669,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const rect = e.currentTarget.getBoundingClientRect();
-                                      setDocMenu({ id: doc.id, file_name: doc.file_name, x: rect.right - 8, y: rect.bottom + 6 });
+                                      openDocMenu(doc, rect.right - 8, rect.bottom + 6);
                                     }}
                                   >
                                     •••
@@ -747,6 +805,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
           style={{ left: `${docMenu.x}px`, top: `${docMenu.y}px` }}
           role="menu"
         >
+          <button className="context-menu-item" onClick={() => void handleDuplicateDoc(docMenu.id)}>複製</button>
           <button className="context-menu-item danger" onClick={() => void handleDeleteDoc(docMenu.id, docMenu.file_name)}>削除</button>
         </div>
       )}

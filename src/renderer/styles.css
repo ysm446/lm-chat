@@ -478,6 +478,7 @@ a { color: var(--accent); }
 .sidebar-ws-group.drag-over { outline: 1px solid var(--accent); background: var(--accent-soft); }
 .sidebar-ws-group.dragging { opacity: 0.4; }
 .sidebar-ws-group.session-drop-target > .sidebar-ws-row { outline: 1px solid var(--accent); background: var(--accent-soft); border-radius: 6px; }
+.sidebar-ws-group.document-drop-target > .sidebar-ws-row { outline: 1px solid var(--accent); background: var(--accent-soft); border-radius: 6px; }
 .sidebar-session-row.drag-over { outline: 1px solid var(--accent-border); background: var(--accent-soft); }
 .sidebar-session-row.dragging { opacity: 0.45; }
 

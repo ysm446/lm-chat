@@ -1298,6 +1298,19 @@ def reorder_documents(payload: DocumentReorderRequest) -> dict[str, bool]:
     return {"ok": True}
 
 
+@app.post("/documents/{doc_id}/move", response_model=Document)
+def move_document(doc_id: str, payload: dict) -> Document:
+    target_workspace_id = payload.get("workspace_id", "")
+    if not target_workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required")
+    if not store.has_workspace(target_workspace_id):
+        raise HTTPException(status_code=404, detail="Target workspace not found")
+    doc = store.move_document(doc_id, target_workspace_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
+
+
 @app.post("/documents", response_model=Document)
 def create_document(payload: DocumentUploadRequest) -> Document:
     if not store.has_workspace(payload.workspace_id):

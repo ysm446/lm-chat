@@ -16,6 +16,7 @@ import {
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
   listDocuments as listDocumentsRequest,
+  moveDocument as moveDocumentRequest,
   reorderWorkspaces as reorderWorkspacesRequest,
   reorderDocuments as reorderDocumentsRequest,
   reorderSessions as reorderSessionsRequest,
@@ -129,6 +130,7 @@ type ChatState = {
   selectSession: (sessionId: string) => Promise<void>;
   loadDocuments: (workspaceId: string) => Promise<void>;
   addDocument: (workspaceId: string, fileName: string, content: string) => Promise<ApiDocument>;
+  moveDocument: (docId: string, targetWorkspaceId: string) => Promise<void>;
   reorderDocuments: (workspaceId: string, orderedIds: string[]) => Promise<void>;
   removeDocument: (docId: string) => Promise<void>;
   updateDocument: (docId: string, content: string) => Promise<void>;
@@ -543,6 +545,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
     }
     return doc;
+  },
+
+  moveDocument: async (docId, targetWorkspaceId) => {
+    const sourceWorkspaceId = get().documents.find((d) => d.id === docId)?.workspace_id ?? null;
+    const movedDoc = await moveDocumentRequest(docId, targetWorkspaceId);
+    const targetDocs = await listDocumentsRequest(targetWorkspaceId);
+    set((state) => ({
+      documents: [
+        ...state.documents.filter((d) =>
+          d.id !== docId &&
+          d.workspace_id !== targetWorkspaceId
+        ),
+        ...targetDocs,
+      ],
+      currentWorkspaceId: state.currentDocumentId === docId ? movedDoc.workspace_id : state.currentWorkspaceId,
+      currentSessionId: state.currentDocumentId === docId ? null : state.currentSessionId,
+    }));
+    if (sourceWorkspaceId && sourceWorkspaceId !== targetWorkspaceId) {
+      void get().loadDocuments(sourceWorkspaceId);
+    }
   },
 
   reorderDocuments: async (workspaceId, orderedIds) => {
