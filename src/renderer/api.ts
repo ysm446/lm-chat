@@ -97,6 +97,7 @@ export type AppConfig = {
   n_gpu_layers: number;
   temperature: number;
   completion_length: number;
+  memory_scope: "workspace" | "above_current" | "below_current";
   memory_context_top_k: number;
   document_context_top_k: number;
   memory_context_chars: number;
@@ -433,6 +434,12 @@ export function branchSession(sessionId: string, upToMessageId: string) {
   return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/branch`, {
     method: "POST",
     body: JSON.stringify({ up_to_message_id: upToMessageId })
+  });
+}
+
+export function duplicateSession(sessionId: string) {
+  return request<ApiSession>(`/history/sessions/${encodeURIComponent(sessionId)}/duplicate`, {
+    method: "POST",
   });
 }
 

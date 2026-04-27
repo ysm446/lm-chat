@@ -147,6 +147,7 @@ class ConfigUpdate(BaseModel):
     n_gpu_layers: int | None = None
     temperature: float | None = None
     completion_length: int | None = None
+    memory_scope: Literal["workspace", "above_current", "below_current"] | None = None
     memory_context_top_k: int | None = None
     document_context_top_k: int | None = None
     memory_context_chars: int | None = None

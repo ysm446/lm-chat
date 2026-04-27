@@ -781,6 +781,37 @@ class SQLiteStore:
                 self.copy_message_prompt_log(msg.id, copied.id, new_session.id)
         return self.get_session(new_session.id)
 
+    def duplicate_session(self, session_id: str) -> Session | None:
+        session = self.get_session(session_id)
+        if session is None:
+            return None
+        new_session = self.create_session(
+            SessionCreate(
+                workspace_id=session.workspace_id,
+                title=f"{session.title} (コピー)",
+                model_name=session.model_name,
+            )
+        )
+        for msg in session.messages:
+            copied = self.append_message(
+                new_session.id,
+                MessageCreate(
+                    role=msg.role,
+                    content=msg.content,
+                    image_data=msg.image_data,
+                    image_preview_data=msg.image_preview_data,
+                    prompt_tokens=msg.prompt_tokens,
+                    completion_tokens=msg.completion_tokens,
+                    tokens_per_second=msg.tokens_per_second,
+                    elapsed_seconds=msg.elapsed_seconds,
+                    finish_reason=msg.finish_reason,
+                    model_name=msg.model_name,
+                ),
+            )
+            if copied is not None and msg.role == "assistant":
+                self.copy_message_prompt_log(msg.id, copied.id, new_session.id)
+        return self.get_session(new_session.id)
+
     def move_session(self, session_id: str, target_workspace_id: str) -> Session | None:
         with self._connect() as conn:
             cursor = conn.execute(
@@ -863,6 +894,7 @@ class SQLiteStore:
         query: str,
         top_k: int,
         exclude_session_id: str | None = None,
+        session_scope: str = "workspace",
         half_life_days: int = 30,
     ) -> list[MemoryChunk]:
         from .memory.embedder import embed
@@ -874,10 +906,36 @@ class SQLiteStore:
         rrf_k = 60
         half_life_days = max(0, int(half_life_days))
         scores: dict[str, float] = {}
-        exclude_clause = " AND mc.session_id != ?" if exclude_session_id else ""
-        exclude_params = (exclude_session_id,) if exclude_session_id else ()
-
         with self._connect() as conn:
+            session_filter_clause = ""
+            session_filter_params: tuple[str, ...] = ()
+            if session_scope in {"above_current", "below_current"}:
+                if not exclude_session_id:
+                    return []
+                current = conn.execute(
+                    "SELECT sort_order FROM sessions WHERE id = ? AND workspace_id = ?",
+                    (exclude_session_id, workspace_id),
+                ).fetchone()
+                if current is None:
+                    return []
+                operator = "<" if session_scope == "above_current" else ">"
+                scoped_rows = conn.execute(
+                    f"""
+                    SELECT id FROM sessions
+                    WHERE workspace_id = ? AND sort_order {operator} ?
+                    """,
+                    (workspace_id, current["sort_order"]),
+                ).fetchall()
+                scoped_session_ids = [row["id"] for row in scoped_rows]
+                if not scoped_session_ids:
+                    return []
+                placeholders_scope = ",".join("?" * len(scoped_session_ids))
+                session_filter_clause = f" AND mc.session_id IN ({placeholders_scope})"
+                session_filter_params = tuple(scoped_session_ids)
+            elif exclude_session_id:
+                session_filter_clause = " AND mc.session_id != ?"
+                session_filter_params = (exclude_session_id,)
+
             # --- FTS5 キーワード検索 ---
             # 特殊文字をエスケープしてフレーズ検索クエリに変換
             safe_query = '"' + query.replace('"', ' ') + '"'
@@ -886,10 +944,10 @@ class SQLiteStore:
                     """
                     SELECT mc.id FROM memory_fts mf
                     JOIN memory_chunks mc ON mc.id = mf.id
-                    WHERE mf.content MATCH ? AND mc.workspace_id = ?""" + exclude_clause + """
+                    WHERE mf.content MATCH ? AND mc.workspace_id = ?""" + session_filter_clause + """
                     LIMIT ?
                     """,
-                    (safe_query, workspace_id, *exclude_params, top_k * 4),
+                    (safe_query, workspace_id, *session_filter_params, top_k * 4),
                 ).fetchall()
                 for rank, row in enumerate(fts_rows):
                     scores[row["id"]] = scores.get(row["id"], 0.0) + 1.0 / (rrf_k + rank + 1)
@@ -912,10 +970,8 @@ class SQLiteStore:
                 ws_set = {
                     row["id"]
                     for row in conn.execute(
-                        f"SELECT id FROM memory_chunks WHERE id IN ({placeholders_vec}) AND workspace_id = ?" + (
-                            " AND session_id != ?" if exclude_session_id else ""
-                        ),
-                        (*vec_chunk_ids, workspace_id, *exclude_params),
+                        f"SELECT id FROM memory_chunks mc WHERE id IN ({placeholders_vec}) AND workspace_id = ?" + session_filter_clause,
+                        (*vec_chunk_ids, workspace_id, *session_filter_params),
                     ).fetchall()
                 }
                 for rank, row in enumerate(vec_rows):
@@ -931,9 +987,9 @@ class SQLiteStore:
             chunk_rows = conn.execute(
                 f"""
                 SELECT id, workspace_id, session_id, chunk_type, content, created_at
-                FROM memory_chunks
-                WHERE id IN ({placeholders})""" + (" AND session_id != ?" if exclude_session_id else ""),
-                ids + ([exclude_session_id] if exclude_session_id else []),
+                FROM memory_chunks mc
+                WHERE id IN ({placeholders})""" + session_filter_clause,
+                ids + list(session_filter_params),
             ).fetchall()
 
         from datetime import datetime, timezone

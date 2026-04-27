@@ -2406,6 +2406,19 @@ details.thinking-block[open] .thinking-chevron {
 }
 .settings-number-input:focus { outline: none; border-color: var(--accent); }
 
+.settings-select {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12px;
+}
+.settings-select:focus { outline: none; border-color: var(--accent); }
+.settings-select.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+
 .settings-value-badge {
   min-width: 72px;
   padding: 4px 8px;

@@ -24,6 +24,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const createSession = useChatStore((s) => s.createSession);
   const renameWorkspace = useChatStore((s) => s.renameWorkspace);
   const renameSession = useChatStore((s) => s.renameSession);
+  const duplicateSession = useChatStore((s) => s.duplicateSession);
   const removeWorkspace = useChatStore((s) => s.removeWorkspace);
   const removeSession = useChatStore((s) => s.removeSession);
   const removeDocument = useChatStore((s) => s.removeDocument);
@@ -235,6 +236,17 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     setSessionMenu(null);
     setEditingSessionId(sessionId);
     setEditingSessionTitle(title);
+  };
+
+  const openSessionMenu = (session: { id: string; title: string }, x: number, y: number) => {
+    setWsMenu(null);
+    setDocMenu(null);
+    setSessionMenu({ id: session.id, title: session.title, x, y });
+  };
+
+  const handleDuplicateSession = async (sessionId: string) => {
+    await duplicateSession(sessionId);
+    setSessionMenu(null);
   };
 
   const commitEditSession = async (sessionId: string) => {
@@ -687,6 +699,10 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                       key={session.id}
                       className={`sidebar-session-row${session.id === currentSessionId ? " active" : ""}${sessionDragOverId === session.id && sessionDragId !== session.id ? " drag-over" : ""}${sessionDragId === session.id ? " dragging" : ""}`}
                       draggable={!isSearching && !isRenaming}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        openSessionMenu(session, e.clientX, e.clientY);
+                      }}
                       onDragStart={(e) => {
                         if (isSearching || isRenaming) return;
                         setSessionDragId(session.id);
@@ -757,7 +773,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const rect = e.currentTarget.getBoundingClientRect();
-                                setSessionMenu({ id: session.id, title: session.title, x: rect.right - 8, y: rect.bottom + 6 });
+                                openSessionMenu(session, rect.right - 8, rect.bottom + 6);
                               }}
                             >
                               •••
@@ -794,6 +810,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
           role="menu"
         >
           <button className="context-menu-item" onClick={() => startEditSession(sessionMenu.id, sessionMenu.title)}>名前を変更</button>
+          <button className="context-menu-item" onClick={() => void handleDuplicateSession(sessionMenu.id)}>複製</button>
           <button className="context-menu-item danger" onClick={() => void handleDeleteSession(sessionMenu.id, sessionMenu.title)}>削除</button>
         </div>
       )}

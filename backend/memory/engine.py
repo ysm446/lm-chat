@@ -19,6 +19,7 @@ class MemoryEngine:
         query: str,
         top_k: int,
         exclude_session_id: str | None = None,
+        session_scope: str = "workspace",
         half_life_days: int = 30,
     ) -> list[MemoryChunk]:
         return self.store.search_memory(
@@ -26,6 +27,7 @@ class MemoryEngine:
             query,
             top_k,
             exclude_session_id=exclude_session_id,
+            session_scope=session_scope,
             half_life_days=half_life_days,
         )
 
@@ -35,6 +37,7 @@ class MemoryEngine:
         query: str,
         top_k: int = 5,
         exclude_session_id: str | None = None,
+        session_scope: str = "workspace",
         half_life_days: int = 30,
     ) -> str:
         items = self.search(
@@ -42,6 +45,7 @@ class MemoryEngine:
             query,
             top_k,
             exclude_session_id=exclude_session_id,
+            session_scope=session_scope,
             half_life_days=half_life_days,
         )
         if not items:

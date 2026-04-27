@@ -15,6 +15,7 @@ import {
   deleteMessage as deleteMessageRequest,
   deleteSession as deleteSessionRequest,
   deleteWorkspace as deleteWorkspaceRequest,
+  duplicateSession as duplicateSessionRequest,
   listDocuments as listDocumentsRequest,
   moveDocument as moveDocumentRequest,
   reorderWorkspaces as reorderWorkspacesRequest,
@@ -125,6 +126,7 @@ type ChatState = {
   selectWorkspace: (workspaceId: string) => Promise<void>;
   createSession: (workspaceId: string, title: string) => Promise<ApiSession>;
   renameSession: (sessionId: string, title: string) => Promise<void>;
+  duplicateSession: (sessionId: string) => Promise<void>;
   removeSession: (sessionId: string) => Promise<void>;
   moveSession: (sessionId: string, targetWorkspaceId: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
@@ -476,6 +478,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
       error: null
+    }));
+  },
+
+  duplicateSession: async (sessionId) => {
+    const session = await duplicateSessionRequest(sessionId);
+    set((state) => ({
+      sessions: [session, ...state.sessions],
+      currentWorkspaceId: session.workspace_id,
+      currentSessionId: session.id,
+      currentDocumentId: null,
+      error: null,
+      streamingText: "",
     }));
   },
 

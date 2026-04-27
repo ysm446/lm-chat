@@ -139,6 +139,7 @@ def build_memory_context(session: Session, query: str) -> str:
         config = get_config_data()
         top_k = max(0, int(config.get("memory_context_top_k", 5)))
         half_life_days = max(0, int(config.get("memory_decay_half_life_days", 30)))
+        memory_scope = str(config.get("memory_scope", "workspace"))
         if top_k <= 0:
             return ""
         context = memory_engine.build_prompt_context(
@@ -146,6 +147,7 @@ def build_memory_context(session: Session, query: str) -> str:
             query,
             top_k=top_k,
             exclude_session_id=session.id,
+            session_scope=memory_scope,
             half_life_days=half_life_days,
         )
         logger.debug("Memory context built (%d chars): %s", len(context), context[:120])
@@ -880,6 +882,14 @@ def branch_session(session_id: str, payload: dict) -> Session:
     if not up_to_message_id:
         raise HTTPException(status_code=400, detail="up_to_message_id is required")
     new_session = store.branch_session(session_id, up_to_message_id)
+    if new_session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return new_session
+
+
+@app.post("/history/sessions/{session_id}/duplicate", response_model=Session)
+def duplicate_session(session_id: str) -> Session:
+    new_session = store.duplicate_session(session_id)
     if new_session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return new_session

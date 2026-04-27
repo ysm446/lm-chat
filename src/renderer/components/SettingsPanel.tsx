@@ -39,10 +39,17 @@ const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> =
   { value: "custom", label: "カスタム" },
 ];
 
+const MEMORY_SCOPE_OPTIONS: Array<{ value: AppConfig["memory_scope"]; label: string }> = [
+  { value: "workspace", label: "Workspace 全体" },
+  { value: "above_current", label: "現在より上の会話だけ" },
+  { value: "below_current", label: "現在より下の会話だけ" },
+];
+
 const DEFAULTS = {
   temperature: 0.8,
   ctx_size: 32768,
   completion_length: 80,
+  memory_scope: "workspace",
   memory_context_top_k: 5,
   document_context_top_k: 3,
   memory_context_chars: 1500,
@@ -107,6 +114,7 @@ export function SettingsPanel() {
   const [ctxSize, setCtxSize] = useState(32768);
   const [temperature, setTemperature] = useState(0.8);
   const [completionLength, setCompletionLength] = useState(80);
+  const [memoryScope, setMemoryScope] = useState<AppConfig["memory_scope"]>(DEFAULTS.memory_scope);
   const [memoryContextTopK, setMemoryContextTopK] = useState<number>(DEFAULTS.memory_context_top_k);
   const [documentContextTopK, setDocumentContextTopK] = useState<number>(DEFAULTS.document_context_top_k);
   const [memoryContextChars, setMemoryContextChars] = useState<number>(DEFAULTS.memory_context_chars);
@@ -156,6 +164,7 @@ export function SettingsPanel() {
     setCtxSize(cfg.ctx_size);
     setTemperature(cfg.temperature ?? DEFAULTS.temperature);
     setCompletionLength(cfg.completion_length ?? DEFAULTS.completion_length);
+    setMemoryScope(cfg.memory_scope ?? DEFAULTS.memory_scope);
     setMemoryContextTopK(cfg.memory_context_top_k ?? DEFAULTS.memory_context_top_k);
     setDocumentContextTopK(cfg.document_context_top_k ?? DEFAULTS.document_context_top_k);
     setMemoryContextChars(cfg.memory_context_chars ?? DEFAULTS.memory_context_chars);
@@ -770,6 +779,34 @@ export function SettingsPanel() {
 
         {memoryOpen && (
           <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("Memory 検索で参照する会話の範囲を、サイドバーの並び順を基準に切り替えます。")} onMouseLeave={onTipLeave}>Memory Scope</span>
+                <div className="settings-field-controls">
+                  {memoryScope !== DEFAULTS.memory_scope && (
+                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setMemoryScope(DEFAULTS.memory_scope); void handleSave({ memory_scope: DEFAULTS.memory_scope }); }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+              <select
+                className={`settings-select${memoryScope !== DEFAULTS.memory_scope ? " active" : ""}`}
+                value={memoryScope}
+                onChange={(e) => {
+                  const next = e.target.value as AppConfig["memory_scope"];
+                  setMemoryScope(next);
+                  void handleSave({ memory_scope: next });
+                }}
+              >
+                {MEMORY_SCOPE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="settings-field">
               <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("検索で拾った過去記憶を最大何件までプロンプトに含めるかを調整します。")} onMouseLeave={onTipLeave}>Memory Hits</span>
