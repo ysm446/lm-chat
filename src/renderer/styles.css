@@ -2986,7 +2986,10 @@ details.thinking-block[open] .thinking-chevron {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  opacity: 0;
 }
+.sidebar-docs-header:hover .sidebar-docs-actions,
+.sidebar-docs-header:focus-within .sidebar-docs-actions { opacity: 1; }
 
 .sidebar-docs-label {
   flex: 1;
