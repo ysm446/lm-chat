@@ -116,12 +116,16 @@ export function ChatView() {
   const continueGeneration = useChatStore((state) => state.continueGeneration);
   const activeModelPath = useChatStore((state) => state.activeModelPath);
   const correctionEnabled = useChatStore((state) => state.correctionEnabled);
+  const chatScrollPosition = useChatStore((state) => state.chatScrollPosition);
   const modelName = selectedModel ?? session?.model_name ?? "";
   const messages = tempChatMode ? tempMessages : (session?.messages ?? []);
   const chatViewRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const previousSubmissionModeRef = useRef<typeof submissionMode>(null);
   const userMessageRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const sessionIdRef = useRef<string | undefined>(undefined);
+  const chatScrollPositionRef = useRef(chatScrollPosition);
+  useEffect(() => { chatScrollPositionRef.current = chatScrollPosition; }, [chatScrollPosition]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -271,8 +275,24 @@ export function ChatView() {
     const previousMode = previousSubmissionModeRef.current;
     previousSubmissionModeRef.current = submissionMode;
     if (submissionMode === "regenerate" || previousMode === "regenerate") return;
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [session?.messages.length, isSubmitting, submissionMode]);
+
+    const isSessionSwitch = session?.id !== sessionIdRef.current;
+    sessionIdRef.current = session?.id;
+
+    if (isSessionSwitch) {
+      if (chatScrollPositionRef.current === "top") {
+        chatViewRef.current?.scrollTo({ top: 0, behavior: "instant" });
+      } else {
+        requestAnimationFrame(() => {
+          const el = chatViewRef.current;
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
+    } else {
+      const el = chatViewRef.current;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }
+  }, [session?.id, session?.messages.length, isSubmitting, submissionMode]);
 
   const emitScrollState = useCallback(() => {
     const el = chatViewRef.current;

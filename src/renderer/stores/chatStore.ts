@@ -103,6 +103,7 @@ type ChatState = {
   thinkingEnabled: boolean;
   autocompleteEnabled: boolean;
   correctionEnabled: boolean;
+  chatScrollPosition: "bottom" | "top";
   systemPromptText: string;
   setSystemPromptText: (text: string) => void;
   tempChatMode: boolean;
@@ -118,6 +119,7 @@ type ChatState = {
   toggleThinking: () => void;
   toggleAutocomplete: () => void;
   setCorrectionEnabled: (enabled: boolean) => void;
+  setChatScrollPosition: (value: "bottom" | "top") => void;
   reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
   reorderSessions: (orderedIds: string[]) => Promise<void>;
   createWorkspace: (name: string, description: string) => Promise<ApiWorkspace>;
@@ -208,6 +210,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   thinkingEnabled: false,
   autocompleteEnabled: false,
   correctionEnabled: true,
+  chatScrollPosition: "bottom" as "bottom" | "top",
   systemPromptText: "",
   tempChatMode: false,
   tempMessages: [],
@@ -254,6 +257,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({
         systemPromptText: sp.active_text,
         correctionEnabled: settings.correction_enabled ?? true,
+        chatScrollPosition: (settings.chat_scroll_position as "bottom" | "top") ?? "bottom",
       });
     } catch {
       try {
@@ -394,6 +398,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   toggleThinking: () => set((state) => ({ thinkingEnabled: !state.thinkingEnabled })),
   toggleAutocomplete: () => set((state) => ({ autocompleteEnabled: !state.autocompleteEnabled })),
   setCorrectionEnabled: (enabled) => set({ correctionEnabled: enabled }),
+  setChatScrollPosition: (value) => set({ chatScrollPosition: value }),
 
   reorderWorkspaces: async (orderedIds) => {
     set((state) => ({

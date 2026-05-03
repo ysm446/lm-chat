@@ -132,6 +132,7 @@ export type AppSettings = {
   correction_prompt_mode: string;
   correction_custom_prompt: string;
   debug_prompt_log: boolean;
+  chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>;
 
 export type AppSettingsPatch = Partial<{
@@ -145,6 +146,7 @@ export type AppSettingsPatch = Partial<{
   correction_prompt_mode: string;
   correction_custom_prompt: string;
   debug_prompt_log: boolean;
+  chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>>;
 
 const API_BASE = window.lmChat?.apiBase ?? import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";

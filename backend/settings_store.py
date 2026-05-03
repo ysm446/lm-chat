@@ -15,6 +15,7 @@ _DEFAULTS: dict = {
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",
     "debug_prompt_log": False,
+    "chat_scroll_position": "bottom",
     "settings_context_open": False,
     "settings_memory_open": False,
     "settings_documents_open": False,

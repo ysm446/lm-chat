@@ -109,6 +109,8 @@ export function SettingsPanel() {
   const setSystemPromptText = useChatStore((state) => state.setSystemPromptText);
   const correctionEnabled = useChatStore((state) => state.correctionEnabled);
   const setCorrectionEnabled = useChatStore((state) => state.setCorrectionEnabled);
+  const chatScrollPosition = useChatStore((state) => state.chatScrollPosition);
+  const setChatScrollPosition = useChatStore((state) => state.setChatScrollPosition);
 
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [ctxSize, setCtxSize] = useState(32768);
@@ -557,6 +559,26 @@ export function SettingsPanel() {
                 <span>小 ({FONT_SIZE_MIN}px)</span>
                 <span>大 ({FONT_SIZE_MAX}px)</span>
               </div>
+            </div>
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("会話を選んだとき、どの位置から表示するかを選びます。")} onMouseLeave={onTipLeave}>会話の開始位置</span>
+              </div>
+              <select
+                className="sys-prompt-select"
+                value={chatScrollPosition}
+                onChange={(e) => {
+                  const next = e.target.value as "bottom" | "top";
+                  const prev = chatScrollPosition;
+                  setChatScrollPosition(next);
+                  updateSettings({ chat_scroll_position: next }).catch(() => {
+                    setChatScrollPosition(prev);
+                  });
+                }}
+              >
+                <option value="bottom">下から（最新メッセージ）</option>
+                <option value="top">上から（最初のメッセージ）</option>
+              </select>
             </div>
           </div>
         )}
