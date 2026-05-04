@@ -294,22 +294,33 @@ export function ChatView() {
     }
   }, [session?.id, session?.messages.length, isSubmitting, submissionMode]);
 
+  const isCurrentMsgTopVisible = useCallback((currentUserIndex: number) => {
+    const el = chatViewRef.current;
+    if (!el || currentUserIndex < 0) return true;
+    const card = userMessageRefs.current.get(userMessageIds[currentUserIndex]);
+    if (!card) return true;
+    const topPadding = 56;
+    const targetScrollTop = Math.max(0, card.offsetTop - topPadding);
+    return Math.abs(el.scrollTop - targetScrollTop) < 16;
+  }, [userMessageIds]);
+
   const emitScrollState = useCallback(() => {
     const el = chatViewRef.current;
     if (!el) return;
     const canScrollToTop = el.scrollTop > 48;
     const canScrollToBottom = el.scrollHeight - (el.scrollTop + el.clientHeight) > 48;
     const currentUserIndex = getFocusedUserMessageIndex();
+    const topVisible = isCurrentMsgTopVisible(currentUserIndex);
     window.dispatchEvent(new CustomEvent("lm-chat:chat-scroll-state", {
       detail: {
         can_scroll_to_top: canScrollToTop,
         can_scroll_to_bottom: canScrollToBottom,
         has_user_messages: userMessageIds.length > 0,
-        can_jump_prev_user: currentUserIndex > 0,
+        can_jump_prev_user: currentUserIndex > 0 || (currentUserIndex >= 0 && !topVisible),
         can_jump_next_user: currentUserIndex >= 0 && currentUserIndex < userMessageIds.length - 1,
       }
     }));
-  }, [getFocusedUserMessageIndex, userMessageIds.length]);
+  }, [getFocusedUserMessageIndex, isCurrentMsgTopVisible, userMessageIds.length]);
 
   useEffect(() => {
     emitScrollState();
@@ -324,7 +335,12 @@ export function ChatView() {
     };
     const handleJumpToPrevUserMessage = () => {
       const currentUserIndex = getFocusedUserMessageIndex();
-      if (currentUserIndex > 0) scrollToUserMessage(currentUserIndex - 1);
+      if (currentUserIndex < 0) return;
+      if (!isCurrentMsgTopVisible(currentUserIndex)) {
+        scrollToUserMessage(currentUserIndex);
+      } else if (currentUserIndex > 0) {
+        scrollToUserMessage(currentUserIndex - 1);
+      }
     };
     const handleJumpToNextUserMessage = () => {
       const currentUserIndex = getFocusedUserMessageIndex();
@@ -352,7 +368,7 @@ export function ChatView() {
       window.removeEventListener("lm-chat:jump-to-first-user-message", handleJumpToFirstUserMessage as EventListener);
       window.removeEventListener("lm-chat:jump-to-last-user-message", handleJumpToLastUserMessage as EventListener);
     };
-  }, [getFocusedUserMessageIndex, scrollToUserMessage, userMessageIds.length]);
+  }, [getFocusedUserMessageIndex, isCurrentMsgTopVisible, scrollToUserMessage, userMessageIds.length]);
 
   useEffect(() => {
     if (!expandedImage) return;
