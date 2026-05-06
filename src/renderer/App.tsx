@@ -96,6 +96,21 @@ export function App() {
     }
   };
 
+  const handleEditSystemPrompt = async (promptId: string) => {
+    setAppMode("system-prompt");
+    if (!showLeft) {
+      setShowLeft(true);
+      void updateSettings({ show_left: true });
+    }
+    try {
+      const data = await listSystemPrompts();
+      setSpPrompts(data.prompts);
+      setSpSelectedId(promptId || data.active_id || "");
+    } catch {
+      setSpSelectedId(promptId);
+    }
+  };
+
   if (isBootstrapping) {
     return (
       <div className="empty-shell">
@@ -227,7 +242,7 @@ export function App() {
         <div className="resize-handle" style={{ pointerEvents: showRight ? undefined : "none" }} onMouseDown={makeResizeHandler(() => rightWidth, setRightWidth, 200, 480, "right")} />
 
         <aside className="right-pane" style={{ overflow: "hidden" }}>
-          <SettingsPanel />
+          <SettingsPanel onEditSystemPrompt={(promptId) => void handleEditSystemPrompt(promptId)} />
         </aside>
 
       </div>
