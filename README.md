@@ -84,7 +84,7 @@ start.bat
 - `npm` が PATH に通っていること
 - `C:\Users\kenyo\miniconda3\Scripts\conda.exe` が存在すること
 - `main` という名前の conda 環境があること
-- `bin\llama-server\llama-b8781-bin-win-cuda-13.1-x64\llama-server.exe` が存在すること
+- Runtime 設定から llama.cpp server をインストール済みであること
 - GGUF モデルファイルを `models/` 配下に置くこと
 
 初回セットアップ時は、必要に応じて以下も用意してください。
@@ -144,8 +144,7 @@ lm-chat/
 │       ├── stores/
 │       ├── api.ts
 │       └── styles.css
-├── bin/                     # llama-server バイナリ置き場
-├── data/                    # 実行時データ
+├── data/                    # 実行時データ / llama.cpp Runtime
 ├── models/                  # ローカル GGUF モデル置き場
 ├── assets/
 └── start.bat

@@ -49,7 +49,7 @@ from .config_store import update as update_config_data
 from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, reorder_prompts, get_all as get_system_prompts, set_active_text, set_active_id
-from .llama_manager import eject_model, get_llama_paths, get_llama_server_version, get_model_props, is_ready, switch_model
+from .llama_manager import eject_model, get_llama_paths, get_llama_runtime_info, get_llama_server_version, get_model_props, install_llama_runtime, is_ready, switch_model
 from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _REWRITE_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, build_chat_messages, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.engine import MemoryEngine
 from .documents.chunker import chunk_document
@@ -1493,6 +1493,26 @@ def llama_status() -> dict:
         "active_model_path": paths.get("active_model_path", "") if ready else "",
         "version": get_llama_server_version(paths=paths),
     }
+
+
+@app.get("/llama/runtime-info")
+def llama_runtime_info() -> dict:
+    try:
+        return get_llama_runtime_info()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/llama/install-runtime")
+def llama_install_runtime(payload: dict) -> dict:
+    variant = payload.get("variant", "")
+    include_runtime = bool(payload.get("include_runtime", False))
+    if not variant:
+        raise HTTPException(status_code=400, detail="variant is required")
+    try:
+        return install_llama_runtime(variant, include_runtime=include_runtime)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/llama/eject")

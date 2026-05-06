@@ -92,6 +92,40 @@ export type DataImportResult = {
   file_name: string;
 };
 
+export type LlamaRuntimeAsset = {
+  name: string;
+  size_bytes: number;
+  download_url: string;
+};
+
+export type LlamaRuntimeVariant = {
+  id: string;
+  label: string;
+  description: string;
+  available: boolean;
+  installed: boolean;
+  binary_asset: LlamaRuntimeAsset | null;
+  runtime_asset: LlamaRuntimeAsset | null;
+};
+
+export type LlamaRuntimeInfo = {
+  tag: string;
+  name: string;
+  html_url: string;
+  installed_tag: string;
+  installed_variant: string;
+  llama_exe: string;
+  variants: LlamaRuntimeVariant[];
+};
+
+export type LlamaRuntimeInstallResult = {
+  status: string;
+  tag: string;
+  variant: string;
+  label: string;
+  llama_exe: string;
+};
+
 export type AppConfig = {
   ctx_size: number;
   n_gpu_layers: number;
@@ -360,6 +394,17 @@ export function getSessionTokenCount(sessionId: string) {
 
 export function getLlamaStatus() {
   return request<{ ready: boolean; active_model_path: string; version?: string }>("/llama/status");
+}
+
+export function getLlamaRuntimeInfo() {
+  return request<LlamaRuntimeInfo>("/llama/runtime-info");
+}
+
+export function installLlamaRuntime(variant: string, includeRuntime = false) {
+  return request<LlamaRuntimeInstallResult>("/llama/install-runtime", {
+    method: "POST",
+    body: JSON.stringify({ variant, include_runtime: includeRuntime }),
+  });
 }
 
 export function ejectLlamaModel() {

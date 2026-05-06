@@ -4,17 +4,51 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 from urllib import request as urllib_request
+from urllib.error import URLError
+import zipfile
 
 logger = logging.getLogger(__name__)
 
 _PATHS_FILE = Path(__file__).resolve().parent.parent / "data" / "llama_paths.json"
+_INSTALL_ROOT = Path(__file__).resolve().parent.parent / "data" / "llama_cpp" / "versions"
+_GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")
+
+_RUNTIME_VARIANTS = {
+    "win-cpu-x64": {
+        "label": "CPU llama.cpp (Windows)",
+        "description": "CPU-only llama.cpp server",
+        "required": ("llama-", "bin-win", "x64", ".zip"),
+        "excluded": ("cudart", "cuda", "vulkan", "sycl", "hip", "opencl"),
+    },
+    "win-cuda12-x64": {
+        "label": "CUDA 12 llama.cpp (Windows)",
+        "description": "NVIDIA CUDA 12 accelerated llama.cpp server",
+        "required": ("llama-", "bin-win", "cuda", "12", "x64", ".zip"),
+        "excluded": ("cudart",),
+        "runtime_required": ("cudart-llama", "bin-win", "cuda", "12", "x64", ".zip"),
+    },
+    "win-cuda13-x64": {
+        "label": "CUDA 13 llama.cpp (Windows)",
+        "description": "NVIDIA CUDA 13 accelerated llama.cpp server",
+        "required": ("llama-", "bin-win", "cuda", "13", "x64", ".zip"),
+        "excluded": ("cudart",),
+        "runtime_required": ("cudart-llama", "bin-win", "cuda", "13", "x64", ".zip"),
+    },
+    "win-vulkan-x64": {
+        "label": "Vulkan llama.cpp (Windows)",
+        "description": "Vulkan accelerated llama.cpp server",
+        "required": ("llama-", "bin-win", "vulkan", "x64", ".zip"),
+        "excluded": ("cudart",),
+    },
+}
 
 
 def get_llama_paths() -> dict:
@@ -30,6 +64,182 @@ def get_llama_paths() -> dict:
 def _save_llama_paths(paths: dict) -> None:
     _PATHS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PATHS_FILE.write_text(json.dumps(paths, indent=2, ensure_ascii=False), "utf-8")
+
+
+def _fetch_latest_release() -> dict:
+    req = urllib_request.Request(
+        _GITHUB_LATEST_RELEASE_URL,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "lm-chat",
+        },
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except URLError as exc:
+        raise ValueError(f"Failed to fetch llama.cpp release info: {exc}") from exc
+
+
+def _asset_matches(asset: dict, required: tuple[str, ...], excluded: tuple[str, ...] = ()) -> bool:
+    name = str(asset.get("name", "")).lower()
+    return all(part in name for part in required) and not any(part in name for part in excluded)
+
+
+def _find_asset(assets: list[dict], required: tuple[str, ...], excluded: tuple[str, ...] = ()) -> dict | None:
+    matches = [asset for asset in assets if _asset_matches(asset, required, excluded)]
+    if not matches:
+        return None
+    return sorted(matches, key=lambda asset: str(asset.get("name", "")))[0]
+
+
+def _format_asset(asset: dict | None) -> dict | None:
+    if not asset:
+        return None
+    return {
+        "name": asset.get("name", ""),
+        "size_bytes": asset.get("size", 0),
+        "download_url": asset.get("browser_download_url", ""),
+    }
+
+
+def get_llama_runtime_info() -> dict:
+    release = _fetch_latest_release()
+    assets = release.get("assets") or []
+    paths = get_llama_paths()
+    installed_variant = paths.get("llama_runtime_variant", "")
+    installed_tag = paths.get("llama_runtime_tag", "")
+
+    variants = []
+    for key, spec in _RUNTIME_VARIANTS.items():
+        binary_asset = _find_asset(assets, spec["required"], spec.get("excluded", ()))
+        runtime_asset = None
+        runtime_required = spec.get("runtime_required")
+        if runtime_required:
+            runtime_asset = _find_asset(assets, runtime_required)
+        variants.append({
+            "id": key,
+            "label": spec["label"],
+            "description": spec["description"],
+            "available": bool(binary_asset),
+            "installed": installed_variant == key and installed_tag == release.get("tag_name", ""),
+            "binary_asset": _format_asset(binary_asset),
+            "runtime_asset": _format_asset(runtime_asset),
+        })
+
+    return {
+        "tag": release.get("tag_name", ""),
+        "name": release.get("name", ""),
+        "html_url": release.get("html_url", ""),
+        "installed_tag": installed_tag,
+        "installed_variant": installed_variant,
+        "llama_exe": paths.get("llama_exe", ""),
+        "variants": variants,
+    }
+
+
+def _download_asset(asset: dict, dest: Path) -> None:
+    url = asset.get("browser_download_url")
+    if not url:
+        raise ValueError(f"Download URL was not found for {asset.get('name', 'asset')}")
+    req = urllib_request.Request(url, headers={"User-Agent": "lm-chat"})
+    with urllib_request.urlopen(req, timeout=60) as resp:
+        with dest.open("wb") as handle:
+            shutil.copyfileobj(resp, handle)
+
+
+def _extract_zip_safe(archive_path: Path, dest_dir: Path) -> None:
+    with zipfile.ZipFile(archive_path) as archive:
+        dest_resolved = dest_dir.resolve()
+        for member in archive.infolist():
+            target = (dest_dir / member.filename).resolve()
+            if dest_resolved != target and dest_resolved not in target.parents:
+                raise ValueError(f"Unsafe path in archive: {member.filename}")
+        archive.extractall(dest_dir)
+
+
+def _find_llama_server_exe(root: Path) -> Path | None:
+    names = ("llama-server.exe",) if sys.platform == "win32" else ("llama-server",)
+    for name in names:
+        matches = list(root.rglob(name))
+        if matches:
+            return matches[0]
+    return None
+
+
+def install_llama_runtime(variant: str, include_runtime: bool = False) -> dict:
+    if variant not in _RUNTIME_VARIANTS:
+        raise ValueError(f"Unsupported llama runtime variant: {variant}")
+
+    release = _fetch_latest_release()
+    tag = release.get("tag_name") or "latest"
+    assets = release.get("assets") or []
+    spec = _RUNTIME_VARIANTS[variant]
+    binary_asset = _find_asset(assets, spec["required"], spec.get("excluded", ()))
+    if not binary_asset:
+        raise ValueError(f"No llama.cpp release asset found for {spec['label']}")
+
+    runtime_asset = None
+    runtime_required = spec.get("runtime_required")
+    if include_runtime and runtime_required:
+        runtime_asset = _find_asset(assets, runtime_required)
+
+    install_dir = _INSTALL_ROOT / f"{tag}-{variant}"
+    temp_dir = _INSTALL_ROOT / f".tmp-{tag}-{variant}"
+    archive_dir = temp_dir / "archives"
+
+    if temp_dir.exists():
+        shutil.rmtree(temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        binary_zip = archive_dir / str(binary_asset["name"])
+        logger.info("Downloading llama.cpp runtime asset: %s", binary_asset["name"])
+        _download_asset(binary_asset, binary_zip)
+        _extract_zip_safe(binary_zip, temp_dir)
+
+        if runtime_asset:
+            runtime_zip = archive_dir / str(runtime_asset["name"])
+            logger.info("Downloading llama.cpp runtime dependency asset: %s", runtime_asset["name"])
+            _download_asset(runtime_asset, runtime_zip)
+            _extract_zip_safe(runtime_zip, temp_dir)
+
+        shutil.rmtree(archive_dir, ignore_errors=True)
+        exe = _find_llama_server_exe(temp_dir)
+        if not exe:
+            raise ValueError("Downloaded llama.cpp archive did not contain llama-server")
+
+        if install_dir.exists():
+            current_exe = Path(get_llama_paths().get("llama_exe", ""))
+            try:
+                if current_exe.resolve().is_relative_to(install_dir.resolve()):
+                    _kill_running()
+                    time.sleep(1)
+            except (OSError, ValueError):
+                pass
+            shutil.rmtree(install_dir)
+        temp_dir.replace(install_dir)
+        final_exe = install_dir / exe.relative_to(temp_dir)
+
+        paths = get_llama_paths()
+        paths["llama_exe"] = str(final_exe)
+        paths["llama_runtime_variant"] = variant
+        paths["llama_runtime_tag"] = tag
+        paths["llama_runtime_label"] = spec["label"]
+        _save_llama_paths(paths)
+
+        return {
+            "status": "installed",
+            "tag": tag,
+            "variant": variant,
+            "label": spec["label"],
+            "llama_exe": str(final_exe),
+        }
+    except Exception:
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
 
 
 def _get_tracked_pid(paths: dict | None = None) -> int | None:

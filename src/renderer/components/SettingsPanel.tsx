@@ -3,6 +3,7 @@ import {
   type AppConfig,
   type AppConfigPatch,
   type AppSettings,
+  type LlamaRuntimeInfo,
   type SettingsSectionKey,
   SavedSystemPrompt,
   cleanupDocuments,
@@ -12,9 +13,11 @@ import {
   fetchMemoryStats,
   getConfig,
   getLlamaProps,
+  getLlamaRuntimeInfo,
   getLlamaStatus,
   getSettings,
   importDataArchive,
+  installLlamaRuntime,
   listSystemPrompts,
   reindexDocuments,
   saveActiveSystemPrompt,
@@ -79,6 +82,19 @@ function formatCtxSizeLabel(value: number) {
     return Number.isInteger(asK) ? `${asK}k` : `${asK.toFixed(1)}k`;
   }
   return value.toLocaleString();
+}
+
+function formatBytes(value: number | undefined) {
+  const bytes = value ?? 0;
+  if (bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
 function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
@@ -155,6 +171,12 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   const [documentReindexBusy, setDocumentReindexBusy] = useState(false);
   const [documentReindexResult, setDocumentReindexResult] = useState<string | null>(null);
   const [sysResOpen, setSysResOpen] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<LlamaRuntimeInfo | null>(null);
+  const [runtimeInfoBusy, setRuntimeInfoBusy] = useState(false);
+  const [runtimeInstallBusy, setRuntimeInstallBusy] = useState(false);
+  const [selectedRuntimeVariant, setSelectedRuntimeVariant] = useState("win-cuda12-x64");
+  const [includeCudaRuntime, setIncludeCudaRuntime] = useState(false);
+  const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
 
   // System prompt state
   const [savedPrompts, setSavedPrompts] = useState<SavedSystemPrompt[]>([]);
@@ -217,6 +239,24 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
     fetchMemoryStats().then(setStats).catch(() => {});
   }, []);
 
+  const loadRuntimeInfo = useCallback(() => {
+    setRuntimeInfoBusy(true);
+    setRuntimeMessage(null);
+    getLlamaRuntimeInfo()
+      .then((info) => {
+        setRuntimeInfo(info);
+        setSelectedRuntimeVariant((prev) => {
+          const preferred = info.installed_variant || prev;
+          if (info.variants.some((variant) => variant.id === preferred)) return preferred;
+          return info.variants[0]?.id || prev;
+        });
+      })
+      .catch((err) => {
+        setRuntimeMessage(err instanceof Error ? err.message : "Runtime 情報の取得に失敗しました");
+      })
+      .finally(() => setRuntimeInfoBusy(false));
+  }, []);
+
   useEffect(() => {
     getConfig()
       .then(applyConfigState)
@@ -249,6 +289,12 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   useEffect(() => {
     loadMemoryStats();
   }, [currentWorkspace?.id, loadMemoryStats]);
+
+  useEffect(() => {
+    if (advancedOpen && !runtimeInfo && !runtimeInfoBusy) {
+      loadRuntimeInfo();
+    }
+  }, [advancedOpen, loadRuntimeInfo, runtimeInfo, runtimeInfoBusy]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -288,6 +334,22 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
       setTimeout(() => setSaved(false), 2000);
     } catch { /* ignore */ } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRuntimeInstall = async () => {
+    if (runtimeInstallBusy) return;
+    setRuntimeInstallBusy(true);
+    setRuntimeMessage("Downloading and installing llama.cpp server...");
+    try {
+      const result = await installLlamaRuntime(selectedRuntimeVariant, includeCudaRuntime);
+      setRuntimeMessage(`${result.label} ${result.tag} をインストールしました`);
+      setLlamaServerVersion(result.tag);
+      await loadRuntimeInfo();
+    } catch (error) {
+      setRuntimeMessage(error instanceof Error ? error.message : "llama.cpp server のインストールに失敗しました");
+    } finally {
+      setRuntimeInstallBusy(false);
     }
   };
 
@@ -449,6 +511,9 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   const ctxPresetOptions = CTX_SIZE_PRESETS.filter((value) => value <= ctxMax);
   const effectiveCtxPresets = ctxPresetOptions.length > 0 ? ctxPresetOptions : [ctxMax];
   const currentCtxPresetIndex = getNearestCtxPresetIndex(ctxSize, effectiveCtxPresets);
+  const selectedRuntime = runtimeInfo?.variants.find((variant) => variant.id === selectedRuntimeVariant) ?? runtimeInfo?.variants[0] ?? null;
+  const selectedRuntimeHasOptionalDlls = Boolean(selectedRuntime?.runtime_asset);
+  const selectedRuntimeSize = (selectedRuntime?.binary_asset?.size_bytes ?? 0) + (includeCudaRuntime ? (selectedRuntime?.runtime_asset?.size_bytes ?? 0) : 0);
 
   return (
     <>
@@ -1155,13 +1220,13 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
       </section>
       {/* System Info */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("補完エンジン、埋め込みモデル、検索システムの情報を表示します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("llama.cpp server の Runtime とシステム情報を管理します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="4 6 20 6"/><polyline points="4 12 20 12"/><polyline points="4 18 14 18"/>
+              <path d="M4 14h4l2-8 4 16 2-8h4"/>
             </svg>
           </span>
-          <span>System Info</span>
+          <span>Runtime</span>
           <svg className={`settings-chevron${advancedOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -1169,8 +1234,76 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
 
         {advancedOpen && (
           <div className="settings-section-body">
+            <div className="runtime-card">
+              <div className="runtime-card-header">
+                <div>
+                  <span className="settings-field-label">llama.cpp server Runtime</span>
+                  <span className="settings-field-hint">
+                    {runtimeInfo?.tag ? `Latest: ${runtimeInfo.tag}` : "GitHub Releases から最新版を確認します"}
+                  </span>
+                </div>
+                <button className="runtime-secondary-btn" onClick={loadRuntimeInfo} disabled={runtimeInfoBusy || runtimeInstallBusy}>
+                  {runtimeInfoBusy ? "Checking..." : "Check for updates"}
+                </button>
+              </div>
+
+              <div className="runtime-selection-row">
+                <select
+                  className="settings-select"
+                  value={selectedRuntimeVariant}
+                  onChange={(event) => setSelectedRuntimeVariant(event.target.value)}
+                  disabled={runtimeInstallBusy || runtimeInfoBusy || !runtimeInfo?.variants.length}
+                >
+                  {(runtimeInfo?.variants ?? []).map((variant) => (
+                    <option key={variant.id} value={variant.id} disabled={!variant.available}>
+                      {variant.label}{variant.installed ? " (installed)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="primary-button"
+                  onClick={() => void handleRuntimeInstall()}
+                  disabled={!selectedRuntime?.available || runtimeInstallBusy || runtimeInfoBusy}
+                >
+                  {runtimeInstallBusy ? "Installing..." : selectedRuntime?.installed ? "Reinstall" : "Install"}
+                </button>
+              </div>
+
+              {selectedRuntimeHasOptionalDlls && (
+                <label className="runtime-checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={includeCudaRuntime}
+                    onChange={(event) => setIncludeCudaRuntime(event.target.checked)}
+                    disabled={runtimeInstallBusy}
+                  />
+                  <span>
+                    CUDA runtime DLLs もダウンロードする
+                    <small>CUDA Toolkit がインストール済みなら通常は不要です</small>
+                  </span>
+                </label>
+              )}
+
+              {selectedRuntime && (
+                <div className="runtime-engine-row">
+                  <div>
+                    <strong>{selectedRuntime.label}</strong>
+                    <span>{selectedRuntime.description}</span>
+                    {selectedRuntime.binary_asset && <code>{selectedRuntime.binary_asset.name}</code>}
+                    {selectedRuntime.runtime_asset && includeCudaRuntime && <code>{selectedRuntime.runtime_asset.name}</code>}
+                  </div>
+                  <div className={selectedRuntime.installed ? "runtime-status latest" : "runtime-status"}>
+                    {selectedRuntime.installed ? "Installed" : selectedRuntime.available ? formatBytes(selectedRuntimeSize) : "Unavailable"}
+                  </div>
+                </div>
+              )}
+
+              {runtimeMessage && <p className="settings-field-hint runtime-message">{runtimeMessage}</p>}
+            </div>
+
             <div className="stat-list">
               <div className="stat-row"><span>推論サーバー</span><code>{llamaServerVersion ? `llama-server (${llamaServerVersion})` : "llama-server"}</code></div>
+              <div className="stat-row"><span>Runtime path</span><code>{runtimeInfo?.llama_exe || "未設定"}</code></div>
               <div className="stat-row"><span>埋め込みモデル</span><code>ruri-v3-310m</code></div>
               <div className="stat-row"><span>検索方式</span><strong>FTS5 + ベクトル</strong></div>
             </div>
@@ -1338,10 +1471,3 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
     </>
   );
 }
-
-
-
-
-
-
-
