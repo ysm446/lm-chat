@@ -37,7 +37,7 @@ export function ModelBar({ showLeft, showRight, onToggleLeft, onToggleRight }: P
         {/* 中央：モデル選択 + イジェクト */}
         <div className="model-bar-center">
           <button
-            className={`model-bar-select-btn${hasModel ? " active" : ""}${isSwitchingModel ? " loading" : ""}`}
+            className={`model-bar-select-btn${hasModel ? " active" : " unloaded"}${isSwitchingModel ? " loading" : ""}`}
             onClick={() => setShowPicker(true)}
             disabled={isSwitchingModel}
             title="モデルを選択"

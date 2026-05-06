@@ -129,7 +129,17 @@ a { color: var(--accent); }
   color: var(--accent);
   background: var(--accent-soft);
 }
+.model-bar-select-btn.unloaded {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 .model-bar-select-btn.active:hover:not(:disabled) {
+  background: rgba(124, 90, 247, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.model-bar-select-btn.unloaded:hover:not(:disabled) {
   background: rgba(124, 90, 247, 0.18);
   border-color: var(--accent);
   color: var(--accent);

@@ -248,6 +248,8 @@ def rebuild_session_memory(session_id: str) -> None:
 
 def _get_active_model_name() -> str | None:
     """現在 llama-server で動いているモデルの名前（ファイル stem）を返す。"""
+    if not is_ready():
+        return None
     active_path = get_llama_paths().get("active_model_path", "")
     return Path(active_path).stem if active_path else None
 
@@ -1485,9 +1487,10 @@ def llama_props() -> dict:
 @app.get("/llama/status")
 def llama_status() -> dict:
     paths = get_llama_paths()
+    ready = is_ready()
     return {
-        "ready": is_ready(),
-        "active_model_path": paths.get("active_model_path", ""),
+        "ready": ready,
+        "active_model_path": paths.get("active_model_path", "") if ready else "",
         "version": get_llama_server_version(paths=paths),
     }
 

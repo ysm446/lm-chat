@@ -239,11 +239,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // モデル一覧とアクティブモデルはワークスペース読み込みと独立して取得
     try {
       const [models, status] = await Promise.all([listLocalModels(), getLlamaStatus()]);
-      const activeModel = models.find((m) => status.active_model_path.includes(m.id));
+      const activeModelPath = status.ready ? status.active_model_path : "";
+      const activeModel = models.find((m) => activeModelPath.includes(m.id));
       set({
         availableModels: models,
         selectedModel: activeModel?.id ?? null,
-        activeModelPath: status.active_model_path,
+        activeModelPath,
       });
     } catch {
       try {
