@@ -13,7 +13,7 @@ import zipfile
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-CORRECTION_PROMPT_MODES = {"light", "standard", "aggressive", "custom"}
+CORRECTION_PROMPT_MODES = {"light", "standard", "aggressive", "rewrite", "custom"}
 
 
 def _resolve_correction_prompt(settings: dict) -> str | None:
@@ -24,6 +24,8 @@ def _resolve_correction_prompt(settings: dict) -> str | None:
         return _LIGHT_CORRECTION_PROMPT
     if mode == "aggressive":
         return _AGGRESSIVE_CORRECTION_PROMPT
+    if mode == "rewrite":
+        return _REWRITE_CORRECTION_PROMPT
     if mode == "custom":
         custom_prompt = (settings.get("correction_custom_prompt") or "").strip()
         return custom_prompt or _STANDARD_CORRECTION_PROMPT
@@ -48,7 +50,7 @@ from .settings_store import get as get_settings_data
 from .settings_store import update as update_settings_data
 from .system_prompt_store import create_prompt, delete_prompt, update_prompt, reorder_prompts, get_all as get_system_prompts, set_active_text, set_active_id
 from .llama_manager import eject_model, get_llama_paths, get_llama_server_version, get_model_props, is_ready, switch_model
-from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, build_chat_messages, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
+from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORRECTION_PROMPT, _REWRITE_CORRECTION_PROMPT, _STANDARD_CORRECTION_PROMPT, autocomplete as llm_autocomplete, build_chat_messages, correct as llm_correct, count_tokens, generate_chat_completion, generate_title, list_models, stream_chat_completion, stream_temp_chat
 from .memory.engine import MemoryEngine
 from .documents.chunker import chunk_document
 from .models import (

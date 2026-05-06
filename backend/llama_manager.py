@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib import request as urllib_request
@@ -147,11 +148,20 @@ def switch_model(model_path: str, ctx_size: int = 32768, n_gpu_layers: int = -1)
         cmd += ["--mmproj", effective_mmproj]
 
     logger.info("Starting llama-server for %s on %s", Path(model_path).name, LLAMA_SERVER_BASE_URL)
-    kwargs: dict = {}
+    kwargs: dict = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "stdin": subprocess.DEVNULL}
     if sys.platform == "win32":
-        kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
 
     proc = subprocess.Popen(cmd, **kwargs)
+
+    llama_logger = logging.getLogger("llama_server")
+    for stream, level in ((proc.stdout, logging.DEBUG), (proc.stderr, logging.INFO)):
+        def _drain(s=stream, lv=level):
+            for raw in s:
+                line = raw.decode("utf-8", errors="replace").rstrip()
+                if line:
+                    llama_logger.log(lv, line)
+        threading.Thread(target=_drain, daemon=True).start()
     time.sleep(1)
     if proc.poll() is not None:
         raise ValueError(

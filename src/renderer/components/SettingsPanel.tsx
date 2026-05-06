@@ -30,12 +30,13 @@ type MemoryStats = {
   memory_chunk_count: number;
 };
 
-type CorrectionMode = "light" | "standard" | "aggressive" | "custom";
+type CorrectionMode = "light" | "standard" | "aggressive" | "rewrite" | "custom";
 
 const CORRECTION_MODE_OPTIONS: Array<{ value: CorrectionMode; label: string }> = [
   { value: "light", label: "軽め" },
   { value: "standard", label: "標準" },
   { value: "aggressive", label: "しっかり" },
+  { value: "rewrite", label: "リライト" },
   { value: "custom", label: "カスタム" },
 ];
 
@@ -1337,8 +1338,6 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
     </>
   );
 }
-
-
 
 
 
