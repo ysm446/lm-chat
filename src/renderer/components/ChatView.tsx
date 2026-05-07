@@ -169,6 +169,7 @@ export function ChatView() {
     const q = searchQuery.toLowerCase();
     return messages.filter((m) => m.content?.toLowerCase().includes(q)).map((m) => m.id);
   }, [messages, searchQuery]);
+  const isInserting = insertingAfterId !== null;
   const userMessageIds = useMemo(
     () => messages.filter((message) => message.role === "user").map((message) => message.id),
     [messages]
@@ -403,15 +404,29 @@ export function ChatView() {
 
   const submitInsertMessage = useCallback(() => {
     const content = insertContent.trim();
-    if (!content || !session?.id) return;
+    if (!content || !session?.id || !activeModelPath) return;
     const afterId = insertingAfterId;
     setInsertingAfterId(null);
     setInsertContent("");
     void insertMessage(session.id, afterId, content);
-  }, [insertContent, insertingAfterId, insertMessage, session?.id]);
+  }, [activeModelPath, insertContent, insertingAfterId, insertMessage, session?.id]);
 
   const cancelInsert = useCallback(() => {
     setInsertingAfterId(null);
+    setInsertContent("");
+  }, []);
+
+  useEffect(() => {
+    if (insertingAfterId && (tempChatMode || isSubmitting || !activeModelPath)) {
+      cancelInsert();
+    }
+  }, [activeModelPath, cancelInsert, insertingAfterId, isSubmitting, tempChatMode]);
+
+  const startInsert = useCallback((afterMessageId: string) => {
+    setEditingId(null);
+    setPendingDeleteMessageId(null);
+    setPromptLogMessageId(null);
+    setInsertingAfterId(afterMessageId);
     setInsertContent("");
   }, []);
 
@@ -616,7 +631,7 @@ export function ChatView() {
           const hasFollowingAssistant = message.role === "user" && messages[messageIndex + 1]?.role === "assistant";
           const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
           const previousMessageId = previousMessage?.id ?? null;
-          const showInsertSlot = previousMessage !== null && previousMessage.role === "assistant" && !tempChatMode && !isSubmitting && !editingId;
+          const showInsertSlot = previousMessage !== null && previousMessage.role === "assistant" && !tempChatMode && !isSubmitting && !editingId && !!activeModelPath;
           const isInsertingHere = insertingAfterId !== null && insertingAfterId === previousMessageId;
           return (
           <Fragment key={message.id}>
@@ -654,7 +669,7 @@ export function ChatView() {
                   type="button"
                   className="message-insert-button"
                   title="ここに挿入"
-                  onClick={() => { setInsertingAfterId(previousMessageId); setInsertContent(""); }}
+                  onClick={() => { if (previousMessageId) startInsert(previousMessageId); }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -834,7 +849,7 @@ export function ChatView() {
 
             {editingId === message.id && (
               <div className="message-edit-buttons">
-                <button className="message-edit-discard" onClick={cancelEdit}>Discard (Esc)</button>
+                <button className="message-edit-discard" onClick={cancelEdit}>キャンセル (Esc)</button>
                 <button
                   type="button"
                   className="message-edit-attach-image"
@@ -849,7 +864,7 @@ export function ChatView() {
               </div>
             )}
 
-            {editingId !== message.id && !tempChatMode && (
+            {editingId !== message.id && !tempChatMode && !isInserting && (
               <div className="message-actions">
                 {/* Branch */}
                 <button

@@ -1227,6 +1227,12 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
     session = store.get_session(payload.session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    if payload.after_message_id:
+        reference_message = next((message for message in session.messages if message.id == payload.after_message_id), None)
+        if reference_message is None:
+            raise HTTPException(status_code=404, detail="Reference message not found")
+        if reference_message.role != "assistant":
+            raise HTTPException(status_code=400, detail="Insert reference must be an assistant message")
 
     positions = store.compute_insert_positions(payload.session_id, payload.after_message_id)
     if positions is None:
@@ -1284,7 +1290,13 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
                 else:
                     final_stats = item
         except HTTPException as exc:
+            store.delete_message(user_message.id)
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+        except Exception as exc:
+            logger.exception("Inserted message generation failed")
+            store.delete_message(user_message.id)
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
             return
 
         assistant_text = "".join(collected).strip()
@@ -1303,6 +1315,7 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
             position=assistant_position,
         )
         if assistant_message is None:
+            store.delete_message(user_message.id)
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
             return
         _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)

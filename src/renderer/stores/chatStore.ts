@@ -177,6 +177,39 @@ const optimisticMessage = (
   model_name: null,
 });
 
+function computeOptimisticInsert(
+  messages: ApiMessage[],
+  afterMessageId: string | null,
+): { userPosition: number; assistantPosition: number; insertIndex: number } | null {
+  if (messages.length === 0) {
+    return { userPosition: 1, assistantPosition: 2, insertIndex: 0 };
+  }
+
+  if (afterMessageId === null) {
+    const firstPosition = messages[0]?.position ?? 1;
+    return {
+      userPosition: firstPosition - 1,
+      assistantPosition: firstPosition - 0.5,
+      insertIndex: 0,
+    };
+  }
+
+  const insertAfterIndex = messages.findIndex((message) => message.id === afterMessageId);
+  if (insertAfterIndex < 0) return null;
+
+  const previousPosition = messages[insertAfterIndex].position;
+  const nextPosition = insertAfterIndex + 1 < messages.length
+    ? messages[insertAfterIndex + 1].position
+    : previousPosition + 2;
+  const gap = nextPosition - previousPosition;
+
+  return {
+    userPosition: previousPosition + gap / 3,
+    assistantPosition: previousPosition + (2 * gap) / 3,
+    insertIndex: insertAfterIndex + 1,
+  };
+}
+
 async function persistStoppedMessage(
   sessionId: string,
   content: string,
@@ -938,28 +971,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const current = get().sessions.find((session) => session.id === sessionId);
     if (!current) return;
 
-    let userPos = 0;
-    let asstPos = 0;
-    let insertIndex = 0;
-    if (afterMessageId === null) {
-      const first = current.messages[0];
-      const firstPos = first?.position ?? 1;
-      userPos = firstPos - 1;
-      asstPos = firstPos - 0.5;
-      insertIndex = 0;
-    } else {
-      const idx = current.messages.findIndex((m) => m.id === afterMessageId);
-      if (idx < 0) return;
-      const a = current.messages[idx].position;
-      const b = idx + 1 < current.messages.length ? current.messages[idx + 1].position : a + 2;
-      const gap = b - a;
-      userPos = a + gap / 3;
-      asstPos = a + (2 * gap) / 3;
-      insertIndex = idx + 1;
-    }
+    const insertPlan = computeOptimisticInsert(current.messages, afterMessageId);
+    if (!insertPlan) return;
 
-    const user = optimisticMessage("user", content, image, userPos);
-    const assistant = optimisticMessage("assistant", "", null, asstPos);
+    const user = optimisticMessage("user", content, image, insertPlan.userPosition);
+    const assistant = optimisticMessage("assistant", "", null, insertPlan.assistantPosition);
     const controller = new AbortController();
 
     set((state) => ({
@@ -973,10 +989,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ? {
               ...session,
               messages: [
-                ...session.messages.slice(0, insertIndex),
+                ...session.messages.slice(0, insertPlan.insertIndex),
                 user,
                 assistant,
-                ...session.messages.slice(insertIndex),
+                ...session.messages.slice(insertPlan.insertIndex),
               ],
             }
           : session

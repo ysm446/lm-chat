@@ -1459,10 +1459,10 @@ a { color: var(--accent); }
   flex-direction: column;
   gap: 8px;
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
-  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: var(--r-lg);
 }
 
 .message-insert-textarea {
@@ -1470,19 +1470,21 @@ a { color: var(--accent); }
   resize: none;
   min-height: 60px;
   max-height: 240px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  font: inherit;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--accent);
+  background: var(--bg-input);
+  color: var(--text);
+  font-family: inherit;
   font-size: 14px;
   line-height: 1.5;
   outline: none;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .message-insert-textarea:focus {
-  border-color: var(--accent);
+  outline: none;
 }
 
 .message-insert-actions {
@@ -1493,29 +1495,32 @@ a { color: var(--accent); }
 
 .message-insert-cancel,
 .message-insert-submit {
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
   cursor: pointer;
-  border: 1px solid var(--border);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.message-insert-cancel {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
 }
 
 .message-insert-cancel:hover {
   background: var(--bg-hover);
+  color: var(--text);
 }
 
 .message-insert-submit {
   background: var(--accent);
-  border-color: var(--accent);
+  border: none;
   color: #fff;
+  font-weight: 500;
 }
 
 .message-insert-submit:hover:not(:disabled) {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  opacity: 0.88;
 }
 
 .message-insert-submit:disabled {
