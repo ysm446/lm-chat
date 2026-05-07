@@ -84,8 +84,9 @@ start.bat
 - `npm` が PATH に通っていること
 - `C:\Users\kenyo\miniconda3\Scripts\conda.exe` が存在すること
 - `main` という名前の conda 環境があること
-- Runtime 設定から llama.cpp server をインストール済みであること
 - GGUF モデルファイルを `models/` 配下に置くこと
+
+llama.cpp server Runtime は初回起動時点では未インストールでも構いません。アプリ起動後、設定画面の Runtime 設定からインストールしてください。
 
 初回セットアップ時は、必要に応じて以下も用意してください。
 

@@ -17,11 +17,13 @@ if not exist "%CONDA_EXE%" (
   exit /b 1
 )
 
-if not exist "%LLAMA_SERVER_EXE%" (
-  echo ERROR: llama-server.exe not found: %LLAMA_SERVER_EXE%
-  echo Searched data\llama_paths.json, data\llama_cpp\versions, and bin\llama-server
-  pause
-  exit /b 1
+if not defined LLAMA_SERVER_EXE (
+  echo INFO: llama-server.exe was not found yet.
+  echo INFO: The app will start without a llama.cpp runtime. Install it from Runtime settings.
+) else if not exist "%LLAMA_SERVER_EXE%" (
+  echo INFO: llama-server.exe was not found: %LLAMA_SERVER_EXE%
+  echo INFO: The app will start without a llama.cpp runtime. Install it from Runtime settings.
+  set "LLAMA_SERVER_EXE="
 )
 
 where npm >nul 2>nul
@@ -98,7 +100,11 @@ set "LM_CHAT_API_BASE_URL=%BACKEND_URL%"
 echo Using backend  : %BACKEND_URL%
 echo Using frontend : %FRONTEND_URL%
 echo Using llama    : %LLAMA_BASE_URL%
-echo Llama server   : %LLAMA_SERVER_EXE%
+if defined LLAMA_SERVER_EXE (
+  echo Llama server   : %LLAMA_SERVER_EXE%
+) else (
+  echo Llama server   : not configured
+)
 
 mkdir "%CD%\data" 2>nul
 powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';$data=[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1;llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'};if(Test-Path -LiteralPath $p){try{$old=Get-Content -LiteralPath $p -Raw -Encoding UTF8|ConvertFrom-Json;foreach($prop in $old.PSObject.Properties){$data[$prop.Name]=$prop.Value}}catch{}};$data['llama_exe']='%LLAMA_SERVER_EXE%';$data['llama_server_pid']=$null;$data['llama_server_base_url']='%LLAMA_BASE_URL%';$data|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
