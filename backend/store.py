@@ -185,6 +185,7 @@ class SQLiteStore:
                     pass  # already exists
 
             # position カラムのバックフィル: 既存メッセージに created_at 順で 1.0, 2.0, ... を割り当てる
+            # created_at は秒精度なので、同秒内は rowid で実挿入順を保つ。
             has_messages = conn.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
             has_positions = conn.execute("SELECT 1 FROM messages WHERE position > 0 LIMIT 1").fetchone()
             if has_messages and not has_positions:
@@ -196,11 +197,43 @@ class SQLiteStore:
                         FROM messages m2
                         WHERE m2.session_id = messages.session_id
                           AND (m2.created_at < messages.created_at
-                               OR (m2.created_at = messages.created_at AND m2.id <= messages.id))
+                               OR (m2.created_at = messages.created_at AND m2.rowid <= messages.rowid))
                     )
                     """
                 )
                 conn.commit()
+
+            # 初期版の position バックフィルは同秒タイを id で解決していたため、
+            # 同じ秒に保存された user/assistant が逆転することがあった。
+            # 途中挿入済みのセッションは小数 position を持つので除外し、通常セッションだけ修復する。
+            conn.execute(
+                """
+                WITH repair_sessions AS (
+                    SELECT session_id
+                    FROM messages
+                    GROUP BY session_id
+                    HAVING SUM(CASE WHEN ABS(position - ROUND(position)) > 0.000001 THEN 1 ELSE 0 END) = 0
+                ),
+                ordered AS (
+                    SELECT
+                        rowid,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY session_id
+                            ORDER BY created_at ASC, rowid ASC
+                        ) AS new_position
+                    FROM messages
+                    WHERE session_id IN (SELECT session_id FROM repair_sessions)
+                )
+                UPDATE messages
+                SET position = (
+                    SELECT new_position
+                    FROM ordered
+                    WHERE ordered.rowid = messages.rowid
+                )
+                WHERE rowid IN (SELECT rowid FROM ordered)
+                """
+            )
+            conn.commit()
 
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_messages_session_position ON messages(session_id, position)"
@@ -637,6 +670,32 @@ class SQLiteStore:
                 gap = b - a
                 return (a + gap / 3.0, a + 2.0 * gap / 3.0)
         return None
+
+    def normalize_session_positions(self, session_id: str) -> None:
+        """現在の表示順を保ったまま、セッション内の position を 1.0, 2.0, ... に振り直す。"""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                WITH ordered AS (
+                    SELECT
+                        rowid,
+                        ROW_NUMBER() OVER (
+                            ORDER BY position ASC, created_at ASC, rowid ASC
+                        ) AS new_position
+                    FROM messages
+                    WHERE session_id = ?
+                )
+                UPDATE messages
+                SET position = (
+                    SELECT new_position
+                    FROM ordered
+                    WHERE ordered.rowid = messages.rowid
+                )
+                WHERE session_id = ?
+                  AND rowid IN (SELECT rowid FROM ordered)
+                """,
+                (session_id, session_id),
+            )
 
     def save_message_prompt_log(
         self,

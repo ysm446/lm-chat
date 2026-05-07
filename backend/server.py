@@ -1319,6 +1319,7 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
             yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
             return
         _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)
+        store.normalize_session_positions(payload.session_id)
 
         try:
             save_turn_memory(payload.session_id, payload.content, assistant_text)
