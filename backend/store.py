@@ -176,12 +176,35 @@ class SQLiteStore:
                 ("elapsed_seconds", "REAL"),
                 ("finish_reason", "TEXT"),
                 ("model_name", "TEXT"),
+                ("position", "REAL NOT NULL DEFAULT 0"),
             ]:
                 try:
                     conn.execute(f"ALTER TABLE messages ADD COLUMN {col} {typedef}")
                     conn.commit()
                 except Exception:
                     pass  # already exists
+
+            # position カラムのバックフィル: 既存メッセージに created_at 順で 1.0, 2.0, ... を割り当てる
+            has_messages = conn.execute("SELECT 1 FROM messages LIMIT 1").fetchone()
+            has_positions = conn.execute("SELECT 1 FROM messages WHERE position > 0 LIMIT 1").fetchone()
+            if has_messages and not has_positions:
+                conn.execute(
+                    """
+                    UPDATE messages
+                    SET position = (
+                        SELECT COUNT(*)
+                        FROM messages m2
+                        WHERE m2.session_id = messages.session_id
+                          AND (m2.created_at < messages.created_at
+                               OR (m2.created_at = messages.created_at AND m2.id <= messages.id))
+                    )
+                    """
+                )
+                conn.commit()
+
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_messages_session_position ON messages(session_id, position)"
+            )
 
             # memory_chunks インデックス（既存 DB にも自動適用）
             conn.execute(
@@ -265,6 +288,7 @@ class SQLiteStore:
         data.setdefault("elapsed_seconds", None)
         data.setdefault("finish_reason", None)
         data.setdefault("model_name", None)
+        data.setdefault("position", 0.0)
         return Message(**data)
 
     def _collect_image_paths_for_message_ids(
@@ -355,6 +379,7 @@ class SQLiteStore:
                     m.image_data,
                     m.image_preview_data,
                     m.created_at,
+                    m.position,
                     m.prompt_tokens,
                     m.completion_tokens,
                     m.tokens_per_second,
@@ -369,7 +394,7 @@ class SQLiteStore:
                 FROM messages
                 AS m
                 WHERE m.session_id = ?
-                ORDER BY created_at ASC
+                ORDER BY m.position ASC, m.created_at ASC
                 """,
                 (row["id"],),
             ).fetchall()
@@ -552,18 +577,30 @@ class SQLiteStore:
             )
         return updated
 
-    def append_message(self, session_id: str, payload: MessageCreate) -> Message | None:
+    def append_message(
+        self,
+        session_id: str,
+        payload: MessageCreate,
+        position: float | None = None,
+    ) -> Message | None:
         if self.get_session(session_id) is None:
             return None
-        message = Message(id=self._new_id("msg"), **payload.model_dump())
         with self._connect() as conn:
+            if position is None:
+                row = conn.execute(
+                    "SELECT MAX(position) AS max_pos FROM messages WHERE session_id = ?",
+                    (session_id,),
+                ).fetchone()
+                max_pos = row["max_pos"] if row and row["max_pos"] is not None else 0.0
+                position = float(max_pos) + 1.0
+            message = Message(id=self._new_id("msg"), position=float(position), **payload.model_dump())
             conn.execute(
                 """
-                INSERT INTO messages (id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, image_data, image_preview_data, created_at, position, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (message.id, session_id, message.role, message.content, message.image_data, message.image_preview_data, message.created_at,
-                 message.prompt_tokens, message.completion_tokens, message.tokens_per_second, message.elapsed_seconds,
+                 message.position, message.prompt_tokens, message.completion_tokens, message.tokens_per_second, message.elapsed_seconds,
                  message.finish_reason, message.model_name),
             )
             conn.execute(
@@ -571,6 +608,35 @@ class SQLiteStore:
                 (now_iso(), session_id),
             )
         return message
+
+    def compute_insert_positions(
+        self, session_id: str, after_message_id: str | None
+    ) -> tuple[float, float] | None:
+        """挿入時の user/assistant メッセージ用 position を返す。
+
+        - after_message_id が None: 先頭への挿入
+        - after_message_id がある: その直後（次メッセージとの中間）に挿入
+        - after_message_id が末尾を指す場合: 末尾に追加
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, position FROM messages WHERE session_id = ? ORDER BY position ASC, created_at ASC",
+                (session_id,),
+            ).fetchall()
+        if not rows:
+            return (1.0, 2.0)
+
+        if after_message_id is None or after_message_id == "":
+            first_pos = float(rows[0]["position"])
+            return (first_pos - 1.0, first_pos - 0.5)
+
+        for i, row in enumerate(rows):
+            if row["id"] == after_message_id:
+                a = float(row["position"])
+                b = float(rows[i + 1]["position"]) if i + 1 < len(rows) else a + 2.0
+                gap = b - a
+                return (a + gap / 3.0, a + 2.0 * gap / 3.0)
+        return None
 
     def save_message_prompt_log(
         self,

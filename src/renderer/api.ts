@@ -8,6 +8,7 @@ export type ApiMessage = {
   image_preview_data: string | null;
   has_prompt_log: boolean;
   created_at: string;
+  position: number;
   prompt_tokens: number | null;
   completion_tokens: number | null;
   tokens_per_second: number | null;
@@ -636,6 +637,37 @@ export async function streamChatMessage(
     "/chat/send/stream",
     {
       session_id: sessionId,
+      content,
+      image_data: image?.imageData ?? null,
+      image_preview_data: image?.imagePreviewData ?? null,
+      memory_enabled: memoryEnabled,
+      doc_rag_enabled: docRagEnabled,
+      thinking_enabled: thinkingEnabled,
+      system_prompt: systemPrompt ?? null
+    },
+    handlers,
+    (payload) => payload.session,
+    signal
+  );
+}
+
+export async function streamInsertMessage(
+  sessionId: string,
+  afterMessageId: string | null,
+  content: string,
+  image: ImageAttachmentInput | null,
+  memoryEnabled: boolean,
+  docRagEnabled: boolean,
+  thinkingEnabled: boolean,
+  handlers: StreamHandlers<ApiSession>,
+  signal?: AbortSignal,
+  systemPrompt?: string | null
+) {
+  await streamEvents(
+    "/chat/insert/stream",
+    {
+      session_id: sessionId,
+      after_message_id: afterMessageId,
       content,
       image_data: image?.imageData ?? null,
       image_preview_data: image?.imagePreviewData ?? null,

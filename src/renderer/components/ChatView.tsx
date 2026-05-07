@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { Fragment, useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MessagePromptLog, PromptLogContentPart, fetchCorrect, getMessagePromptLog, resolveApiUrl } from "../api";
@@ -111,6 +111,7 @@ export function ChatView() {
   const editMessage = useChatStore((state) => state.editMessage);
   const branchSession = useChatStore((state) => state.branchSession);
   const regenerateMessage = useChatStore((state) => state.regenerateMessage);
+  const insertMessage = useChatStore((state) => state.insertMessage);
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const tempMessages = useChatStore((state) => state.tempMessages);
   const continueGeneration = useChatStore((state) => state.continueGeneration);
@@ -139,6 +140,9 @@ export function ChatView() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [promptLogMessageId, setPromptLogMessageId] = useState<string | null>(null);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
+  const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
+  const [insertContent, setInsertContent] = useState("");
+  const insertTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [promptLog, setPromptLog] = useState<MessagePromptLog | null>(null);
   const [promptLogLoading, setPromptLogLoading] = useState(false);
   const [promptLogError, setPromptLogError] = useState<string | null>(null);
@@ -280,6 +284,7 @@ export function ChatView() {
     const previousMode = previousSubmissionModeRef.current;
     previousSubmissionModeRef.current = submissionMode;
     if (submissionMode === "regenerate" || previousMode === "regenerate") return;
+    if (submissionMode === "insert" || previousMode === "insert") return;
 
     const isSessionSwitch = session?.id !== sessionIdRef.current;
     sessionIdRef.current = session?.id;
@@ -389,6 +394,26 @@ export function ChatView() {
     resizeTextareaToContent(editTextareaRef.current);
     editTextareaRef.current?.focus();
   }, [editingContent, editingId]);
+
+  useEffect(() => {
+    if (!insertingAfterId) return;
+    resizeTextareaToContent(insertTextareaRef.current);
+    insertTextareaRef.current?.focus();
+  }, [insertingAfterId, insertContent]);
+
+  const submitInsertMessage = useCallback(() => {
+    const content = insertContent.trim();
+    if (!content || !session?.id) return;
+    const afterId = insertingAfterId;
+    setInsertingAfterId(null);
+    setInsertContent("");
+    void insertMessage(session.id, afterId, content);
+  }, [insertContent, insertingAfterId, insertMessage, session?.id]);
+
+  const cancelInsert = useCallback(() => {
+    setInsertingAfterId(null);
+    setInsertContent("");
+  }, []);
 
   useEffect(() => {
     setEditCorrection("");
@@ -589,9 +614,56 @@ export function ChatView() {
           const previewImageSrc = resolveApiUrl(message.image_preview_data ?? message.image_data);
           const originalImageSrc = resolveApiUrl(message.image_data ?? message.image_preview_data);
           const hasFollowingAssistant = message.role === "user" && messages[messageIndex + 1]?.role === "assistant";
+          const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+          const previousMessageId = previousMessage?.id ?? null;
+          const showInsertSlot = previousMessage !== null && previousMessage.role === "assistant" && !tempChatMode && !isSubmitting && !editingId;
+          const isInsertingHere = insertingAfterId !== null && insertingAfterId === previousMessageId;
           return (
+          <Fragment key={message.id}>
+          {showInsertSlot && (
+            <div className={`message-insert-slot${isInsertingHere ? " expanded" : ""}`}>
+              {isInsertingHere ? (
+                <div className="message-insert-composer">
+                  <textarea
+                    ref={insertTextareaRef}
+                    className="message-insert-textarea"
+                    value={insertContent}
+                    placeholder="ここに挿入する内容を入力... (Ctrl + Enter で送信)"
+                    onChange={(e) => {
+                      setInsertContent(e.target.value);
+                      resizeTextareaToContent(e.currentTarget);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); submitInsertMessage(); }
+                      else if (e.key === "Escape") { e.preventDefault(); cancelInsert(); }
+                    }}
+                    rows={1}
+                  />
+                  <div className="message-insert-actions">
+                    <button type="button" className="message-insert-cancel" onClick={cancelInsert}>キャンセル (Esc)</button>
+                    <button
+                      type="button"
+                      className="message-insert-submit"
+                      onClick={submitInsertMessage}
+                      disabled={!insertContent.trim() || !activeModelPath}
+                    >送信 (Ctrl + Enter)</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="message-insert-button"
+                  title="ここに挿入"
+                  onClick={() => { setInsertingAfterId(previousMessageId); setInsertContent(""); }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
           <article
-            key={message.id}
             className={`message-card ${message.role}${editingId === message.id ? " editing" : ""}${isMatch ? " search-match" : ""}${isCurrent ? " search-current" : ""}`}
             ref={(el) => {
               if (el && isMatch) matchCardRefs.current.set(message.id, el);
@@ -850,6 +922,7 @@ export function ChatView() {
               </div>
             )}
           </article>
+          </Fragment>
           );
         })}
         {!tempChatMode && !isSubmitting && messages.length > 0 && messages[messages.length - 1].role === "user" && session && (

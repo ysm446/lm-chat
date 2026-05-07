@@ -69,6 +69,7 @@ start.bat
 id TEXT, session_id TEXT, role TEXT, content TEXT,
 image_data TEXT,           -- 画像（base64 data URL）
 created_at TEXT,
+position REAL,             -- 表示順序（中間挿入時は前後の中間値を割り当てる）
 completion_tokens INTEGER, -- 生成トークン数（アシスタントのみ）
 tokens_per_second REAL,    -- 生成速度
 elapsed_seconds REAL,      -- 生成時間（秒）
@@ -203,6 +204,7 @@ PATCH  /history/messages/{id}             ← メッセージ内容を編集
 
 POST /chat/send
 POST /chat/send/stream
+POST /chat/insert/stream                  ← 既存メッセージ間に user+assistant ペアを挿入してストリーミング生成
 POST /chat/temp/stream                    ← 一時チャット（DB 書き込みなし）
 
 POST /memory/save

@@ -49,6 +49,7 @@ class Message(BaseModel):
     image_preview_data: str | None = None
     has_prompt_log: bool = False
     created_at: str = Field(default_factory=now_iso)
+    position: float = 0.0
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     tokens_per_second: float | None = None
@@ -120,6 +121,18 @@ class ChatSendRequest(BaseModel):
 class ChatRegenerateRequest(BaseModel):
     session_id: str
     user_message_id: str
+    memory_enabled: bool = True
+    doc_rag_enabled: bool = True
+    thinking_enabled: bool = False
+    system_prompt: str | None = None
+
+
+class ChatInsertRequest(BaseModel):
+    session_id: str
+    after_message_id: str | None = None
+    content: str
+    image_data: str | None = None
+    image_preview_data: str | None = None
     memory_enabled: bool = True
     doc_rag_enabled: bool = True
     thinking_enabled: bool = False

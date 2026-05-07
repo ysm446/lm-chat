@@ -54,6 +54,7 @@ from .llm_proxy import SYSTEM_PROMPT, _AGGRESSIVE_CORRECTION_PROMPT, _LIGHT_CORR
 from .memory.engine import MemoryEngine
 from .documents.chunker import chunk_document
 from .models import (
+    ChatInsertRequest,
     ChatSendRequest,
     ChatSendResponse,
     ChatRegenerateRequest,
@@ -1211,6 +1212,105 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
             rebuild_session_memory(payload.session_id)
         except Exception as exc:
             logger.warning("Session memory rebuild failed after regenerate: %s", exc)
+
+        updated_session = store.get_session(payload.session_id)
+        if updated_session is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to reload session'})}\n\n"
+            return
+        yield f"data: {json.dumps({'type': 'done', 'session': updated_session.model_dump()})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.post("/chat/insert/stream")
+def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
+    session = store.get_session(payload.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    positions = store.compute_insert_positions(payload.session_id, payload.after_message_id)
+    if positions is None:
+        raise HTTPException(status_code=404, detail="Reference message not found")
+    user_position, assistant_position = positions
+
+    stored_image_data, stored_image_preview_data = _prepare_image_fields(
+        payload.session_id,
+        payload.image_data,
+        payload.image_preview_data,
+    )
+    user_message = store.append_message(
+        payload.session_id,
+        MessageCreate(
+            role="user",
+            content=payload.content,
+            image_data=stored_image_data,
+            image_preview_data=stored_image_preview_data,
+        ),
+        position=user_position,
+    )
+    if user_message is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    refreshed = store.get_session(payload.session_id)
+    if refreshed is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    prefix_messages = [m for m in refreshed.messages if m.position <= user_position]
+    generation_session = refreshed.model_copy(update={"messages": prefix_messages})
+
+    full_context = build_combined_context(
+        generation_session,
+        payload.content,
+        payload.memory_enabled,
+        payload.doc_rag_enabled,
+    )
+    temperature = get_config_data().get("temperature", 0.8)
+    prompt_messages = build_chat_messages(generation_session, full_context, payload.system_prompt)
+
+    def event_stream():
+        collected: list[str] = []
+        final_stats: dict | None = None
+        try:
+            for item in stream_chat_completion(
+                generation_session,
+                full_context,
+                payload.thinking_enabled,
+                payload.system_prompt,
+                temperature,
+                messages=prompt_messages,
+            ):
+                if isinstance(item, str):
+                    collected.append(item)
+                    yield f"data: {json.dumps({'type': 'token', 'content': item})}\n\n"
+                else:
+                    final_stats = item
+        except HTTPException as exc:
+            yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+
+        assistant_text = "".join(collected).strip()
+        assistant_message = store.append_message(
+            payload.session_id,
+            MessageCreate(
+                role="assistant",
+                content=assistant_text,
+                prompt_tokens=final_stats.get("prompt_tokens") if final_stats else None,
+                completion_tokens=final_stats.get("completion_tokens") if final_stats else None,
+                tokens_per_second=final_stats.get("tokens_per_second") if final_stats else None,
+                elapsed_seconds=final_stats.get("elapsed_seconds") if final_stats else None,
+                finish_reason=final_stats.get("finish_reason") if final_stats else None,
+                model_name=_get_active_model_name() or session.model_name or None,
+            ),
+            position=assistant_position,
+        )
+        if assistant_message is None:
+            yield f"data: {json.dumps({'type': 'error', 'detail': 'Failed to store assistant response'})}\n\n"
+            return
+        _save_prompt_log_if_enabled(payload.session_id, assistant_message.id, prompt_messages)
+
+        try:
+            save_turn_memory(payload.session_id, payload.content, assistant_text)
+        except Exception as e:
+            logger.warning("Memory save failed: %s", e)
 
         updated_session = store.get_session(payload.session_id)
         if updated_session is None:

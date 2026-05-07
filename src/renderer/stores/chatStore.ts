@@ -32,6 +32,7 @@ import {
   saveActiveSystemPrompt,
   streamChatMessage,
   streamContinueMessage,
+  streamInsertMessage,
   streamRegenerateMessage,
   streamTempChatMessage,
   switchLlamaModel,
@@ -90,7 +91,7 @@ type ChatState = {
   currentDocumentId: string | null;
   isBootstrapping: boolean;
   isSubmitting: boolean;
-  submissionMode: "send" | "continue" | "regenerate" | "temp" | null;
+  submissionMode: "send" | "continue" | "regenerate" | "insert" | "temp" | null;
   abortController: AbortController | null;
   error: string | null;
   streamingText: string;
@@ -148,12 +149,18 @@ type ChatState = {
   stopGeneration: () => void;
   continueGeneration: (sessionId: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, image?: ImageAttachmentInput | null) => Promise<void>;
+  insertMessage: (sessionId: string, afterMessageId: string | null, content: string, image?: ImageAttachmentInput | null) => Promise<void>;
   currentWorkspace: () => ApiWorkspace | undefined;
   currentSession: () => ApiSession | undefined;
   sessionsForCurrentWorkspace: () => ApiSession[];
 };
 
-const optimisticMessage = (role: ApiMessage["role"], content: string, image?: ImageAttachmentInput | null): ApiMessage => ({
+const optimisticMessage = (
+  role: ApiMessage["role"],
+  content: string,
+  image?: ImageAttachmentInput | null,
+  position = 0,
+): ApiMessage => ({
   id: `tmp-${crypto.randomUUID()}`,
   role,
   content,
@@ -161,6 +168,7 @@ const optimisticMessage = (role: ApiMessage["role"], content: string, image?: Im
   image_preview_data: image?.imagePreviewData ?? null,
   has_prompt_log: false,
   created_at: new Date().toISOString(),
+  position,
   prompt_tokens: null,
   completion_tokens: null,
   tokens_per_second: null,
@@ -922,6 +930,145 @@ export const useChatStore = create<ChatState>((set, get) => ({
               }
             : session
         )
+      }));
+    }
+  },
+
+  insertMessage: async (sessionId, afterMessageId, content, image) => {
+    const current = get().sessions.find((session) => session.id === sessionId);
+    if (!current) return;
+
+    let userPos = 0;
+    let asstPos = 0;
+    let insertIndex = 0;
+    if (afterMessageId === null) {
+      const first = current.messages[0];
+      const firstPos = first?.position ?? 1;
+      userPos = firstPos - 1;
+      asstPos = firstPos - 0.5;
+      insertIndex = 0;
+    } else {
+      const idx = current.messages.findIndex((m) => m.id === afterMessageId);
+      if (idx < 0) return;
+      const a = current.messages[idx].position;
+      const b = idx + 1 < current.messages.length ? current.messages[idx + 1].position : a + 2;
+      const gap = b - a;
+      userPos = a + gap / 3;
+      asstPos = a + (2 * gap) / 3;
+      insertIndex = idx + 1;
+    }
+
+    const user = optimisticMessage("user", content, image, userPos);
+    const assistant = optimisticMessage("assistant", "", null, asstPos);
+    const controller = new AbortController();
+
+    set((state) => ({
+      isSubmitting: true,
+      submissionMode: "insert",
+      abortController: controller,
+      error: null,
+      streamingText: "",
+      sessions: state.sessions.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              messages: [
+                ...session.messages.slice(0, insertIndex),
+                user,
+                assistant,
+                ...session.messages.slice(insertIndex),
+              ],
+            }
+          : session
+      ),
+    }));
+
+    try {
+      await streamInsertMessage(
+        sessionId,
+        afterMessageId,
+        content,
+        image ?? null,
+        get().memoryEnabled,
+        get().docRagEnabled,
+        get().thinkingEnabled,
+        {
+          onToken: (chunk) => {
+            set((state) => ({
+              streamingText: state.streamingText + chunk,
+              sessions: state.sessions.map((session) =>
+                session.id === sessionId
+                  ? {
+                      ...session,
+                      messages: session.messages.map((message) =>
+                        message.id === assistant.id
+                          ? { ...message, content: message.content + chunk }
+                          : message
+                      ),
+                    }
+                  : session
+              ),
+            }));
+          },
+          onDone: (session) => {
+            set((state) => ({
+              sessions: state.sessions.map((item) => (item.id === session.id ? session : item)),
+              isSubmitting: false,
+              submissionMode: null,
+              abortController: null,
+              streamingText: "",
+            }));
+          },
+          onError: (detail) => {
+            set((state) => ({
+              error: detail,
+              isSubmitting: false,
+              submissionMode: null,
+              abortController: null,
+              streamingText: "",
+              sessions: state.sessions.map((session) =>
+                session.id === sessionId
+                  ? {
+                      ...session,
+                      messages: session.messages.filter(
+                        (m) => m.id !== user.id && m.id !== assistant.id
+                      ),
+                    }
+                  : session
+              ),
+            }));
+          },
+        },
+        controller.signal,
+        get().systemPromptText || null
+      );
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        set({ isSubmitting: false, submissionMode: null, abortController: null, streamingText: "" });
+        try {
+          const refreshed = await getSession(sessionId);
+          set((state) => ({
+            sessions: state.sessions.map((s) => (s.id === sessionId ? refreshed : s)),
+          }));
+        } catch { /* ignore */ }
+        return;
+      }
+      set((state) => ({
+        error: error instanceof Error ? error.message : "Failed to insert message",
+        isSubmitting: false,
+        submissionMode: null,
+        abortController: null,
+        streamingText: "",
+        sessions: state.sessions.map((session) =>
+          session.id === sessionId
+            ? {
+                ...session,
+                messages: session.messages.filter(
+                  (m) => m.id !== user.id && m.id !== assistant.id
+                ),
+              }
+            : session
+        ),
       }));
     }
   },

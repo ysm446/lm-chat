@@ -1413,6 +1413,116 @@ a { color: var(--accent); }
   color: var(--accent);
 }
 
+.message-insert-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 14px;
+  margin: -10px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.message-insert-slot.expanded {
+  height: auto;
+  margin: 4px 0;
+}
+
+.message-insert-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.message-insert-slot:hover .message-insert-button {
+  opacity: 0.85;
+}
+
+.message-insert-button:hover {
+  opacity: 1 !important;
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.message-insert-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  border-radius: 12px;
+}
+
+.message-insert-textarea {
+  width: 100%;
+  resize: none;
+  min-height: 60px;
+  max-height: 240px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+}
+
+.message-insert-textarea:focus {
+  border-color: var(--accent);
+}
+
+.message-insert-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.message-insert-cancel,
+.message-insert-submit {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.message-insert-cancel:hover {
+  background: var(--bg-hover);
+}
+
+.message-insert-submit {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.message-insert-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.message-insert-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .message-card {
   display: flex;
   flex-direction: column;
