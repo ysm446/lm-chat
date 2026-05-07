@@ -138,6 +138,7 @@ export function ChatView() {
   const [editCorrectionPos, setEditCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [promptLogMessageId, setPromptLogMessageId] = useState<string | null>(null);
+  const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<string | null>(null);
   const [promptLog, setPromptLog] = useState<MessagePromptLog | null>(null);
   const [promptLogLoading, setPromptLogLoading] = useState(false);
   const [promptLogError, setPromptLogError] = useState<string | null>(null);
@@ -146,6 +147,10 @@ export function ChatView() {
   const promptLogTargetMessage = useMemo(
     () => messages.find((message) => message.id === promptLogMessageId) ?? null,
     [messages, promptLogMessageId]
+  );
+  const pendingDeleteMessage = useMemo(
+    () => messages.find((message) => message.id === pendingDeleteMessageId) ?? null,
+    [messages, pendingDeleteMessageId]
   );
 
   // ── Search ───────────────────────────────────────────
@@ -418,6 +423,21 @@ export function ChatView() {
     const content = editingContent.trim();
     if (content || editingImage) await editMessage(sessionId, messageId, content, editingImage);
     cancelEdit();
+  };
+
+  const requestDeleteMessage = (sessionId: string, messageId: string, messageIndex: number) => {
+    if (messageIndex === messages.length - 1) {
+      void deleteMessage(sessionId, messageId);
+      return;
+    }
+    setPendingDeleteMessageId(messageId);
+  };
+
+  const confirmDeleteMessage = async () => {
+    if (!session?.id || !pendingDeleteMessageId) return;
+    const messageId = pendingDeleteMessageId;
+    setPendingDeleteMessageId(null);
+    await deleteMessage(session.id, messageId);
   };
 
   const handleEditImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -821,7 +841,7 @@ export function ChatView() {
                 <button
                   className="msg-action-btn danger"
                   title="削除"
-                  onClick={() => { if (session?.id) void deleteMessage(session.id, message.id); }}
+                  onClick={() => { if (session?.id) requestDeleteMessage(session.id, message.id, messageIndex); }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
@@ -846,6 +866,24 @@ export function ChatView() {
           </div>
         )}
         <div ref={bottomRef} />
+      {pendingDeleteMessage && (
+        <div className="modal-backdrop" onClick={() => setPendingDeleteMessageId(null)} role="dialog" aria-modal="true" aria-label="メッセージ削除の確認">
+          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-confirm-header">
+              <h2>途中のメッセージを削除しますか？</h2>
+              <p>最後以外のメッセージを削除すると、この会話の文脈や後続返信とのつながりが崩れることがあります。</p>
+            </div>
+            <div className="delete-confirm-preview">
+              <span>{pendingDeleteMessage.role === "assistant" ? "アシスタント" : pendingDeleteMessage.role === "user" ? "ユーザー" : "システム"}</span>
+              <p>{pendingDeleteMessage.content.trim() || "添付画像のみのメッセージ"}</p>
+            </div>
+            <div className="delete-confirm-actions">
+              <button type="button" className="delete-confirm-cancel" onClick={() => setPendingDeleteMessageId(null)}>キャンセル</button>
+              <button type="button" className="delete-confirm-delete" onClick={() => void confirmDeleteMessage()}>削除</button>
+            </div>
+          </div>
+        </div>
+      )}
       {promptLogMessageId && (
         <div className="modal-backdrop" onClick={() => setPromptLogMessageId(null)} role="dialog" aria-modal="true" aria-label="プロンプト全文">
           <div className="prompt-log-modal" onClick={(e) => e.stopPropagation()}>
