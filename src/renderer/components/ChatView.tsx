@@ -1,106 +1,14 @@
 import { Fragment, useEffect, useRef, useState, useMemo, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MessagePromptLog, PromptLogContentPart, fetchCorrect, getMessagePromptLog, resolveApiUrl } from "../api";
+import { fetchCorrect, resolveApiUrl } from "../api";
 import { buildImageAttachment, PendingImageAttachment } from "../imageAttachment";
 import { useChatStore } from "../stores/chatStore";
+import { DeleteConfirmModal } from "./chat/DeleteConfirmModal";
+import { ImageLightbox } from "./chat/ImageLightbox";
+import { PromptLogModal } from "./chat/PromptLogModal";
+import { makeHighlightPlugin, parseThinking, resizeTextareaToContent, HighlightText } from "./chat/chatViewUtils";
 
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function HighlightText({ text, query, current }: { text: string; query: string; current: boolean }) {
-  if (!query.trim()) return <>{text}</>;
-  const parts = text.split(new RegExp(`(${escapeRegex(query)})`, "gi"));
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase()
-          ? <mark key={i} className={`search-highlight${current ? " current" : ""}`}>{part}</mark>
-          : part
-      )}
-    </>
-  );
-}
-
-// rehype プラグイン: HAST のテキストノードを走査してマッチ部分を <mark> に置き換える
-function hastHighlight(node: any, query: string, className: string[]) {
-  if (!node.children) return;
-  const newChildren: any[] = [];
-  for (const child of node.children) {
-    if (child.type === "text") {
-      const parts = child.value.split(new RegExp(`(${escapeRegex(query)})`, "gi"));
-      if (parts.length === 1) {
-        newChildren.push(child);
-      } else {
-        for (const part of parts) {
-          if (!part) continue;
-          if (part.toLowerCase() === query.toLowerCase()) {
-            newChildren.push({
-              type: "element", tagName: "mark",
-              properties: { className },
-              children: [{ type: "text", value: part }],
-            });
-          } else {
-            newChildren.push({ type: "text", value: part });
-          }
-        }
-      }
-    } else {
-      hastHighlight(child, query, className);
-      newChildren.push(child);
-    }
-  }
-  node.children = newChildren;
-}
-
-function makeHighlightPlugin(query: string, isCurrent: boolean) {
-  const className = isCurrent ? ["search-highlight", "current"] : ["search-highlight"];
-  return () => (tree: any) => {
-    if (!query.trim()) return;
-    hastHighlight(tree, query, className);
-  };
-}
-
-function resizeTextareaToContent(textarea: HTMLTextAreaElement | null) {
-  if (!textarea) return;
-  textarea.style.height = "auto";
-  textarea.style.height = `${textarea.scrollHeight}px`;
-}
-function parseThinking(content: string): { thinking: string | null; response: string; streaming: boolean } {
-  const complete = content.match(/^<think>([\s\S]*?)<\/think>\n?/);
-  if (complete) {
-    return { thinking: complete[1].trim(), response: content.slice(complete[0].length), streaming: false };
-  }
-  if (content.startsWith("<think>")) {
-    return { thinking: content.slice(7), response: "", streaming: true };
-  }
-  return { thinking: null, response: content, streaming: false };
-}
-
-function formatPromptRole(role: string) {
-  if (role === "system") return "system";
-  if (role === "user") return "user";
-  if (role === "assistant") return "assistant";
-  return role;
-}
-
-function formatPromptContent(content: string | PromptLogContentPart[]) {
-  if (typeof content === "string") return content;
-  return content.map((item) => {
-    if ("type" in item && item.type === "text") {
-      return `[text]\n${item.text ?? ""}`;
-    }
-    if ("type" in item && item.type === "image_url") {
-      const image = item.image_url;
-      const url = typeof image === "string"
-        ? image
-        : (image && typeof image === "object" && "url" in image && typeof image.url === "string" ? image.url : "");
-      return `[image_url]\n${url}`;
-    }
-    return JSON.stringify(item, null, 2);
-  }).join("\n");
-}
 
 export function ChatView() {
   const session = useChatStore((state) => state.currentSession());
@@ -143,9 +51,6 @@ export function ChatView() {
   const [insertingAfterId, setInsertingAfterId] = useState<string | null>(null);
   const [insertContent, setInsertContent] = useState("");
   const insertTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [promptLog, setPromptLog] = useState<MessagePromptLog | null>(null);
-  const [promptLogLoading, setPromptLogLoading] = useState(false);
-  const [promptLogError, setPromptLogError] = useState<string | null>(null);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const editCorrectionRequestIdRef = useRef(0);
   const promptLogTargetMessage = useMemo(
@@ -241,45 +146,6 @@ export function ChatView() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [openSearch]);
-
-  useEffect(() => {
-    if (!promptLogMessageId) {
-      setPromptLog(null);
-      setPromptLogError(null);
-      setPromptLogLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setPromptLogLoading(true);
-    setPromptLogError(null);
-    getMessagePromptLog(promptLogMessageId)
-      .then((data) => {
-        if (cancelled) return;
-        setPromptLog(data);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setPromptLog(null);
-        setPromptLogError(error instanceof Error ? error.message : "プロンプト全文を取得できませんでした");
-      })
-      .finally(() => {
-        if (!cancelled) setPromptLogLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [promptLogMessageId]);
-
-  useEffect(() => {
-    if (!promptLogMessageId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setPromptLogMessageId(null);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [promptLogMessageId]);
 
   useEffect(() => {
     const previousMode = previousSubmissionModeRef.current;
@@ -380,15 +246,6 @@ export function ChatView() {
       window.removeEventListener("lm-chat:jump-to-last-user-message", handleJumpToLastUserMessage as EventListener);
     };
   }, [getFocusedUserMessageIndex, isCurrentMsgTopVisible, scrollToUserMessage, userMessageIds.length]);
-
-  useEffect(() => {
-    if (!expandedImage) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpandedImage(null);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [expandedImage]);
 
   useEffect(() => {
     if (!editingId) return;
@@ -955,77 +812,21 @@ export function ChatView() {
         )}
         <div ref={bottomRef} />
       {pendingDeleteMessage && (
-        <div className="modal-backdrop" onClick={() => setPendingDeleteMessageId(null)} role="dialog" aria-modal="true" aria-label="メッセージ削除の確認">
-          <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="delete-confirm-header">
-              <h2>途中のメッセージを削除しますか？</h2>
-              <p>最後以外のメッセージを削除すると、この会話の文脈や後続返信とのつながりが崩れることがあります。</p>
-            </div>
-            <div className="delete-confirm-preview">
-              <span>{pendingDeleteMessage.role === "assistant" ? "アシスタント" : pendingDeleteMessage.role === "user" ? "ユーザー" : "システム"}</span>
-              <p>{pendingDeleteMessage.content.trim() || "添付画像のみのメッセージ"}</p>
-            </div>
-            <div className="delete-confirm-actions">
-              <button type="button" className="delete-confirm-cancel" onClick={() => setPendingDeleteMessageId(null)}>キャンセル</button>
-              <button type="button" className="delete-confirm-delete" onClick={() => void confirmDeleteMessage()}>削除</button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmModal
+          message={pendingDeleteMessage}
+          onConfirm={() => void confirmDeleteMessage()}
+          onCancel={() => setPendingDeleteMessageId(null)}
+        />
       )}
       {promptLogMessageId && (
-        <div className="modal-backdrop" onClick={() => setPromptLogMessageId(null)} role="dialog" aria-modal="true" aria-label="プロンプト全文">
-          <div className="prompt-log-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="prompt-log-header">
-              <div>
-                <h2>送信直前の messages</h2>
-                <p>この assistant 生成時に LLM へ渡した入力一式です。</p>
-                {promptLogTargetMessage?.prompt_tokens != null && (
-                  <p>Prompt tokens: {promptLogTargetMessage.prompt_tokens.toLocaleString()}</p>
-                )}
-              </div>
-              <button type="button" className="model-picker-close" onClick={() => setPromptLogMessageId(null)} aria-label="閉じる">✕</button>
-            </div>
-            <div className="prompt-log-body">
-              {promptLogLoading ? (
-                <p className="prompt-log-status">読み込み中...</p>
-              ) : promptLogError ? (
-                <p className="error-text" style={{ margin: 0 }}>{promptLogError}</p>
-              ) : promptLog ? (
-                <div className="prompt-log-list">
-                  {promptLog.messages.map((entry, index) => (
-                    <article key={`${entry.role}-${index}`} className="prompt-log-card">
-                      <div className="prompt-log-meta">
-                        <strong>{formatPromptRole(entry.role)}</strong>
-                        <span>#{index}</span>
-                      </div>
-                      <pre className="prompt-log-pre">{formatPromptContent(entry.content)}</pre>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="prompt-log-status">保存済みプロンプトはありません。</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <PromptLogModal
+          messageId={promptLogMessageId}
+          targetMessage={promptLogTargetMessage}
+          onClose={() => setPromptLogMessageId(null)}
+        />
       )}
       {expandedImage && (
-        <div className="image-lightbox" onClick={() => setExpandedImage(null)} role="dialog" aria-modal="true" aria-label="画像の拡大表示">
-          <button
-            type="button"
-            className="image-lightbox-close"
-            onClick={() => setExpandedImage(null)}
-            aria-label="閉じる"
-          >
-            ×
-          </button>
-          <img
-            src={expandedImage}
-            alt="拡大画像"
-            className="image-lightbox-content"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        <ImageLightbox src={expandedImage} onClose={() => setExpandedImage(null)} />
       )}
       </div>
     </section>
