@@ -203,38 +203,6 @@ class SQLiteStore:
                 )
                 conn.commit()
 
-            # 初期版の position バックフィルは同秒タイを id で解決していたため、
-            # 同じ秒に保存された user/assistant が逆転することがあった。
-            # 途中挿入済みのセッションは小数 position を持つので除外し、通常セッションだけ修復する。
-            conn.execute(
-                """
-                WITH repair_sessions AS (
-                    SELECT session_id
-                    FROM messages
-                    GROUP BY session_id
-                    HAVING SUM(CASE WHEN ABS(position - ROUND(position)) > 0.000001 THEN 1 ELSE 0 END) = 0
-                ),
-                ordered AS (
-                    SELECT
-                        rowid,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY session_id
-                            ORDER BY created_at ASC, rowid ASC
-                        ) AS new_position
-                    FROM messages
-                    WHERE session_id IN (SELECT session_id FROM repair_sessions)
-                )
-                UPDATE messages
-                SET position = (
-                    SELECT new_position
-                    FROM ordered
-                    WHERE ordered.rowid = messages.rowid
-                )
-                WHERE rowid IN (SELECT rowid FROM ordered)
-                """
-            )
-            conn.commit()
-
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_messages_session_position ON messages(session_id, position)"
             )
@@ -427,7 +395,7 @@ class SQLiteStore:
                 FROM messages
                 AS m
                 WHERE m.session_id = ?
-                ORDER BY m.position ASC, m.created_at ASC
+                ORDER BY m.position ASC, m.created_at ASC, m.rowid ASC
                 """,
                 (row["id"],),
             ).fetchall()
@@ -653,7 +621,7 @@ class SQLiteStore:
         """
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT id, position FROM messages WHERE session_id = ? ORDER BY position ASC, created_at ASC",
+                "SELECT id, position FROM messages WHERE session_id = ? ORDER BY position ASC, created_at ASC, rowid ASC",
                 (session_id,),
             ).fetchall()
         if not rows:
