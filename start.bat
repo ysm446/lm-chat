@@ -136,6 +136,7 @@ set "VITE_DEV_SERVER_URL=%FRONTEND_URL%"
 call npm run electron:dev
 
 echo Electron closed. Stopping this app's processes...
+powershell -NoLogo -Command "$ProgressPreference='SilentlyContinue';$url='%BACKEND_URL%/llama/eject';try{Invoke-WebRequest -UseBasicParsing -Method Post -Uri $url -TimeoutSec 10|Out-Null;Write-Host 'llama-server ejected.'}catch{Write-Host ('WARNING: Failed to request llama-server eject: '+$_.Exception.Message)}"
 taskkill /fi "WINDOWTITLE eq %BACKEND_TITLE%" /f /t >nul 2>nul
 taskkill /fi "WINDOWTITLE eq %FRONTEND_TITLE%" /f /t >nul 2>nul
 

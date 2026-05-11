@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from .llama_manager import eject_model
 from .routes import chat, config, data, documents, history, llama, memory, models, system_prompts, util, workspaces
 from .routes.deps import _DOCUMENT_DIR, _IMAGE_DIR, start_background_task
 
@@ -49,3 +50,11 @@ def startup_background_tasks() -> None:
             logger.warning("Embedder warmup failed: %s", exc)
 
     start_background_task(_warmup, name="embedder-warmup")
+
+
+@app.on_event("shutdown")
+def shutdown_llama_server() -> None:
+    try:
+        eject_model()
+    except Exception as exc:
+        logger.warning("Failed to stop llama-server during backend shutdown: %s", exc)
