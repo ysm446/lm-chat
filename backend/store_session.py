@@ -90,13 +90,13 @@ class SessionMixin:
             conn.execute(
                 """
                 INSERT INTO messages
-                    (id, session_id, role, content, image_data, image_preview_data, created_at, position,
+                    (id, session_id, role, content, image_data, image_preview_data, image_summary, created_at, position,
                      prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     message.id, session_id, message.role, message.content,
-                    message.image_data, message.image_preview_data, message.created_at, message.position,
+                    message.image_data, message.image_preview_data, message.image_summary, message.created_at, message.position,
                     message.prompt_tokens, message.completion_tokens, message.tokens_per_second,
                     message.elapsed_seconds, message.finish_reason, message.model_name,
                 ),
@@ -235,13 +235,13 @@ class SessionMixin:
         with self._connect() as conn:  # type: ignore[attr-defined]
             image_paths = self._collect_image_paths_for_message_ids(conn, [message_id])  # type: ignore[attr-defined]
             row = conn.execute(
-                "SELECT id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name FROM messages WHERE id = ?",
+                "SELECT id, session_id, role, content, image_data, image_preview_data, image_summary, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name FROM messages WHERE id = ?",
                 (message_id,),
             ).fetchone()
             if row is None:
                 return None
             conn.execute(
-                "UPDATE messages SET content = ?, image_data = ?, image_preview_data = ? WHERE id = ?",
+                "UPDATE messages SET content = ?, image_data = ?, image_preview_data = ?, image_summary = NULL WHERE id = ?",
                 (content, image_data, image_preview_data, message_id),
             )
             self._cleanup_unreferenced_images(conn, image_paths)  # type: ignore[attr-defined]
@@ -250,12 +250,13 @@ class SessionMixin:
         data["content"] = content
         data["image_data"] = image_data
         data["image_preview_data"] = image_preview_data
+        data["image_summary"] = None
         return Message(**data)
 
     def replace_message(self, message_id: str, payload: MessageCreate) -> Message | None:
         with self._connect() as conn:  # type: ignore[attr-defined]
             row = conn.execute(
-                "SELECT id, session_id, role, content, image_data, image_preview_data, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name FROM messages WHERE id = ?",
+                "SELECT id, session_id, role, content, image_data, image_preview_data, image_summary, created_at, prompt_tokens, completion_tokens, tokens_per_second, elapsed_seconds, finish_reason, model_name FROM messages WHERE id = ?",
                 (message_id,),
             ).fetchone()
             if row is None:
@@ -278,7 +279,16 @@ class SessionMixin:
         })
         data.setdefault("image_data", None)
         data.setdefault("image_preview_data", None)
+        data.setdefault("image_summary", None)
         return Message(**data)
+
+    def update_message_image_summary(self, message_id: str, image_summary: str) -> bool:
+        with self._connect() as conn:  # type: ignore[attr-defined]
+            cursor = conn.execute(
+                "UPDATE messages SET image_summary = ? WHERE id = ?",
+                (image_summary, message_id),
+            )
+        return cursor.rowcount > 0
 
     def branch_session(self, session_id: str, up_to_message_id: str) -> Session | None:
         session = self.get_session(session_id)
@@ -295,7 +305,13 @@ class SessionMixin:
         for msg in messages_to_copy:
             copied = self.append_message(
                 new_session.id,
-                MessageCreate(role=msg.role, content=msg.content, image_data=msg.image_data, image_preview_data=msg.image_preview_data),
+                MessageCreate(
+                    role=msg.role,
+                    content=msg.content,
+                    image_data=msg.image_data,
+                    image_preview_data=msg.image_preview_data,
+                    image_summary=msg.image_summary,
+                ),
             )
             if copied is not None and msg.role == "assistant":
                 self.copy_message_prompt_log(msg.id, copied.id, new_session.id)
@@ -313,6 +329,7 @@ class SessionMixin:
                 new_session.id,
                 MessageCreate(
                     role=msg.role, content=msg.content, image_data=msg.image_data, image_preview_data=msg.image_preview_data,
+                    image_summary=msg.image_summary,
                     prompt_tokens=msg.prompt_tokens, completion_tokens=msg.completion_tokens,
                     tokens_per_second=msg.tokens_per_second, elapsed_seconds=msg.elapsed_seconds,
                     finish_reason=msg.finish_reason, model_name=msg.model_name,

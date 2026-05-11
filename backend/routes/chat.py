@@ -9,7 +9,6 @@ from pydantic import BaseModel
 
 from ..config_store import get as get_config_data
 from ..llm_proxy import (
-    build_chat_messages,
     generate_chat_completion,
     stream_chat_completion,
     stream_temp_chat,
@@ -24,6 +23,7 @@ from ..models import (
 )
 from .deps import (
     build_combined_context,
+    build_prompt_messages,
     get_active_model_name,
     iter_token_events,
     make_assistant_message_create,
@@ -44,6 +44,7 @@ class ChatContinueRequest(BaseModel):
     memory_enabled: bool = True
     doc_rag_enabled: bool = True
     system_prompt: str | None = None
+    include_all_prompt_images: bool | None = None
 
 
 @router.post("/chat/temp/stream")
@@ -91,7 +92,7 @@ def chat_send(payload: ChatSendRequest) -> ChatSendResponse:
 
     full_context = build_combined_context(session, payload.content, payload.memory_enabled, payload.doc_rag_enabled)
     temperature = get_config_data().get("temperature", 0.8)
-    prompt_messages = build_chat_messages(session, full_context, payload.system_prompt)
+    prompt_messages = build_prompt_messages(session, full_context, payload.system_prompt, payload.include_all_prompt_images)
     assistant_text = generate_chat_completion(
         session, full_context, payload.thinking_enabled, payload.system_prompt, temperature,
         messages=prompt_messages,
@@ -138,7 +139,7 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
 
     full_context = build_combined_context(session, payload.content, payload.memory_enabled, payload.doc_rag_enabled)
     temperature = get_config_data().get("temperature", 0.8)
-    prompt_messages = build_chat_messages(session, full_context, payload.system_prompt)
+    prompt_messages = build_prompt_messages(session, full_context, payload.system_prompt, payload.include_all_prompt_images)
 
     def event_stream():
         collected: list[str] = []
@@ -191,7 +192,7 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
     last_user_content = session.messages[-1].content
     full_context = build_combined_context(session, last_user_content, payload.memory_enabled, payload.doc_rag_enabled)
     temperature = get_config_data().get("temperature", 0.8)
-    prompt_messages = build_chat_messages(session, full_context, payload.system_prompt)
+    prompt_messages = build_prompt_messages(session, full_context, payload.system_prompt, payload.include_all_prompt_images)
 
     def event_stream():
         collected: list[str] = []
@@ -253,7 +254,7 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
         generation_session, user_message.content, payload.memory_enabled, payload.doc_rag_enabled
     )
     temperature = get_config_data().get("temperature", 0.8)
-    prompt_messages = build_chat_messages(generation_session, full_context, payload.system_prompt)
+    prompt_messages = build_prompt_messages(generation_session, full_context, payload.system_prompt, payload.include_all_prompt_images)
 
     def event_stream():
         collected: list[str] = []
@@ -340,7 +341,7 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
         generation_session, payload.content, payload.memory_enabled, payload.doc_rag_enabled
     )
     temperature = get_config_data().get("temperature", 0.8)
-    prompt_messages = build_chat_messages(generation_session, full_context, payload.system_prompt)
+    prompt_messages = build_prompt_messages(generation_session, full_context, payload.system_prompt, payload.include_all_prompt_images)
 
     def event_stream():
         collected: list[str] = []

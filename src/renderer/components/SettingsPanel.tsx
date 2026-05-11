@@ -160,6 +160,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   const [dataOpen, setDataOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugPromptLog, setDebugPromptLog] = useState(false);
+  const [includeAllPromptImages, setIncludeAllPromptImages] = useState(false);
   const [databaseCleanupBusy, setDatabaseCleanupBusy] = useState(false);
   const [databaseCleanupResult, setDatabaseCleanupResult] = useState<string | null>(null);
   const [promptLogCleanupBusy, setPromptLogCleanupBusy] = useState(false);
@@ -216,6 +217,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
     setCorrectionEnabled(settings.correction_enabled ?? true);
     setCorrectionMode(normalizeCorrectionMode(settings.correction_prompt_mode));
     setCustomCorrectionPrompt(settings.correction_custom_prompt || "");
+    setIncludeAllPromptImages(settings.include_all_prompt_images ?? false);
     setDebugPromptLog(settings.debug_prompt_log ?? false);
 
     const sectionSetters: Record<SettingsSectionKey, Dispatch<SetStateAction<boolean>>> = {
@@ -861,6 +863,26 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
                 onChange={(e) => setCtxSize(effectiveCtxPresets[Number(e.target.value)] ?? ctxSize)}
                 onMouseUp={() => void handleSave({ ctx_size: ctxSize })}
               />
+            </div>
+
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-copy">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("OFF のときは最新画像だけを実画像として送り、過去画像は保存済みサマリーとしてプロンプトに含めます。")} onMouseLeave={onTipLeave}>過去の画像もすべて参照する</span>
+              </div>
+              <button
+                type="button"
+                className={`settings-toggle-btn${includeAllPromptImages ? " active" : ""}`}
+                aria-pressed={includeAllPromptImages}
+                onClick={() => {
+                  const next = !includeAllPromptImages;
+                  setIncludeAllPromptImages(next);
+                  updateSettings({ include_all_prompt_images: next }).catch(() => {
+                    setIncludeAllPromptImages(!next);
+                  });
+                }}
+              >
+                <span className="settings-toggle-thumb" />
+              </button>
             </div>
 
             {saved && <p className="settings-saved-msg">保存しました</p>}

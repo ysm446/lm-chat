@@ -94,6 +94,7 @@ export function makeOptimisticMessage(
     content,
     image_data: image?.imageData ?? null,
     image_preview_data: image?.imagePreviewData ?? null,
+    image_summary: null,
     has_prompt_log: false,
     created_at: new Date().toISOString(),
     position,

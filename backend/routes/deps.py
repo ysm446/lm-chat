@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from ..config_store import get as get_config_data
 from ..llama_manager import get_llama_paths, is_ready
-from ..llm_proxy import build_chat_messages, stream_chat_completion
+from ..llm_proxy import build_chat_messages, stream_chat_completion, summarize_image
 from ..memory.engine import MemoryEngine
 from ..models import Message, MessageCreate, Session
 from ..settings_store import get as get_settings_data
@@ -162,6 +162,59 @@ def prepare_image_fields(
     return (
         _prepare_image_data(session_id, image_data),
         _prepare_image_data(session_id, image_preview_data),
+    )
+
+
+def include_all_prompt_images(override: bool | None = None) -> bool:
+    if override is not None:
+        return bool(override)
+    return bool(get_settings_data().get("include_all_prompt_images", False))
+
+
+def ensure_image_summaries(session: Session, skip_message_id: str | None = None) -> Session:
+    changed = False
+    updated_messages = []
+    for message in session.messages:
+        image_ref = message.image_data or message.image_preview_data
+        if not image_ref or message.id == skip_message_id or (message.image_summary or "").strip():
+            updated_messages.append(message)
+            continue
+        try:
+            summary = summarize_image(image_ref, message.content)
+        except Exception as exc:
+            logger.warning("Image summary generation failed for message %s: %s", message.id, exc)
+            summary = "画像サマリー生成に失敗しました。必要に応じて「過去の画像もすべて参照する」を有効にしてください。"
+        if store.update_message_image_summary(message.id, summary):
+            changed = True
+            updated_messages.append(message.model_copy(update={"image_summary": summary}))
+        else:
+            updated_messages.append(message)
+    if changed and len(updated_messages) == len(session.messages):
+        return session.model_copy(update={"messages": updated_messages})
+    return session
+
+
+def build_prompt_messages(
+    session: Session,
+    memory_context: str = "",
+    system_prompt: str | None = None,
+    include_all_images_override: bool | None = None,
+) -> list[dict]:
+    include_all_images = include_all_prompt_images(include_all_images_override)
+    if not include_all_images:
+        latest_image_message = next(
+            (m for m in reversed(session.messages) if m.image_preview_data or m.image_data),
+            None,
+        )
+        session = ensure_image_summaries(
+            session,
+            skip_message_id=latest_image_message.id if latest_image_message is not None else None,
+        )
+    return build_chat_messages(
+        session,
+        memory_context,
+        system_prompt,
+        include_all_images=include_all_images,
     )
 
 

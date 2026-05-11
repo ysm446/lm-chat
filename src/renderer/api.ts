@@ -6,6 +6,7 @@ export type ApiMessage = {
   content: string;
   image_data: string | null;
   image_preview_data: string | null;
+  image_summary: string | null;
   has_prompt_log: boolean;
   created_at: string;
   position: number;
@@ -166,6 +167,7 @@ export type AppSettings = {
   correction_enabled: boolean;
   correction_prompt_mode: string;
   correction_custom_prompt: string;
+  include_all_prompt_images: boolean;
   debug_prompt_log: boolean;
   chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>;
@@ -180,6 +182,7 @@ export type AppSettingsPatch = Partial<{
   correction_enabled: boolean;
   correction_prompt_mode: string;
   correction_custom_prompt: string;
+  include_all_prompt_images: boolean;
   debug_prompt_log: boolean;
   chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>>;

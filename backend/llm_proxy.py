@@ -39,6 +39,65 @@ def _resolve_image_url(image_ref: str) -> str:
     return f"{BACKEND_PUBLIC_BASE}/{image_ref.lstrip('/')}"
 
 
+def _image_summary_text(message_id: str, summary: str | None) -> str:
+    body = (summary or "").strip()
+    if not body:
+        body = "この画像のサマリーはまだ作成されていません。"
+    return f"[過去画像サマリー: message_id={message_id}]\n{body}"
+
+
+def _append_image_summary(content: str, message_id: str, summary: str | None) -> str:
+    summary_text = _image_summary_text(message_id, summary)
+    if content:
+        return f"{content}\n\n{summary_text}"
+    return summary_text
+
+
+def summarize_image(image_ref: str, user_text: str = "") -> str:
+    content: list[dict] = [
+        {
+            "type": "text",
+            "text": (
+                "この画像を、後続の会話で実画像の代わりに参照できるよう日本語で要約してください。\n"
+                "箇条書きで、次を含めてください。\n"
+                "- 画像の種類や場面\n"
+                "- 見えている主要な対象、UI、人物、構図\n"
+                "- 読める重要な文字や数値\n"
+                "- 会話上で後から参照されそうな細部\n"
+                "推測は推測と分かるように書き、見えないことは断定しないでください。"
+            ),
+        }
+    ]
+    if user_text.strip():
+        content.append({"type": "text", "text": f"画像に添えられたユーザー本文:\n{user_text.strip()}"})
+    content.append({"type": "image_url", "image_url": {"url": _resolve_image_url(image_ref)}})
+
+    payload = {
+        "model": LLAMA_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": "あなたは画像の内容を会話用メモに要約するアシスタントです。回答は要約本文のみ返してください。",
+            },
+            {"role": "user", "content": content},
+        ],
+        "stream": False,
+        "max_tokens": 500,
+        "temperature": 0.2,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "thinking": {"type": "disabled"},
+    }
+    req = request.Request(
+        f"{LLAMA_SERVER_BASE_URL}/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=180) as response:
+        body = json.loads(response.read().decode("utf-8"))
+    return body["choices"][0]["message"]["content"].strip()
+
+
 def count_tokens(text: str) -> int:
     payload = {"content": text}
     req = request.Request(
@@ -66,14 +125,33 @@ def list_models() -> dict[str, list[dict[str, str]]]:
     }
 
 
-def build_chat_messages(session: Session, memory_context: str = "", system_prompt: str | None = None) -> list[dict]:
+def build_chat_messages(
+    session: Session,
+    memory_context: str = "",
+    system_prompt: str | None = None,
+    include_all_images: bool = False,
+) -> list[dict]:
     base_prompt = system_prompt if system_prompt else SYSTEM_PROMPT
     effective_prompt = f"{base_prompt}\n\n{memory_context}" if memory_context else base_prompt
 
     messages: list[dict] = [{"role": "system", "content": effective_prompt}]
+    latest_image_message_id = None
+    if not include_all_images:
+        latest_image_message = next(
+            (m for m in reversed(session.messages) if m.image_preview_data or m.image_data),
+            None,
+        )
+        latest_image_message_id = latest_image_message.id if latest_image_message is not None else None
+
     for message in session.messages:
         image_ref = message.image_preview_data or message.image_data
         if image_ref:
+            if not include_all_images and message.id != latest_image_message_id:
+                messages.append({
+                    "role": message.role,
+                    "content": _append_image_summary(message.content, message.id, message.image_summary),
+                })
+                continue
             content: list[dict] = []
             if message.content:
                 content.append({"type": "text", "text": message.content})

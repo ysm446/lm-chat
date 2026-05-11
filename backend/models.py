@@ -47,6 +47,7 @@ class Message(BaseModel):
     content: str
     image_data: str | None = None
     image_preview_data: str | None = None
+    image_summary: str | None = None
     has_prompt_log: bool = False
     created_at: str = Field(default_factory=now_iso)
     position: float = 0.0
@@ -63,6 +64,7 @@ class MessageCreate(BaseModel):
     content: str
     image_data: str | None = None
     image_preview_data: str | None = None
+    image_summary: str | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     tokens_per_second: float | None = None
@@ -116,6 +118,7 @@ class ChatSendRequest(BaseModel):
     doc_rag_enabled: bool = True
     thinking_enabled: bool = False
     system_prompt: str | None = None
+    include_all_prompt_images: bool | None = None
 
 
 class ChatRegenerateRequest(BaseModel):
@@ -125,6 +128,7 @@ class ChatRegenerateRequest(BaseModel):
     doc_rag_enabled: bool = True
     thinking_enabled: bool = False
     system_prompt: str | None = None
+    include_all_prompt_images: bool | None = None
 
 
 class ChatInsertRequest(BaseModel):
@@ -137,6 +141,7 @@ class ChatInsertRequest(BaseModel):
     doc_rag_enabled: bool = True
     thinking_enabled: bool = False
     system_prompt: str | None = None
+    include_all_prompt_images: bool | None = None
 
 
 class TempChatMessage(BaseModel):

@@ -14,6 +14,7 @@ _DEFAULTS: dict = {
     "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",
+    "include_all_prompt_images": False,
     "debug_prompt_log": False,
     "chat_scroll_position": "bottom",
     "settings_context_open": False,

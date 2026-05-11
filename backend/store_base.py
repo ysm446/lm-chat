@@ -71,6 +71,7 @@ class SQLiteStoreBase:
                     content TEXT NOT NULL,
                     image_data TEXT,
                     image_preview_data TEXT,
+                    image_summary TEXT,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
                 );
@@ -147,6 +148,7 @@ class SQLiteStoreBase:
             for col, typedef in [
                 ("image_data", "TEXT"),
                 ("image_preview_data", "TEXT"),
+                ("image_summary", "TEXT"),
                 ("prompt_tokens", "INTEGER"),
                 ("completion_tokens", "INTEGER"),
                 ("tokens_per_second", "REAL"),
@@ -252,6 +254,7 @@ class SQLiteStoreBase:
         data = dict(row)
         data.setdefault("image_data", None)
         data.setdefault("image_preview_data", None)
+        data.setdefault("image_summary", None)
         data["has_prompt_log"] = bool(data.get("has_prompt_log", False))
         for col in ("prompt_tokens", "completion_tokens", "tokens_per_second", "elapsed_seconds", "finish_reason", "model_name"):
             data.setdefault(col, None)
@@ -279,6 +282,7 @@ class SQLiteStoreBase:
                     m.content,
                     m.image_data,
                     m.image_preview_data,
+                    m.image_summary,
                     m.created_at,
                     m.position,
                     m.prompt_tokens,
