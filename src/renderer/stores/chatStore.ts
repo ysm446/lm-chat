@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import { type ChatState, makeOptimisticMessage, type ApiMessage, type ApiDocument, type ImageAttachmentInput } from "./chatStoreTypes";
+import {
+  type ChatState,
+  makeOptimisticMessage,
+  type ApiDocument,
+  type ApiMessage,
+  type ApiSession,
+  type ApiWorkspace,
+  type ImageAttachmentInput,
+  type LocalModel,
+} from "./chatStoreTypes";
 import { scheduleDocumentIndexPolling } from "./documentIndexPoller";
 import {
   appendSessionMessage as appendSessionMessageRequest,

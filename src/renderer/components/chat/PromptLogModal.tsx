@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Message, MessagePromptLog, PromptLogContentPart } from "../../api";
+import type { ApiMessage as Message, MessagePromptLog, PromptLogContentPart } from "../../api";
 import { getMessagePromptLog } from "../../api";
 
 function formatPromptRole(role: string) {

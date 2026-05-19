@@ -1,4 +1,4 @@
-import type { Message } from "../../api";
+import type { ApiMessage as Message } from "../../api";
 
 interface Props {
   message: Message;
