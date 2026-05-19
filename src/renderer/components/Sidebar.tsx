@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiDocument, getDocument, getSettings, updateSettings } from "../api";
+import { ApiDocument, exportWorkspaceArchive, getDocument, getSettings, importWorkspaceArchive, updateSettings } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
 type WsMenu = { id: string; name: string; description: string; x: number; y: number };
 type SessionMenu = { id: string; title: string; x: number; y: number };
 type DocMenu = { id: string; file_name: string; x: number; y: number };
+type NewWorkspaceMenu = { x: number; y: number };
 
 type SidebarProps = {
   onSelectDocument?: (docId: string) => void;
@@ -17,6 +18,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const currentWorkspaceId = useChatStore((s) => s.currentWorkspaceId);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const currentDocumentId = useChatStore((s) => s.currentDocumentId);
+  const bootstrap = useChatStore((s) => s.bootstrap);
   const selectWorkspace = useChatStore((s) => s.selectWorkspace);
   const selectSession = useChatStore((s) => s.selectSession);
   const selectDocument = useChatStore((s) => s.selectDocument);
@@ -66,9 +68,11 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [wsMenu, setWsMenu] = useState<WsMenu | null>(null);
   const [sessionMenu, setSessionMenu] = useState<SessionMenu | null>(null);
   const [docMenu, setDocMenu] = useState<DocMenu | null>(null);
+  const [newWsMenu, setNewWsMenu] = useState<NewWorkspaceMenu | null>(null);
   const wsMenuRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const docMenuRef = useRef<HTMLDivElement>(null);
+  const newWsMenuRef = useRef<HTMLDivElement>(null);
   const [docsExpanded, setDocsExpanded] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingDocWsId, setPendingDocWsId] = useState<string | null>(null);
@@ -111,20 +115,21 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   useEffect(() => { if (editingSessionId) { editSessionRef.current?.focus(); editSessionRef.current?.select(); } }, [editingSessionId]);
 
   useEffect(() => {
-    if (!wsMenu && !sessionMenu && !docMenu) return undefined;
+    if (!wsMenu && !sessionMenu && !docMenu && !newWsMenu) return undefined;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (wsMenuRef.current && !wsMenuRef.current.contains(t)) setWsMenu(null);
       if (sessionMenuRef.current && !sessionMenuRef.current.contains(t)) setSessionMenu(null);
       if (docMenuRef.current && !docMenuRef.current.contains(t)) setDocMenu(null);
+      if (newWsMenuRef.current && !newWsMenuRef.current.contains(t)) setNewWsMenu(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { setWsMenu(null); setSessionMenu(null); setDocMenu(null); }
+      if (e.key === "Escape") { setWsMenu(null); setSessionMenu(null); setDocMenu(null); setNewWsMenu(null); }
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("mousedown", onDown); window.removeEventListener("keydown", onKey); };
-  }, [wsMenu, sessionMenu, docMenu]);
+  }, [wsMenu, sessionMenu, docMenu, newWsMenu]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -219,6 +224,32 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     setExpanded((prev) => new Set([...prev, ws.id]));
   };
 
+  const handleStartCreateWorkspace = () => {
+    setNewWsMenu(null);
+    setShowNewWs(true);
+  };
+
+  const handleImportWorkspace = async () => {
+    setNewWsMenu(null);
+    const bridge = window.lmChat;
+    if (!bridge?.chooseImportArchivePath) {
+      window.alert("Electron 版でのみ利用できます");
+      return;
+    }
+    const importPath = await bridge.chooseImportArchivePath();
+    if (!importPath) return;
+    try {
+      const result = await importWorkspaceArchive(importPath);
+      await bootstrap();
+      if (result.workspace_id) {
+        setExpanded((prev) => new Set([...prev, result.workspace_id!]));
+        await selectWorkspace(result.workspace_id);
+      }
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ワークスペースのインポートに失敗しました");
+    }
+  };
+
   const startEditWs = (ws: WsMenu) => {
     setWsMenu(null);
     setEditingWsId(ws.id);
@@ -260,6 +291,24 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
     if (!ok) return;
     await removeWorkspace(wsId);
     setWsMenu(null);
+  };
+
+  const handleExportWs = async (ws: WsMenu) => {
+    const bridge = window.lmChat;
+    if (!bridge?.chooseExportArchivePath) {
+      window.alert("Electron 版でのみ利用できます");
+      return;
+    }
+    const exportPath = await bridge.chooseExportArchivePath(ws.name);
+    if (!exportPath) return;
+    try {
+      const result = await exportWorkspaceArchive(ws.id, exportPath);
+      const sizeMb = (result.size_bytes / (1024 * 1024)).toFixed(1);
+      window.alert(`ワークスペースを書き出しました: ${result.file_name} (${sizeMb} MB)`);
+      setWsMenu(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "ワークスペースのエクスポートに失敗しました");
+    }
   };
 
   const handleDeleteSession = async (sessionId: string, title: string) => {
@@ -367,12 +416,22 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
             <button className="inline-edit-cancel" onClick={() => { setShowNewWs(false); setNewWsName(""); }}>✕</button>
           </div>
         ) : (
-          <button className="sidebar-new-ws-btn" onClick={() => setShowNewWs(true)} title="新しいワークスペース">
+          <button
+            className="sidebar-new-ws-btn"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setWsMenu(null);
+              setSessionMenu(null);
+              setDocMenu(null);
+              setNewWsMenu({ x: rect.left, y: rect.bottom + 6 });
+            }}
+            title="ワークスペース"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
             </svg>
-            新しいワークスペース
+            ワークスペース
           </button>
         )}
       </div>
@@ -790,6 +849,18 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
         })}
       </div>
 
+      {newWsMenu && (
+        <div
+          ref={newWsMenuRef}
+          className="context-menu"
+          style={{ left: `${newWsMenu.x}px`, top: `${newWsMenu.y}px` }}
+          role="menu"
+        >
+          <button className="context-menu-item" onClick={handleStartCreateWorkspace}>新しく作成</button>
+          <button className="context-menu-item" onClick={() => void handleImportWorkspace()}>インポートする</button>
+        </div>
+      )}
+
       {wsMenu && (
         <div
           ref={wsMenuRef}
@@ -797,6 +868,7 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
           style={{ left: `${wsMenu.x}px`, top: `${wsMenu.y}px` }}
           role="menu"
         >
+          <button className="context-menu-item" onClick={() => void handleExportWs(wsMenu)}>ワークスペースをエクスポート</button>
           <button className="context-menu-item" onClick={() => startEditWs(wsMenu)}>名前を変更</button>
           <button className="context-menu-item danger" onClick={() => void handleDeleteWs(wsMenu.id, wsMenu.name)}>削除</button>
         </div>

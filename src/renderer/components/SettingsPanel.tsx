@@ -1341,7 +1341,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
       </section>
       {/* Data */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => toggleSettingsSection(setDataOpen, "settings_data_open")} onMouseEnter={onTipEnter("会話履歴、画像、Documents、設定を zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setDataOpen, "settings_data_open")} onMouseEnter={onTipEnter("アプリ全体のデータを zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -1357,7 +1357,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
           <div className="settings-section-body">
             <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
-                <span className="settings-field-label">データをエクスポート</span>
+                <span className="settings-field-label">アプリ全体をエクスポート</span>
                 {dataExportResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataExportResult}</span>
                 ) : null}
@@ -1374,7 +1374,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
             </div>
             <div className="settings-toggle-row" style={{ marginTop: 10, alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
-                <span className="settings-field-label">データをインポート</span>
+                <span className="settings-field-label">アプリ全体を復元</span>
                 {dataImportResult ? (
                   <span className="settings-field-hint" style={{ marginTop: 6, color: "var(--text)" }}>{dataImportResult}</span>
                 ) : null}

@@ -85,6 +85,7 @@ export type DataExportResult = {
   file_name: string;
   size_bytes: number;
   items: string[];
+  workspace_id?: string;
 };
 
 export type DataImportResult = {
@@ -92,6 +93,7 @@ export type DataImportResult = {
   restart_required: boolean;
   source_path: string;
   file_name: string;
+  workspace_id?: string;
 };
 
 export type LlamaRuntimeAsset = {
@@ -381,6 +383,20 @@ export function exportDataArchive(path: string) {
 
 export function importDataArchive(path: string) {
   return request<DataImportResult>("/data/import", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
+export function exportWorkspaceArchive(workspaceId: string, path: string) {
+  return request<DataExportResult>(`/data/workspaces/${encodeURIComponent(workspaceId)}/export`, {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
+export function importWorkspaceArchive(path: string) {
+  return request<DataImportResult>("/data/workspaces/import", {
     method: "POST",
     body: JSON.stringify({ path }),
   });

@@ -9,6 +9,18 @@ function buildExportFileName() {
   return `lm-chat-data-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.zip`;
 }
 
+function sanitizeFileNamePart(value: string) {
+  const cleaned = value.trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_").replace(/\s+/g, "_");
+  return cleaned.replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+}
+
+function buildWorkspaceExportFileName(workspaceName?: string | null) {
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  const namePart = sanitizeFileNamePart(workspaceName || "") || "workspace";
+  return `lm-chat-workspace-${namePart}-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.zip`;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1600,
@@ -67,12 +79,13 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(() => {
-    ipcMain.handle("lm-chat:choose-export-archive-path", async () => {
+    ipcMain.handle("lm-chat:choose-export-archive-path", async (_event, suggestedName?: string) => {
       const focusedWindow = BrowserWindow.getFocusedWindow();
+      const defaultFileName = suggestedName ? buildWorkspaceExportFileName(suggestedName) : buildExportFileName();
       const options = {
         title: "データをエクスポート",
         buttonLabel: "保存",
-        defaultPath: path.join(app.getPath("documents"), buildExportFileName()),
+        defaultPath: path.join(app.getPath("documents"), defaultFileName),
         filters: [{ name: "ZIP Archive", extensions: ["zip"] }]
       };
       const result = focusedWindow

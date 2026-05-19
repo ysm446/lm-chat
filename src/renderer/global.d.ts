@@ -1,7 +1,7 @@
 interface LmChatBridge {
   platform: string;
   apiBase: string;
-  chooseExportArchivePath: () => Promise<string | null>;
+  chooseExportArchivePath: (suggestedName?: string) => Promise<string | null>;
   chooseImportArchivePath: () => Promise<string | null>;
 }
 
