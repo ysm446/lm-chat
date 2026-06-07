@@ -1,5 +1,8 @@
 # Plan
 
+作成日時: 2026-06-07 21:51
+更新日時: 2026-06-07 21:51
+
 このファイルは、次に進める作業を相談しながら整理するための進捗管理ドキュメントです。
 
 ## 現在の優先候補
@@ -20,4 +23,4 @@
 - RAG と記憶検索: `docs/reference/rag/`
 - ランタイムとコンテキスト長: `docs/reference/runtime/`
 - 旧計画メモ: `docs/reference/plans/`
-- 更新履歴: `docs/history/changelog.md`
+- 更新履歴: `docs/changelog.md`
