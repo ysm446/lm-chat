@@ -23,8 +23,9 @@ function buildWorkspaceExportFileName(workspaceName?: string | null) {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1600,
-    height: 980,
+    width: 1920,
+    height: 1080,
+    useContentSize: true,
     minWidth: 1200,
     minHeight: 760,
     show: false,
