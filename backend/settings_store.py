@@ -11,6 +11,7 @@ _DEFAULTS: dict = {
     "sidebar_expanded_document_workspace_ids": [],
     "ui_font": "default-sans",
     "ui_font_size": 14,
+    "window_resolution": "1920x1080",
     "correction_enabled": True,
     "correction_prompt_mode": "standard",
     "correction_custom_prompt": "",

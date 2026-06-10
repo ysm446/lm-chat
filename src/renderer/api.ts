@@ -166,6 +166,7 @@ export type AppSettings = {
   sidebar_expanded_document_workspace_ids: string[];
   ui_font: string;
   ui_font_size: number;
+  window_resolution: string;
   correction_enabled: boolean;
   correction_prompt_mode: string;
   correction_custom_prompt: string;
@@ -181,6 +182,7 @@ export type AppSettingsPatch = Partial<{
   sidebar_expanded_document_workspace_ids: string[];
   ui_font: string;
   ui_font_size: number;
+  window_resolution: string;
   correction_enabled: boolean;
   correction_prompt_mode: string;
   correction_custom_prompt: string;

@@ -1,7 +1,31 @@
 const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 
 let mainWindow = null;
+
+const WINDOW_RESOLUTIONS = {
+  "1920x1080": { width: 1920, height: 1080 },
+  "1600x900": { width: 1600, height: 900 },
+};
+const DEFAULT_WINDOW_RESOLUTION = "1920x1080";
+
+function getWindowResolutionSize(resolution) {
+  const key = typeof resolution === "string" && resolution in WINDOW_RESOLUTIONS
+    ? resolution
+    : DEFAULT_WINDOW_RESOLUTION;
+  return WINDOW_RESOLUTIONS[key];
+}
+
+function loadWindowResolutionSize() {
+  const settingsPath = path.join(__dirname, "../../data/settings.json");
+  try {
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    return getWindowResolutionSize(settings.window_resolution);
+  } catch {
+    return getWindowResolutionSize(DEFAULT_WINDOW_RESOLUTION);
+  }
+}
 
 function buildExportFileName() {
   const now = new Date();
@@ -22,9 +46,10 @@ function buildWorkspaceExportFileName(workspaceName) {
 }
 
 function createWindow() {
+  const { width, height } = loadWindowResolutionSize();
   const win = new BrowserWindow({
-    width: 1920,
-    height: 1080,
+    width,
+    height,
     useContentSize: true,
     minWidth: 1200,
     minHeight: 760,
@@ -107,6 +132,16 @@ if (!gotSingleInstanceLock) {
         ? await dialog.showOpenDialog(focusedWindow, options)
         : await dialog.showOpenDialog(options);
       return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
+    ipcMain.handle("lm-chat:set-window-resolution", async (_event, resolution) => {
+      const focusedWindow = BrowserWindow.getFocusedWindow() ?? mainWindow;
+      if (!focusedWindow) {
+        return false;
+      }
+      const { width, height } = getWindowResolutionSize(resolution);
+      focusedWindow.setContentSize(width, height);
+      return true;
     });
 
     createWindow();

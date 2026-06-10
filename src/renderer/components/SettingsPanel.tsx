@@ -49,6 +49,14 @@ const MEMORY_SCOPE_OPTIONS: Array<{ value: AppConfig["memory_scope"]; label: str
   { value: "below_current", label: "現在より下の会話だけ" },
 ];
 
+type WindowResolution = "1920x1080" | "1600x900";
+
+const DEFAULT_WINDOW_RESOLUTION: WindowResolution = "1920x1080";
+const WINDOW_RESOLUTION_OPTIONS: Array<{ value: WindowResolution; label: string }> = [
+  { value: "1920x1080", label: "1920 x 1080" },
+  { value: "1600x900", label: "1600 x 900" },
+];
+
 const DEFAULTS = {
   temperature: 0.8,
   ctx_size: 32768,
@@ -115,6 +123,12 @@ function normalizeCorrectionMode(mode: string | undefined): CorrectionMode {
   return CORRECTION_MODE_OPTIONS.some((option) => option.value === mode)
     ? (mode as CorrectionMode)
     : "standard";
+}
+
+function normalizeWindowResolution(resolution: string | undefined): WindowResolution {
+  return WINDOW_RESOLUTION_OPTIONS.some((option) => option.value === resolution)
+    ? (resolution as WindowResolution)
+    : DEFAULT_WINDOW_RESOLUTION;
 }
 
 type SettingsPanelProps = {
@@ -188,6 +202,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   const [customCorrectionPrompt, setCustomCorrectionPrompt] = useState("");
   const [uiFont, setUIFont] = useState(DEFAULT_UI_FONT);
   const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
+  const [windowResolution, setWindowResolution] = useState<WindowResolution>(DEFAULT_WINDOW_RESOLUTION);
   const settingsOpenStateLoadedRef = useRef(false);
 
   const applyConfigState = useCallback((cfg: AppConfig) => {
@@ -214,6 +229,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
     setUIFontSize(nextFontSize);
     applyFontSize(nextFontSize);
 
+    setWindowResolution(normalizeWindowResolution(settings.window_resolution));
     setCorrectionEnabled(settings.correction_enabled ?? true);
     setCorrectionMode(normalizeCorrectionMode(settings.correction_prompt_mode));
     setCustomCorrectionPrompt(settings.correction_custom_prompt || "");
@@ -586,6 +602,29 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
 
         {interfaceOpen && (
           <div className="settings-section-body">
+            <div className="settings-field">
+              <div className="settings-field-header">
+                <span className="settings-field-label" onMouseEnter={onTipEnter("起動時のウィンドウコンテンツ領域サイズを選びます。")} onMouseLeave={onTipLeave}>Default Resolution</span>
+              </div>
+              <select
+                className="settings-select"
+                value={windowResolution}
+                onChange={(e) => {
+                  const next = normalizeWindowResolution(e.target.value);
+                  const previous = windowResolution;
+                  setWindowResolution(next);
+                  updateSettings({ window_resolution: next })
+                    .then(() => window.lmChat?.setWindowResolution(next).catch(() => false))
+                    .catch(() => {
+                      setWindowResolution(previous);
+                    });
+                }}
+              >
+                {WINDOW_RESOLUTION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="settings-field">
               <div className="settings-field-header">
                 <span className="settings-field-label" onMouseEnter={onTipEnter("Choose the font used for interface text.")} onMouseLeave={onTipLeave}>Text Font</span>

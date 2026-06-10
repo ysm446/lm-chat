@@ -3,6 +3,7 @@ interface LmChatBridge {
   apiBase: string;
   chooseExportArchivePath: (suggestedName?: string) => Promise<string | null>;
   chooseImportArchivePath: () => Promise<string | null>;
+  setWindowResolution: (resolution: string) => Promise<boolean>;
 }
 
 declare global {
