@@ -302,8 +302,10 @@ export function reorderSessions(ids: string[]) {
   });
 }
 
-export function listSessions(workspaceId: string) {
-  return request<ApiSession[]>(`/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}`);
+export function listSessions(workspaceId: string, includeMessages = true) {
+  return request<ApiSession[]>(
+    `/history/sessions?workspace_id=${encodeURIComponent(workspaceId)}&include_messages=${includeMessages ? "true" : "false"}`
+  );
 }
 
 export function listLocalModels() {

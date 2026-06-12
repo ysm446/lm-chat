@@ -96,24 +96,22 @@ class MemoryMixin:
             except Exception as e:
                 logger.warning("FTS5 search failed: %s", e)
 
+            # グローバル KNN だと他ワークスペースのチャンクが上位を占めて取りこぼすため、
+            # 対象ワークスペース内のチャンクに限定して距離を直接計算する
             vec_bytes = struct.pack(f"{len(query_vec)}f", *query_vec)
-            vec_rows = conn.execute(
-                "SELECT chunk_id, distance FROM memory_vec WHERE embedding MATCH ? AND k = ?",
-                (vec_bytes, top_k * 4),
-            ).fetchall()
-            if vec_rows:
-                vec_chunk_ids = [row["chunk_id"] for row in vec_rows]
-                placeholders_vec = ",".join("?" * len(vec_chunk_ids))
-                ws_set = {
-                    row["id"]
-                    for row in conn.execute(
-                        f"SELECT id FROM memory_chunks mc WHERE id IN ({placeholders_vec}) AND workspace_id = ?" + session_filter_clause,
-                        (*vec_chunk_ids, workspace_id, *session_filter_params),
-                    ).fetchall()
-                }
-                for rank, row in enumerate(vec_rows):
-                    if row["chunk_id"] in ws_set:
-                        scores[row["chunk_id"]] = scores.get(row["chunk_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+            try:
+                vec_rows = conn.execute(
+                    "SELECT mc.id AS chunk_id, vec_distance_cosine(mv.embedding, ?) AS distance"
+                    " FROM memory_chunks mc JOIN memory_vec mv ON mv.chunk_id = mc.id"
+                    " WHERE mc.workspace_id = ?" + session_filter_clause +
+                    " ORDER BY distance ASC LIMIT ?",
+                    (vec_bytes, workspace_id, *session_filter_params, top_k * 4),
+                ).fetchall()
+            except Exception as e:
+                logger.warning("Vector search failed: %s", e)
+                vec_rows = []
+            for rank, row in enumerate(vec_rows):
+                scores[row["chunk_id"]] = scores.get(row["chunk_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
 
             if not scores:
                 return []

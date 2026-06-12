@@ -19,13 +19,21 @@ class SessionMixin:
             row = conn.execute("SELECT COUNT(*) AS count FROM sessions").fetchone()
         return 0 if row is None else int(row["count"])
 
-    def list_sessions(self, workspace_id: str) -> list[Session]:
+    def list_sessions(self, workspace_id: str, include_messages: bool = True) -> list[Session]:
         with self._connect() as conn:  # type: ignore[attr-defined]
             rows = conn.execute(
                 "SELECT id, workspace_id, title, model_name, created_at, updated_at, sort_order FROM sessions WHERE workspace_id = ? ORDER BY sort_order ASC, created_at ASC",
                 (workspace_id,),
             ).fetchall()
-            return [self._session_from_row(row, conn) for row in rows]  # type: ignore[attr-defined]
+            if include_messages:
+                return [self._session_from_row(row, conn) for row in rows]  # type: ignore[attr-defined]
+        sessions: list[Session] = []
+        for row in rows:
+            data = dict(row)
+            data.setdefault("sort_order", 0)
+            data.setdefault("model_name", "")
+            sessions.append(Session(**data, messages=[]))
+        return sessions
 
     def get_session(self, session_id: str) -> Session | None:
         with self._connect() as conn:  # type: ignore[attr-defined]
@@ -311,6 +319,9 @@ class SessionMixin:
                     image_data=msg.image_data,
                     image_preview_data=msg.image_preview_data,
                     image_summary=msg.image_summary,
+                    prompt_tokens=msg.prompt_tokens, completion_tokens=msg.completion_tokens,
+                    tokens_per_second=msg.tokens_per_second, elapsed_seconds=msg.elapsed_seconds,
+                    finish_reason=msg.finish_reason, model_name=msg.model_name,
                 ),
             )
             if copied is not None and msg.role == "assistant":

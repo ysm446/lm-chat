@@ -64,6 +64,10 @@ def chat_temp_stream(payload: TempChatRequest) -> StreamingResponse:
         except HTTPException as exc:
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
             return
+        except Exception as exc:
+            logger.exception("Temp chat stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+            return
         yield f"data: {json.dumps({'type': 'done', 'stats': stats_box[0] if stats_box else None})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -156,6 +160,10 @@ def chat_send_stream(payload: ChatSendRequest) -> StreamingResponse:
         except HTTPException as exc:
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
             return
+        except Exception as exc:
+            logger.exception("Chat stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+            return
 
         final_stats = stats_box[0] if stats_box else None
         assistant_text = "".join(collected).strip()
@@ -208,6 +216,10 @@ def chat_continue_stream(payload: ChatContinueRequest) -> StreamingResponse:
             )
         except HTTPException as exc:
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+        except Exception as exc:
+            logger.exception("Continue stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
             return
 
         final_stats = stats_box[0] if stats_box else None
@@ -270,6 +282,10 @@ def chat_regenerate_stream(payload: ChatRegenerateRequest) -> StreamingResponse:
             )
         except HTTPException as exc:
             yield f"data: {json.dumps({'type': 'error', 'detail': exc.detail})}\n\n"
+            return
+        except Exception as exc:
+            logger.exception("Regenerate stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
             return
 
         final_stats = stats_box[0] if stats_box else None
@@ -355,7 +371,7 @@ def chat_insert_stream(payload: ChatInsertRequest) -> StreamingResponse:
                 collected,
                 stats_box,
             )
-        except (HTTPException, Exception) as exc:
+        except Exception as exc:
             store.delete_message(user_message.id)
             detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
             if not isinstance(exc, HTTPException):

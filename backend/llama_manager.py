@@ -260,21 +260,43 @@ def is_ready() -> bool:
         return False
 
 
+def _pid_is_llama_server(pid: int) -> bool | None:
+    """PID が llama-server のものか確認する。psutil がなく判定できない場合は None。"""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    try:
+        name = psutil.Process(pid).name()
+    except psutil.NoSuchProcess:
+        return False
+    except Exception:
+        return None
+    return "llama-server" in name.lower()
+
+
 def _kill_running() -> None:
     paths = get_llama_paths()
     tracked_pid = _get_tracked_pid(paths)
 
     if tracked_pid:
-        if sys.platform == "win32":
+        # PID が OS に再利用されている場合に無関係なプロセスを殺さないよう、名前を検証する
+        verdict = _pid_is_llama_server(tracked_pid)
+        if verdict is False:
+            logger.info("Tracked PID %s is not llama-server anymore; clearing stale PID.", tracked_pid)
+            paths["llama_server_pid"] = None
+            _save_llama_paths(paths)
+        elif sys.platform == "win32":
             result = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(tracked_pid)],
                 capture_output=True,
                 text=True,
             )
             logger.info("taskkill /PID result: %s %s", result.returncode, result.stdout.strip())
+            # 失敗時(既に終了している等)も stale PID を残さない
+            paths["llama_server_pid"] = None
+            _save_llama_paths(paths)
             if result.returncode == 0:
-                paths["llama_server_pid"] = None
-                _save_llama_paths(paths)
                 return
         else:
             try:
@@ -285,6 +307,8 @@ def _kill_running() -> None:
                 return
             except OSError:
                 logger.warning("Tracked llama-server PID %s was not running", tracked_pid)
+                paths["llama_server_pid"] = None
+                _save_llama_paths(paths)
 
     if is_ready():
         logger.warning(

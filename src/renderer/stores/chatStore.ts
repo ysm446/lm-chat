@@ -135,17 +135,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isBootstrapping: true, error: null });
     try {
       const workspaces = await listWorkspaces();
-      const sessionsArrays = await Promise.all(workspaces.map((w) => listSessions(w.id)));
+      // 一覧表示にはメッセージ本文は不要なので軽量版を取得し、選択中セッションだけ全文を取る
+      const sessionsArrays = await Promise.all(workspaces.map((w) => listSessions(w.id, false)));
       const allSessions = sessionsArrays.flat();
       const firstWorkspace = workspaces[0];
       const firstSessions = sessionsArrays[0] ?? [];
+      const firstSessionId = firstSessions[0]?.id ?? null;
       set({
         workspaces,
         sessions: allSessions,
         currentWorkspaceId: firstWorkspace?.id ?? null,
-        currentSessionId: firstSessions[0]?.id ?? null,
+        currentSessionId: firstSessionId,
         isBootstrapping: false
       });
+      if (firstSessionId) {
+        void get().selectSession(firstSessionId);
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to load data",
@@ -168,7 +173,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ availableModels: models, selectedModel: null });
       } catch { /* ignore */ }
     }
-    // ???????????????????
+    // システムプロンプトと UI 設定はワークスペース読み込みと独立して取得
     try {
       const [sp, settings] = await Promise.all([listSystemPrompts(), getSettings()]);
       set({
@@ -375,12 +380,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   selectWorkspace: async (workspaceId) => {
     const sessions = get().sessions.filter((s) => s.workspace_id === workspaceId);
+    const nextSessionId = sessions[0]?.id ?? null;
     set({
       currentWorkspaceId: workspaceId,
-      currentSessionId: sessions[0]?.id ?? null,
+      currentSessionId: nextSessionId,
       error: null,
       streamingText: ""
     });
+    if (nextSessionId) {
+      await get().selectSession(nextSessionId);
+    }
   },
 
   createSession: async (workspaceId, title) => {
@@ -433,11 +442,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   moveSession: async (sessionId, targetWorkspaceId) => {
     const movedSession = await moveSessionRequest(sessionId, targetWorkspaceId);
     // セッションの workspace_id を更新し、移動先ワークスペースのセッション一覧を再取得
-    const targetSessions = await listSessions(targetWorkspaceId);
+    // (一覧は軽量版なので、移動したセッションだけ API レスポンスの全文を使う)
+    const targetSessions = await listSessions(targetWorkspaceId, false);
     set((state) => {
       const otherSessions = state.sessions.filter((s) => s.workspace_id !== targetWorkspaceId && s.id !== sessionId);
       return {
-        sessions: [...otherSessions, ...targetSessions],
+        sessions: [
+          ...otherSessions,
+          ...targetSessions.map((s) => (s.id === movedSession.id ? movedSession : s)),
+        ],
         currentWorkspaceId: movedSession.workspace_id,
         currentSessionId: movedSession.id,
         error: null,
@@ -822,23 +835,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
         return;
       }
-      set((state) => ({
+      set({
         error: error instanceof Error ? error.message : "Failed to send message",
         isSubmitting: false,
         submissionMode: null,
         abortController: null,
-        streamingText: "",
-        sessions: state.sessions.map((session) =>
-          session.id === sessionId
-            ? {
-                ...session,
-                messages: session.messages.filter(
-                  (message) => message.id !== user.id && message.id !== assistant.id
-                )
-              }
-            : session
-        )
-      }));
+        streamingText: ""
+      });
+      // ユーザーメッセージはストリーム開始前に DB 保存済みの可能性があるため、
+      // サーバーから再取得して UI を DB と整合させる(取得できなければ楽観的メッセージを除去)
+      try {
+        const refreshed = await getSession(sessionId);
+        set((state) => ({
+          sessions: state.sessions.map((s) => (s.id === sessionId ? refreshed : s))
+        }));
+      } catch {
+        set((state) => ({
+          sessions: state.sessions.map((session) =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  messages: session.messages.filter(
+                    (message) => message.id !== user.id && message.id !== assistant.id
+                  )
+                }
+              : session
+          )
+        }));
+      }
     }
   },
 
@@ -979,6 +1003,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     set((state) => ({
       isSubmitting: true,
+      submissionMode: "continue",
       abortController: controller,
       error: null,
       streamingText: "",

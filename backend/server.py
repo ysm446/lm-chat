@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,14 +11,20 @@ from .llama_manager import eject_model
 from .routes import chat, config, data, documents, history, llama, memory, models, system_prompts, util, workspaces
 from .routes.deps import _DOCUMENT_DIR, _IMAGE_DIR, start_background_task
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=os.environ.get("LM_CHAT_LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="LM Chat Backend", version="0.1.0")
+# 認証なしのローカル API のため、ブラウザ上の任意サイトからのアクセスを防ぐ。
+# "null" は Electron 本番ビルド(file:// 読み込み)からのリクエスト用。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "null",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

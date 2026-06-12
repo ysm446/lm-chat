@@ -15,10 +15,20 @@ from ..models import (
     SessionReorderRequest,
     SessionUpdate,
 )
-from .deps import prepare_image_fields, store
+from .deps import prepare_image_fields, rebuild_session_memory, start_background_task, store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _rebuild_memory_in_background(session_id: str) -> None:
+    def _job() -> None:
+        try:
+            rebuild_session_memory(session_id)
+        except Exception as exc:
+            logger.warning("Session memory rebuild failed for %s: %s", session_id, exc)
+
+    start_background_task(_job, name=f"memory-rebuild-{session_id}")
 
 
 @router.post("/history/sessions/reorder")
@@ -28,8 +38,11 @@ def reorder_sessions(payload: SessionReorderRequest) -> dict:
 
 
 @router.get("/history/sessions", response_model=list[Session])
-def list_sessions(workspace_id: str = Query(...)) -> list[Session]:
-    return store.list_sessions(workspace_id)
+def list_sessions(
+    workspace_id: str = Query(...),
+    include_messages: bool = Query(True),
+) -> list[Session]:
+    return store.list_sessions(workspace_id, include_messages=include_messages)
 
 
 @router.post("/history/sessions", response_model=Session)
@@ -134,9 +147,12 @@ def get_session_token_count(session_id: str) -> dict[str, int]:
 
 @router.delete("/history/messages/{message_id}")
 def delete_message(message_id: str) -> dict[str, bool]:
+    session_id = store.get_message_session_id(message_id)
     deleted = store.delete_message(message_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Message not found")
+    if session_id:
+        _rebuild_memory_in_background(session_id)
     return {"deleted": True}
 
 
@@ -158,6 +174,7 @@ def update_message(message_id: str, payload: MessageUpdate) -> Message:
     )
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
+    _rebuild_memory_in_background(session_id)
     return message
 
 
