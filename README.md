@@ -82,9 +82,15 @@ start.bat
 
 - Windows
 - `npm` が PATH に通っていること
-- `C:\Users\kenyo\miniconda3\Scripts\conda.exe` が存在すること
-- `main` という名前の conda 環境があること
+- プロジェクト直下に Python venv（`.venv`）が作成され、`backend/requirements.txt` の依存関係がインストールされていること
 - GGUF モデルファイルを `models/` 配下に置くこと
+
+venv の作成（初回のみ）:
+
+```batch
+py -m venv .venv
+.venv\Scripts\python -m pip install -r backend\requirements.txt
+```
 
 llama.cpp server Runtime は初回起動時点では未インストールでも構いません。アプリ起動後、設定画面の Runtime 設定からインストールしてください。
 

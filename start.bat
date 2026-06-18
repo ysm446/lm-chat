@@ -3,7 +3,7 @@ setlocal
 
 cd /d "%~dp0"
 
-set "CONDA_EXE=C:\Users\kenyo\miniconda3\Scripts\conda.exe"
+set "VENV_PYTHON=%~dp0.venv\Scripts\python.exe"
 
 if defined LM_CHAT_LLAMA_SERVER_EXE (
   set "LLAMA_SERVER_EXE=%LM_CHAT_LLAMA_SERVER_EXE%"
@@ -11,8 +11,11 @@ if defined LM_CHAT_LLAMA_SERVER_EXE (
   for /f "usebackq delims=" %%i in (`powershell -NoLogo -NoProfile -Command "$pathsFile=Join-Path (Get-Location) 'data\llama_paths.json';if(Test-Path -LiteralPath $pathsFile){try{$paths=Get-Content -LiteralPath $pathsFile -Raw -Encoding UTF8|ConvertFrom-Json;$exe=[string]$paths.llama_exe;if($exe -and (Test-Path -LiteralPath $exe)){Write-Output $exe;exit 0}}catch{}};$roots=@((Join-Path (Get-Location) 'data\llama_cpp\versions'),(Join-Path (Get-Location) 'bin\llama-server'));$candidates=@();foreach($root in $roots){if(Test-Path -LiteralPath $root){$candidates+=Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue|ForEach-Object{$exe=Join-Path $_.FullName 'llama-server.exe';if(Test-Path -LiteralPath $exe){$build=0;if($_.Name -match 'b(\d+)'){$build=[int64]$matches[1]};[pscustomobject]@{Build=$build;LastWriteTime=$_.LastWriteTime;Exe=$exe}}}}};$candidates=$candidates|Sort-Object -Property @{Expression='Build';Descending=$true},@{Expression='LastWriteTime';Descending=$true};if(-not $candidates){exit 1};$candidates[0].Exe"`) do set "LLAMA_SERVER_EXE=%%i"
 )
 
-if not exist "%CONDA_EXE%" (
-  echo ERROR: conda.exe not found: %CONDA_EXE%
+if not exist "%VENV_PYTHON%" (
+  echo ERROR: venv python not found: %VENV_PYTHON%
+  echo INFO: Create the venv with:
+  echo INFO:   py -m venv .venv
+  echo INFO:   .venv\Scripts\python -m pip install -r backend\requirements.txt
   pause
   exit /b 1
 )
@@ -110,7 +113,7 @@ mkdir "%CD%\data" 2>nul
 powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';$data=[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1;llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'};if(Test-Path -LiteralPath $p){try{$old=Get-Content -LiteralPath $p -Raw -Encoding UTF8|ConvertFrom-Json;foreach($prop in $old.PSObject.Properties){$data[$prop.Name]=$prop.Value}}catch{}};$data['llama_exe']='%LLAMA_SERVER_EXE%';$data['llama_server_pid']=$null;$data['llama_server_base_url']='%LLAMA_BASE_URL%';$data|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
 
 echo Starting backend...
-start "%BACKEND_TITLE%" /min "%CONDA_EXE%" run --no-capture-output -n main python -m uvicorn backend.server:app --reload --host 127.0.0.1 --port %BACKEND_PORT%
+start "%BACKEND_TITLE%" /min "%VENV_PYTHON%" -m uvicorn backend.server:app --reload --host 127.0.0.1 --port %BACKEND_PORT%
 
 echo Starting frontend...
 start "%FRONTEND_TITLE%" /min cmd /c "call npm run dev -- --port %FRONTEND_PORT%"
