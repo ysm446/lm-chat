@@ -3226,6 +3226,41 @@ details.thinking-block[open] .thinking-chevron {
   color: var(--text-faint);
   flex-shrink: 0;
 }
+.sp-editor-mode-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+.sp-editor-mode-toggle button {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  transition: background 0.15s, color 0.15s;
+}
+.sp-editor-mode-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sp-editor-mode-toggle button:not(.active):hover { color: var(--text); }
+
+.sp-editor-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 24px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text);
+}
+.sp-editor-preview > :first-child { margin-top: 0; }
+.sp-editor-preview p { margin: 0 0 0.7em; }
+.sp-editor-preview p:last-child { margin-bottom: 0; }
+.sp-editor-preview-empty { color: var(--text-faint); }
 .sp-editor-rename-row {
   display: flex;
   align-items: center;

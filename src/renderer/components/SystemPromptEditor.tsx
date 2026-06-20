@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { SavedSystemPrompt, countTokens, fetchCorrect, updateSystemPrompt } from "../api";
 import { useChatStore } from "../stores/chatStore";
 
@@ -9,12 +11,48 @@ type Props = {
   onPromptsChange: (prompts: SavedSystemPrompt[]) => void;
 };
 
+// textarea 内のカーソル位置（ピクセル）を、styles をコピーしたミラー div で計測する。
+// .sp-editor-textarea は border が無いので border 幅の補正は不要。
+const MIRROR_PROPS = [
+  "fontStyle", "fontVariant", "fontWeight", "fontStretch", "fontSize",
+  "lineHeight", "fontFamily", "textAlign", "textTransform", "textIndent",
+  "letterSpacing", "wordSpacing", "tabSize",
+  "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+] as const;
+
+function getCaretCoordinates(el: HTMLTextAreaElement, position: number) {
+  const computed = window.getComputedStyle(el);
+  const div = document.createElement("div");
+  const style = div.style;
+  style.position = "absolute";
+  style.visibility = "hidden";
+  style.whiteSpace = "pre-wrap";
+  style.wordWrap = "break-word";
+  style.boxSizing = "border-box";
+  style.width = `${el.clientWidth}px`;
+  style.height = "auto";
+  style.overflow = "hidden";
+  for (const prop of MIRROR_PROPS) {
+    (style as unknown as Record<string, string>)[prop] = computed.getPropertyValue(prop);
+  }
+  div.textContent = el.value.slice(0, position);
+  const span = document.createElement("span");
+  // 残りテキストを入れることで折り返し後の正しい行頭/行末位置を得る
+  span.textContent = el.value.slice(position) || ".";
+  div.appendChild(span);
+  document.body.appendChild(div);
+  const coords = { top: span.offsetTop, left: span.offsetLeft };
+  document.body.removeChild(div);
+  return coords;
+}
+
 export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsChange }: Props) {
   const systemPromptText = useChatStore((s) => s.systemPromptText);
   const activeModelPath = useChatStore((s) => s.activeModelPath);
   const correctionEnabled = useChatStore((s) => s.correctionEnabled);
 
   const [content, setContent] = useState("");
+  const [mode, setMode] = useState<"preview" | "edit">("edit");
   const [tokenCount, setTokenCount] = useState<number | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [renamingMode, setRenamingMode] = useState(false);
@@ -23,7 +61,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
   const [selEnd, setSelEnd] = useState(0);
   const [correction, setCorrection] = useState("");
   const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
-  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number; caretLeft: number; areaTop: number } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,30 +69,41 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
 
   const selectedPrompt = prompts.find((p) => p.id === selectedId) ?? null;
 
-  // Sync content when selection changes
+  // Sync content when selection changes. 既存プロンプト（本文あり）は読みやすさ優先でプレビュー起動、
+  // 新規・空のものはすぐ書けるよう編集起動。
   useEffect(() => {
     if (selectedPrompt) {
       setContent(selectedPrompt.content);
+      setMode(selectedPrompt.content.trim() ? "preview" : "edit");
     } else if (!selectedId) {
       setContent(systemPromptText);
+      setMode("edit");
     }
     setRenamingMode(false);
     setRenamePending("");
   }, [selectedId]);
+
+  // 選択範囲のスクリーン座標を計算してポップアップ位置を更新する
+  const computeCorrectionPos = () => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const rect = ta.getBoundingClientRect();
+    const caret = getCaretCoordinates(ta, selStart);
+    const top = rect.top + caret.top - ta.scrollTop;
+    const caretLeft = rect.left + caret.left - ta.scrollLeft;
+    setCorrectionPos({ top, left: rect.left, width: rect.width, caretLeft, areaTop: rect.top });
+  };
 
   useEffect(() => {
     setCorrection("");
     setCorrectionPos(null);
     setIsCorrectionLoading(false);
     correctionRequestIdRef.current += 1;
-    if (!correctionEnabled || selStart === selEnd || !activeModelPath) return;
+    if (mode !== "edit" || !correctionEnabled || selStart === selEnd || !activeModelPath) return;
     const selected = content.slice(selStart, selEnd);
     if (!selected.trim()) return;
-    if (textareaRef.current) {
-      const rect = textareaRef.current.getBoundingClientRect();
-      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
-    }
-  }, [selStart, selEnd, content, activeModelPath, correctionEnabled]);
+    computeCorrectionPos();
+  }, [selStart, selEnd, content, activeModelPath, correctionEnabled, mode]);
 
   // Token count debounce
   useEffect(() => {
@@ -77,10 +126,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
     const selected = content.slice(selStart, selEnd);
     if (!selected.trim()) return;
 
-    if (textareaRef.current) {
-      const rect = textareaRef.current.getBoundingClientRect();
-      setCorrectionPos({ top: rect.top - 8, left: rect.left, width: rect.width });
-    }
+    computeCorrectionPos();
 
     const requestId = correctionRequestIdRef.current + 1;
     correctionRequestIdRef.current = requestId;
@@ -156,11 +202,11 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
 
   return (
     <>
-      {!correction && correctionPos && hasSelectedText && (
+      {mode === "edit" && !correction && correctionPos && hasSelectedText && (
         <button
           type="button"
           className="composer-correction-trigger"
-          style={{ top: correctionPos.top, left: correctionPos.left + correctionPos.width - 76 }}
+          style={{ top: correctionPos.areaTop, left: correctionPos.left + correctionPos.width - 80 }}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => void handleCorrectionRequest()}
           disabled={isCorrectionLoading}
@@ -168,7 +214,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
           {isCorrectionLoading ? "校正中..." : "校正"}
         </button>
       )}
-      {correction && correctionPos && (
+      {mode === "edit" && correction && correctionPos && (
         <div
           className="composer-correction-popup"
           style={{ top: correctionPos.top, left: correctionPos.left, width: correctionPos.width }}
@@ -225,6 +271,22 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
                 </svg>
               </button>
             )}
+            {selectedPrompt && (
+              <div className="sp-editor-mode-toggle">
+                <button
+                  className={mode === "preview" ? "active" : ""}
+                  onClick={() => setMode("preview")}
+                >
+                  プレビュー
+                </button>
+                <button
+                  className={mode === "edit" ? "active" : ""}
+                  onClick={() => setMode("edit")}
+                >
+                  編集
+                </button>
+              </div>
+            )}
             {tokenCount !== null && (
               <span className="sp-editor-token-count">{tokenCount.toLocaleString()} トークン</span>
             )}
@@ -232,46 +294,55 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
         )}
       </div>
 
-      <textarea
-        ref={textareaRef}
-        className="sp-editor-textarea"
-        placeholder={selectedId
-          ? "システムプロンプトを入力…"
-          : "左のリストからプロンプトを選択するか、「＋」で新規作成してください。"
-        }
-        value={content}
-        onChange={(e) => handleContentChange(e.target.value)}
-        onSelect={(e) => {
-          const t = e.target as HTMLTextAreaElement;
-          setSelStart(t.selectionStart);
-          setSelEnd(t.selectionEnd);
-        }}
-        onClick={(e) => {
-          const t = e.target as HTMLTextAreaElement;
-          setSelStart(t.selectionStart);
-          setSelEnd(t.selectionEnd);
-        }}
-        onKeyUp={(e) => {
-          const t = e.target as HTMLTextAreaElement;
-          setSelStart(t.selectionStart);
-          setSelEnd(t.selectionEnd);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Tab" && correction) {
-            e.preventDefault();
-            applyCorrection();
-            return;
+      {mode === "preview" ? (
+        <div className="sp-editor-preview message-body">
+          {content.trim()
+            ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            : <p className="sp-editor-preview-empty">内容がありません。「編集」から入力してください。</p>}
+        </div>
+      ) : (
+        <textarea
+          ref={textareaRef}
+          className="sp-editor-textarea"
+          placeholder={selectedId
+            ? "システムプロンプトを入力…"
+            : "左のリストからプロンプトを選択するか、「＋」で新規作成してください。"
           }
-          if (e.key === "Escape" && correction) {
-            e.preventDefault();
-            cancelCorrection();
-          }
-        }}
-        disabled={!selectedId && prompts.length > 0}
-        spellCheck={false}
-      />
+          value={content}
+          onChange={(e) => handleContentChange(e.target.value)}
+          onScroll={() => { if (correctionPos) computeCorrectionPos(); }}
+          onSelect={(e) => {
+            const t = e.target as HTMLTextAreaElement;
+            setSelStart(t.selectionStart);
+            setSelEnd(t.selectionEnd);
+          }}
+          onClick={(e) => {
+            const t = e.target as HTMLTextAreaElement;
+            setSelStart(t.selectionStart);
+            setSelEnd(t.selectionEnd);
+          }}
+          onKeyUp={(e) => {
+            const t = e.target as HTMLTextAreaElement;
+            setSelStart(t.selectionStart);
+            setSelEnd(t.selectionEnd);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Tab" && correction) {
+              e.preventDefault();
+              applyCorrection();
+              return;
+            }
+            if (e.key === "Escape" && correction) {
+              e.preventDefault();
+              cancelCorrection();
+            }
+          }}
+          disabled={!selectedId && prompts.length > 0}
+          spellCheck={false}
+        />
+      )}
 
-      {selectedId && (
+      {selectedId && mode === "edit" && (
         <div className="sp-editor-footer">
           {isModified && (
             <span className="sp-editor-unsaved-badge">未保存の変更</span>
