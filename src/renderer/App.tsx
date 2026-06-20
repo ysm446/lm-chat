@@ -5,6 +5,7 @@ import { ChatView } from "./components/ChatView";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { MessageInput } from "./components/MessageInput";
 import { ModelBar } from "./components/ModelBar";
+import { SettingsModal } from "./components/SettingsModal";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
@@ -35,6 +36,7 @@ export function App() {
   const [appMode, setAppMode] = useState<AppMode>("chat");
   const [spPrompts, setSpPrompts] = useState<SavedSystemPrompt[]>([]);
   const [spSelectedId, setSpSelectedId] = useState<string>("");
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const hasImageFile = (dataTransfer: DataTransfer | null) =>
     !!dataTransfer && Array.from(dataTransfer.items).some((item) => item.kind === "file" && item.type.startsWith("image/"));
@@ -144,7 +146,7 @@ export function App() {
         onToggleRight={() => { const n = !showRight; setShowRight(n); void updateSettings({ show_right: n }); }}
       />
       <div className="app-body">
-        <ActivityBar mode={appMode} onSetMode={(m) => void handleSetAppMode(m)} />
+        <ActivityBar mode={appMode} onSetMode={(m) => void handleSetAppMode(m)} onOpenSettings={() => setSettingsModalOpen(true)} />
       <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
         <aside className="left-pane" style={{ overflow: "hidden" }}>
           {appMode === "system-prompt" ? (
@@ -248,6 +250,7 @@ export function App() {
       </div>
       </div>
       <StatusBar />
+      {settingsModalOpen && <SettingsModal onClose={() => setSettingsModalOpen(false)} />}
     </div>
   );
 }

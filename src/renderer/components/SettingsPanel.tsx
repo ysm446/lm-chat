@@ -133,9 +133,12 @@ function normalizeWindowResolution(resolution: string | undefined): WindowResolu
 
 type SettingsPanelProps = {
   onEditSystemPrompt?: (promptId: string) => void;
+  // "sidebar" = 会話中に触る生成コントロール（右サイドバー）
+  // "app"     = アプリ全体の設定（左下歯車の設定ウインドウ）
+  view?: "sidebar" | "app";
 };
 
-export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
+export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: SettingsPanelProps) {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
   const currentSession = useChatStore((state) => state.currentSession());
   const selectSession = useChatStore((state) => state.selectSession);
@@ -533,9 +536,13 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
   const selectedRuntimeHasOptionalDlls = Boolean(selectedRuntime?.runtime_asset);
   const selectedRuntimeSize = (selectedRuntime?.binary_asset?.size_bytes ?? 0) + (includeCudaRuntime ? (selectedRuntime?.runtime_asset?.size_bytes ?? 0) : 0);
 
+  const showSidebar = view === "sidebar";
+  const showApp = view === "app";
+
   return (
     <>
     <div className="settings-stack">
+      {showSidebar && (<>
       {/* System Prompt */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setSystemPromptOpen, "settings_system_prompt_open")} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存や呼び出しもできます。")} onMouseLeave={onTipLeave}>
@@ -585,7 +592,9 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
           </div>
         )}
       </section>
+      </>)}
 
+      {showApp && (<>
       {/* Interface */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setInterfaceOpen, "settings_interface_open")} onMouseEnter={onTipEnter("Switch the UI text font for the app.")} onMouseLeave={onTipLeave}>
@@ -709,7 +718,9 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
           </div>
         )}
       </section>
+      </>)}
 
+      {showSidebar && (<>
       {/* Completion */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setCompletionOpen, "settings_completion_open")} onMouseEnter={onTipEnter("インライン補完の長さと、校正機能・校正プロンプトを設定します。")} onMouseLeave={onTipLeave}>
@@ -1279,6 +1290,9 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
           </div>
         )}
       </section>
+      </>)}
+
+      {showApp && (<>
       {/* System Info */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("llama.cpp server の Runtime とシステム情報を管理します。")} onMouseLeave={onTipLeave}>
@@ -1520,6 +1534,7 @@ export function SettingsPanel({ onEditSystemPrompt }: SettingsPanelProps) {
           </div>
         )}
       </section>
+      </>)}
     </div>
     {tooltip && (
       <div
