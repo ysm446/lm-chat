@@ -17,7 +17,7 @@ import zipfile
 logger = logging.getLogger(__name__)
 
 _PATHS_FILE = Path(__file__).resolve().parent.parent / "data" / "llama_paths.json"
-_INSTALL_ROOT = Path(__file__).resolve().parent.parent / "data" / "llama_cpp" / "versions"
+_INSTALL_ROOT = Path(__file__).resolve().parent.parent / "runtime" / "llama_cpp" / "versions"
 _GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")
 

@@ -32,6 +32,7 @@ ENV/
 
 # Local runtime binaries and models
 bin/
+runtime/
 models/
 !models/.gitkeep
 
