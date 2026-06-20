@@ -61,7 +61,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
   const [selEnd, setSelEnd] = useState(0);
   const [correction, setCorrection] = useState("");
   const [isCorrectionLoading, setIsCorrectionLoading] = useState(false);
-  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number; caretLeft: number; areaTop: number } | null>(null);
+  const [correctionPos, setCorrectionPos] = useState<{ top: number; left: number; width: number; endTop: number; endLeft: number } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const tokenDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,10 +88,12 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
     const ta = textareaRef.current;
     if (!ta) return;
     const rect = ta.getBoundingClientRect();
-    const caret = getCaretCoordinates(ta, selStart);
-    const top = rect.top + caret.top - ta.scrollTop;
-    const caretLeft = rect.left + caret.left - ta.scrollLeft;
-    setCorrectionPos({ top, left: rect.left, width: rect.width, caretLeft, areaTop: rect.top });
+    const caretStart = getCaretCoordinates(ta, selStart);
+    const caretEnd = getCaretCoordinates(ta, selEnd);
+    const top = rect.top + caretStart.top - ta.scrollTop;
+    const endTop = rect.top + caretEnd.top - ta.scrollTop;
+    const endLeft = rect.left + caretEnd.left - ta.scrollLeft;
+    setCorrectionPos({ top, left: rect.left, width: rect.width, endTop, endLeft });
   };
 
   useEffect(() => {
@@ -206,7 +208,7 @@ export function SystemPromptEditor({ prompts, selectedId, onSelect, onPromptsCha
         <button
           type="button"
           className="composer-correction-trigger"
-          style={{ top: correctionPos.areaTop, left: correctionPos.left + correctionPos.width - 80 }}
+          style={{ top: correctionPos.endTop, left: Math.min(correctionPos.endLeft + 8, correctionPos.left + correctionPos.width - 80) }}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => void handleCorrectionRequest()}
           disabled={isCorrectionLoading}
