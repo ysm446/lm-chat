@@ -131,14 +131,19 @@ function normalizeWindowResolution(resolution: string | undefined): WindowResolu
     : DEFAULT_WINDOW_RESOLUTION;
 }
 
+// 設定ウインドウ（app view）の左ナビ・カテゴリ
+export type AppSettingsSection = "interface" | "runtime" | "data" | "debug";
+
 type SettingsPanelProps = {
   onEditSystemPrompt?: (promptId: string) => void;
   // "sidebar" = 会話中に触る生成コントロール（右サイドバー）
   // "app"     = アプリ全体の設定（左下歯車の設定ウインドウ）
   view?: "sidebar" | "app";
+  // app view で単一カテゴリのみ表示する2ペインモード（指定時はそのセクションだけ展開表示）
+  appSection?: AppSettingsSection;
 };
 
-export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: SettingsPanelProps) {
+export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection }: SettingsPanelProps) {
   const currentWorkspace = useChatStore((state) => state.currentWorkspace());
   const currentSession = useChatStore((state) => state.currentSession());
   const selectSession = useChatStore((state) => state.selectSession);
@@ -538,10 +543,14 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
 
   const showSidebar = view === "sidebar";
   const showApp = view === "app";
+  // 2ペインモード: 単一カテゴリだけを常時展開で表示する
+  const navMode = showApp && appSection != null;
+  const sectionStyle = (key: AppSettingsSection): React.CSSProperties | undefined =>
+    navMode && appSection !== key ? { display: "none" } : undefined;
 
   return (
     <>
-    <div className="settings-stack">
+    <div className={`settings-stack${navMode ? " nav-mode" : ""}`}>
       {showSidebar && (<>
       {/* System Prompt */}
       <section className="settings-section">
@@ -596,7 +605,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
 
       {showApp && (<>
       {/* Interface */}
-      <section className="settings-section">
+      <section className="settings-section" style={sectionStyle("interface")}>
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setInterfaceOpen, "settings_interface_open")} onMouseEnter={onTipEnter("Switch the UI text font for the app.")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -609,7 +618,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
           </svg>
         </button>
 
-        {interfaceOpen && (
+        {(navMode || interfaceOpen) && (
           <div className="settings-section-body">
             <div className="settings-field">
               <div className="settings-field-header">
@@ -1294,7 +1303,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
 
       {showApp && (<>
       {/* System Info */}
-      <section className="settings-section">
+      <section className="settings-section" style={sectionStyle("runtime")}>
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("llama.cpp server の Runtime とシステム情報を管理します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1307,7 +1316,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
           </svg>
         </button>
 
-        {advancedOpen && (
+        {(navMode || advancedOpen) && (
           <div className="settings-section-body">
             <div className="runtime-card">
               <div className="runtime-card-header">
@@ -1393,7 +1402,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
         )}
       </section>
       {/* Data */}
-      <section className="settings-section">
+      <section className="settings-section" style={sectionStyle("data")}>
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setDataOpen, "settings_data_open")} onMouseEnter={onTipEnter("アプリ全体のデータを zip でバックアップまたは復元します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1406,7 +1415,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
           </svg>
         </button>
 
-        {dataOpen && (
+        {(navMode || dataOpen) && (
           <div className="settings-section-body">
             <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
               <div className="settings-toggle-copy">
@@ -1446,7 +1455,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
         )}
       </section>
       {/* Debug */}
-      <section className="settings-section">
+      <section className="settings-section" style={sectionStyle("debug")}>
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setDebugOpen, "settings_debug_open")} onMouseEnter={onTipEnter("デバッグ用の設定です。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1463,7 +1472,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar" }: Settings
           </svg>
         </button>
 
-        {debugOpen && (
+        {(navMode || debugOpen) && (
           <div className="settings-section-body">
             <div className="settings-toggle-row">
               <div className="settings-toggle-copy">
