@@ -172,6 +172,7 @@ export type AppSettings = {
   correction_custom_prompt: string;
   include_all_prompt_images: boolean;
   debug_prompt_log: boolean;
+  show_system_resources: boolean;
   chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>;
 
@@ -188,6 +189,7 @@ export type AppSettingsPatch = Partial<{
   correction_custom_prompt: string;
   include_all_prompt_images: boolean;
   debug_prompt_log: boolean;
+  show_system_resources: boolean;
   chat_scroll_position: string;
 } & Record<SettingsSectionKey, boolean>>;
 

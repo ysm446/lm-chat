@@ -212,6 +212,8 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   const [uiFontSize, setUIFontSize] = useState(DEFAULT_FONT_SIZE);
   const [windowResolution, setWindowResolution] = useState<WindowResolution>(DEFAULT_WINDOW_RESOLUTION);
   const settingsOpenStateLoadedRef = useRef(false);
+  // 設定読込完了までステータスバーへの dispatch を抑制し、初期値 false での一瞬の消灯を防ぐ
+  const sysResReadyRef = useRef(false);
 
   const applyConfigState = useCallback((cfg: AppConfig) => {
     setCtxSize(cfg.ctx_size);
@@ -243,6 +245,8 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
     setCustomCorrectionPrompt(settings.correction_custom_prompt || "");
     setIncludeAllPromptImages(settings.include_all_prompt_images ?? false);
     setDebugPromptLog(settings.debug_prompt_log ?? false);
+    sysResReadyRef.current = true;
+    setSysResOpen(settings.show_system_resources ?? false);
 
     const sectionSetters: Record<SettingsSectionKey, Dispatch<SetStateAction<boolean>>> = {
       settings_context_open: setContextOpen,
@@ -345,10 +349,13 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   }, []);
 
   useEffect(() => {
+    // 設定読込が終わるまでは初期値（false）を投げない。これにより設定ウインドウを開いた
+    // 瞬間にステータスバーが一瞬消えるのを防ぐ。
+    if (!sysResReadyRef.current) return;
+    // 設定は永続化済み。トグル変更時はこの dispatch が最新値を反映する。
+    // アンマウント時に false を投げると、設定ウインドウを閉じただけでステータスバーが
+    // 消えてしまうため cleanup は行わない（OFF は sysResOpen=false の dispatch で伝わる）。
     window.dispatchEvent(new CustomEvent("lm-chat:statusbar-system-resources", { detail: { enabled: sysResOpen } }));
-    return () => {
-      window.dispatchEvent(new CustomEvent("lm-chat:statusbar-system-resources", { detail: { enabled: false } }));
-    };
   }, [sysResOpen]);
 
   const handleSave = async (patch: AppConfigPatch) => {
@@ -1318,6 +1325,8 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
 
         {(navMode || advancedOpen) && (
           <div className="settings-section-body">
+            <div className="runtime-group">
+            <div className="runtime-group-title">推論エンジン（llama.cpp）</div>
             <div className="runtime-card">
               <div className="runtime-card-header">
                 <div>
@@ -1388,8 +1397,16 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
             <div className="stat-list">
               <div className="stat-row"><span>推論サーバー</span><code>{llamaServerVersion ? `llama-server (${llamaServerVersion})` : "llama-server"}</code></div>
               <div className="stat-row"><span>Runtime path</span><code>{runtimeInfo?.llama_exe || "未設定"}</code></div>
+            </div>
+            </div>
+
+            <div className="runtime-group">
+            <div className="runtime-group-title">埋め込み（ruri-v3）</div>
+            <div className="stat-list">
               <div className="stat-row"><span>埋め込みモデル</span><code>ruri-v3-310m</code></div>
+              <div className="stat-row"><span>保存先</span><code>models/embeddings</code></div>
               <div className="stat-row"><span>検索方式</span><strong>FTS5 + ベクトル</strong></div>
+            </div>
             </div>
             {stats && (
               <div className="stat-list" style={{ marginTop: 8 }}>
@@ -1535,7 +1552,13 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
                 type="button"
                 className={`settings-toggle-btn${sysResOpen ? " active" : ""}`}
                 aria-pressed={sysResOpen}
-                onClick={() => setSysResOpen((v) => !v)}
+                onClick={() => {
+                  const next = !sysResOpen;
+                  setSysResOpen(next);
+                  updateSettings({ show_system_resources: next }).catch(() => {
+                    setSysResOpen(!next);
+                  });
+                }}
               >
                 <span className="settings-toggle-thumb" />
               </button>
