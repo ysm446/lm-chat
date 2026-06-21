@@ -53,6 +53,8 @@
 - チャット内検索（Ctrl+F）
 - 推論パラメータ調整（temperature、ctx_size、GPU layers、completion length）
 - 下部システムリソースバー（CPU / RAM / GPU / VRAM）
+- 左下の歯車から開く設定ウインドウ（左ナビ + 右ペインの 2 ペイン構成）でアプリ全体設定（Interface / Runtime / Data / Debug）を管理
+- llama.cpp server Runtime のダウンロード / バージョン選択（CPU / CUDA バリアント）
 
 ## Document RAG
 
@@ -92,7 +94,7 @@ py -m venv .venv
 .venv\Scripts\python -m pip install -r backend\requirements.txt
 ```
 
-llama.cpp server Runtime は初回起動時点では未インストールでも構いません。アプリ起動後、設定画面の Runtime 設定からインストールしてください。
+llama.cpp server Runtime は初回起動時点では未インストールでも構いません。アプリ起動後、左下の歯車から開く設定ウインドウの **Runtime** からインストールしてください。インストールされたランタイムバイナリは `runtime/llama_cpp/` 配下に保存されます。
 
 初回セットアップ時は、必要に応じて以下も用意してください。
 
@@ -151,8 +153,9 @@ lm-chat/
 │       ├── stores/
 │       ├── api.ts
 │       └── styles.css
-├── data/                    # 実行時データ / llama.cpp Runtime
-├── models/                  # ローカル GGUF モデル置き場
+├── data/                    # 実行時データ（DB・設定 JSON・assets）
+├── runtime/                 # ダウンロードした llama.cpp ランタイムバイナリ
+├── models/                  # ローカル GGUF モデル / 埋め込みモデルキャッシュ
 ├── assets/
 └── start.bat
 ```
@@ -166,12 +169,12 @@ lm-chat/
 | `config.json` | 推論設定 |
 | `settings.json` | UI 設定（サイドバー表示など） |
 | `system_prompts.json` | 保存済みシステムプロンプト |
-| `llama_paths.json` | llama-server と現在モデルのパス情報 |
+| `llama_paths.json` | llama-server（`runtime/` 配下）と現在モデルのパス情報 |
 | `lm_chat.db` | SQLite データベース本体（セッション、メッセージ、記憶、Documents、保存済みプロンプト全文など） |
 
 実体の場所は `data/lm_chat.db` です。
 
-これらは実行時データで、通常はリポジトリに含めません。
+ダウンロードした llama.cpp ランタイムは `runtime/`、埋め込みモデル（ruri-v3）のキャッシュは `models/embeddings/` に保存されます。`data/`・`runtime/`・`models/` はいずれも実行時データで、通常はリポジトリに含めません。
 
 ## 補足
 
