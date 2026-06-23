@@ -22,6 +22,7 @@ _DEFAULTS: dict = {
     "settings_context_open": False,
     "settings_memory_open": False,
     "settings_documents_open": False,
+    "settings_model_open": False,
     "settings_advanced_open": False,
     "settings_system_prompt_open": False,
     "settings_interface_open": False,

@@ -18,6 +18,7 @@ import {
   getSettings,
   importDataArchive,
   installLlamaRuntime,
+  listLocalModels,
   listSystemPrompts,
   reindexDocuments,
   saveActiveSystemPrompt,
@@ -77,6 +78,7 @@ const SETTINGS_SECTION_KEYS: SettingsSectionKey[] = [
   "settings_memory_open",
   "settings_documents_open",
   "settings_advanced_open",
+  "settings_model_open",
   "settings_system_prompt_open",
   "settings_interface_open",
   "settings_completion_open",
@@ -103,6 +105,13 @@ function formatBytes(value: number | undefined) {
     unitIndex += 1;
   }
   return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatParamCount(value: number | null | undefined) {
+  if (!value || value <= 0) return "";
+  if (value >= 1e9) return `${(value / 1e9).toFixed(value >= 1e11 ? 0 : 1)}B`;
+  if (value >= 1e6) return `${(value / 1e6).toFixed(0)}M`;
+  return value.toLocaleString();
 }
 
 function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
@@ -132,7 +141,7 @@ function normalizeWindowResolution(resolution: string | undefined): WindowResolu
 }
 
 // 設定ウインドウ（app view）の左ナビ・カテゴリ
-export type AppSettingsSection = "interface" | "runtime" | "data" | "debug";
+export type AppSettingsSection = "interface" | "model" | "runtime" | "data" | "debug";
 
 type SettingsPanelProps = {
   onEditSystemPrompt?: (promptId: string) => void;
@@ -148,6 +157,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   const currentSession = useChatStore((state) => state.currentSession());
   const selectSession = useChatStore((state) => state.selectSession);
   const activeModelPath = useChatStore((state) => state.activeModelPath);
+  const availableModels = useChatStore((state) => state.availableModels);
   const systemPromptText = useChatStore((state) => state.systemPromptText);
   const setSystemPromptText = useChatStore((state) => state.setSystemPromptText);
   const correctionEnabled = useChatStore((state) => state.correctionEnabled);
@@ -176,6 +186,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [interfaceOpen, setInterfaceOpen] = useState(false);
   const [completionOpen, setCompletionOpen] = useState(false);
@@ -253,6 +264,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
       settings_memory_open: setMemoryOpen,
       settings_documents_open: setDocumentsOpen,
       settings_advanced_open: setAdvancedOpen,
+      settings_model_open: setModelOpen,
       settings_system_prompt_open: setSystemPromptOpen,
       settings_interface_open: setInterfaceOpen,
       settings_completion_open: setCompletionOpen,
@@ -319,6 +331,14 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   useEffect(() => {
     loadMemoryStats();
   }, [currentWorkspace?.id, loadMemoryStats]);
+
+  useEffect(() => {
+    // 設定ウインドウを開いたタイミングで models フォルダを再スキャンし、最新の一覧を反映する
+    if (view !== "app") return;
+    listLocalModels()
+      .then((models) => useChatStore.setState({ availableModels: models }))
+      .catch(() => {});
+  }, [view]);
 
   useEffect(() => {
     if (advancedOpen && !runtimeInfo && !runtimeInfoBusy) {
@@ -1310,6 +1330,71 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
 
       {showApp && (<>
       {/* System Info */}
+      {/* Model */}
+      <section className="settings-section" style={sectionStyle("model")}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setModelOpen, "settings_model_open")} onMouseEnter={onTipEnter("models フォルダにある GGUF モデルの一覧と特徴を表示します。")} onMouseLeave={onTipLeave}>
+          <span className="settings-section-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/>
+            </svg>
+          </span>
+          <span>Model</span>
+          <span className="settings-count-badge">{availableModels.length}</span>
+          <svg className={`settings-chevron${modelOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {(navMode || modelOpen) && (
+          <div className="settings-section-body">
+            {availableModels.length === 0 ? (
+              <p className="settings-field-hint">models フォルダに GGUF モデルが見つかりません。</p>
+            ) : (
+              <div className="model-list">
+                {availableModels.map((m) => {
+                  const isActive = Boolean(activeModelPath && activeModelPath.includes(m.id));
+                  const paramsLabel = m.params_label || formatParamCount(m.parameter_count);
+                  return (
+                    <div key={m.id} className={`model-info-card${isActive ? " active" : ""}`}>
+                      <div className="model-info-head">
+                        <span className="model-info-title" title={m.id}>{m.id}</span>
+                        {isActive && <span className="model-info-active">ロード中</span>}
+                        <button
+                          type="button"
+                          className="model-info-folder-btn"
+                          title="エクスプローラーで表示"
+                          onClick={() => { void window.lmChat?.showItemInFolder(m.path); }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/>
+                          </svg>
+                        </button>
+                      </div>
+                      {(m.name && m.name !== m.id) && (
+                        <span className="model-info-subtitle">{m.name}</span>
+                      )}
+                      <div className="model-info-badges">
+                        {paramsLabel && <span className="model-badge">{paramsLabel}</span>}
+                        {m.quantization && <span className="model-badge">{m.quantization}</span>}
+                        {m.architecture && <span className="model-badge subtle">{m.architecture}</span>}
+                        {m.multimodal && <span className="model-badge vision">Vision</span>}
+                      </div>
+                      <div className="stat-list">
+                        {m.context_length ? (
+                          <div className="stat-row"><span>コンテキスト長</span><strong>{m.context_length.toLocaleString()} tokens</strong></div>
+                        ) : null}
+                        <div className="stat-row"><span>ファイルサイズ</span><strong>{formatBytes(m.size_bytes)}</strong></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Runtime */}
       <section className="settings-section" style={sectionStyle("runtime")}>
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setAdvancedOpen, "settings_advanced_open")} onMouseEnter={onTipEnter("llama.cpp server の Runtime とシステム情報を管理します。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">

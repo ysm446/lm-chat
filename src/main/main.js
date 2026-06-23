@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -132,6 +132,14 @@ if (!gotSingleInstanceLock) {
         ? await dialog.showOpenDialog(focusedWindow, options)
         : await dialog.showOpenDialog(options);
       return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
+    ipcMain.handle("lm-chat:show-item-in-folder", async (_event, targetPath) => {
+      if (!targetPath) {
+        return false;
+      }
+      shell.showItemInFolder(path.normalize(targetPath));
+      return true;
     });
 
     ipcMain.handle("lm-chat:set-window-resolution", async (_event, resolution) => {

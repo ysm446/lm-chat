@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -132,6 +132,14 @@ if (!gotSingleInstanceLock) {
         ? await dialog.showOpenDialog(focusedWindow, options)
         : await dialog.showOpenDialog(options);
       return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
+    ipcMain.handle("lm-chat:show-item-in-folder", async (_event, targetPath: string) => {
+      if (!targetPath) {
+        return false;
+      }
+      shell.showItemInFolder(path.normalize(targetPath));
+      return true;
     });
 
     ipcMain.handle("lm-chat:set-window-resolution", async (_event, resolution: string) => {

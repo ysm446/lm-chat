@@ -104,6 +104,10 @@ def _read_gguf_metadata(path: Path) -> dict[str, object]:
         return {}
 
 
+def _clean_str(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def _get_local_model_display_info(path: Path) -> dict[str, object]:
     metadata = _read_gguf_metadata(path)
     size_label = metadata.get("general.size_label")
@@ -114,12 +118,34 @@ def _get_local_model_display_info(path: Path) -> dict[str, object]:
     if not quantization:
         m = _QUANTIZATION_PATTERN.search(path.stem)
         quantization = m.group(1).replace("-", "_").upper() if m else None
+
+    architecture = _clean_str(metadata.get("general.architecture"))
+    name = _clean_str(metadata.get("general.name"))
+
+    context_length = None
+    if architecture:
+        ctx = metadata.get(f"{architecture}.context_length")
+        if isinstance(ctx, int) and ctx > 0:
+            context_length = ctx
+
+    param_count = metadata.get("general.parameter_count")
+    if not (isinstance(param_count, int) and param_count > 0):
+        param_count = None
+
+    # 同ディレクトリに mmproj 用 GGUF があればマルチモーダル対応とみなす
+    multimodal = any("mmproj" in sibling.stem.lower() for sibling in path.parent.glob("*.gguf"))
+
     return {
         "id": path.stem,
         "path": str(path),
         "size_bytes": path.stat().st_size,
         "params_label": size_label.strip().upper() if isinstance(size_label, str) else None,
         "quantization": quantization,
+        "architecture": architecture,
+        "name": name,
+        "context_length": context_length,
+        "parameter_count": param_count,
+        "multimodal": multimodal,
     }
 
 

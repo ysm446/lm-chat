@@ -24,6 +24,14 @@
 - システムリソース表示の状態を設定（`show_system_resources`）として永続化。設定ウインドウを閉じるとステータスバーが消える不具合も修正。
 - システムプロンプト編集をプレビュー / 編集トグル化し、校正ボタンを選択テキスト付近に配置。
 
+## 完了（設定 UI / Model セクション）
+
+- 設定ウインドウに「Model」セクションを追加（左ナビ: Interface → Model → Runtime → Data → Debug）。
+- `models/` 内の GGUF を一覧表示し、各モデルをカードで表示。パラメータ規模・量子化・アーキテクチャ・Vision 対応バッジ、コンテキスト長・ファイルサイズ・パスを表示。
+- バックエンド `/models/local`（`routes/models.py`）が GGUF メタデータから architecture / name / context_length / parameter_count / multimodal を追加抽出するように拡張。
+- 設定ウインドウを開いたときに `listLocalModels()` で再スキャンし、最新の一覧をストアへ反映。
+- セクション開閉状態 `settings_model_open` を `settings_store.py` の `_DEFAULTS` に追加し永続化。
+
 ## 確認済み
 
 - `npm run build` は成功。

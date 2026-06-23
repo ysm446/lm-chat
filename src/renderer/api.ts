@@ -60,6 +60,11 @@ export type LocalModel = {
   size_bytes: number;
   params_label?: string | null;
   quantization?: string | null;
+  architecture?: string | null;
+  name?: string | null;
+  context_length?: number | null;
+  parameter_count?: number | null;
+  multimodal?: boolean;
 };
 
 export type PromptLogContentPart =
@@ -153,6 +158,7 @@ export type SettingsSectionKey =
   | "settings_memory_open"
   | "settings_documents_open"
   | "settings_advanced_open"
+  | "settings_model_open"
   | "settings_system_prompt_open"
   | "settings_interface_open"
   | "settings_completion_open"

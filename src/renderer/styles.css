@@ -2788,6 +2788,121 @@ details.thinking-block[open] .thinking-chevron {
   text-align: right;
 }
 
+.settings-count-badge {
+  margin-left: 6px;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.model-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.035);
+}
+
+.model-info-card.active {
+  border-color: rgba(124,90,247,0.45);
+  background: rgba(124,90,247,0.07);
+}
+
+.model-info-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-info-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+  min-width: 0;
+}
+
+.model-info-folder-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-dim);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.model-info-folder-btn:hover {
+  background: rgba(124,90,247,0.12);
+  border-color: rgba(124,90,247,0.34);
+  color: var(--text);
+}
+
+.model-info-active {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.model-info-subtitle {
+  font-size: 11px;
+  color: var(--text-faint);
+  word-break: break-all;
+  margin-top: -4px;
+}
+
+.model-info-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.model-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(99,102,241,0.16);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.model-badge.subtle {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.model-badge.vision {
+  background: rgba(52,199,128,0.16);
+  color: #4ec98a;
+}
+
 .runtime-group {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,7 @@ interface LmChatBridge {
   chooseExportArchivePath: (suggestedName?: string) => Promise<string | null>;
   chooseImportArchivePath: () => Promise<string | null>;
   setWindowResolution: (resolution: string) => Promise<boolean>;
+  showItemInFolder: (targetPath: string) => Promise<boolean>;
 }
 
 declare global {
