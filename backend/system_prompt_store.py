@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-import json
 import uuid
 from pathlib import Path
+
+from .atomic_io import atomic_write_json, read_json
 
 _PATH = Path(__file__).resolve().parent.parent / "data" / "system_prompts.json"
 
 
 def _load() -> dict:
-    if _PATH.exists():
-        try:
-            return json.loads(_PATH.read_text("utf-8"))
-        except Exception:
-            pass
+    data = read_json(_PATH, None)
+    if isinstance(data, dict):
+        return data
     return {"prompts": [], "active_text": "", "active_id": ""}
 
 
 def _save(data: dict) -> None:
-    _PATH.parent.mkdir(parents=True, exist_ok=True)
-    _PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), "utf-8")
+    atomic_write_json(_PATH, data)
 
 
 def get_all() -> dict:
