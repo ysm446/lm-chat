@@ -115,7 +115,8 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - 埋め込み次元は `ruri-v3-310m` に合わせて **768 次元**（`memory_vec` テーブル）
 - FTS5 の MATCH クエリはユーザー入力を `'"' + query.replace('"', ' ') + '"'` でサニタイズ
 - FTS5 キーワード検索は `memory_chunks` と JOIN して workspace フィルタを1クエリで完結させる
-- `embed()` には `@lru_cache(maxsize=512)` が適用されており、同じテキストの再推論をスキップする。戻り値は `tuple[float, ...]`
+- 埋め込みは Ruri v3 の非対称プレフィックスを使用: 検索側は `embed_query()`（`検索クエリ: `）、インデックス側は `embed_document()`（`検索文書: `）。記憶・文書 RAG とも保存時は document、検索時は query を使う
+- 内部の `_embed()` に `@lru_cache(maxsize=512)` が適用されており、同じテキストの再推論をスキップする。戻り値は `tuple[float, ...]`
 - サーバー起動時にバックグラウンドスレッドで `warmup_embedder()` を呼び出し、初回リクエストの遅延を解消する
 - DB スキーマ変更時は `data/lm_chat.db` を削除して再作成が必要
 

@@ -177,7 +177,7 @@ class DocumentMixin:
         return True
 
     def index_document_chunks(self, doc_id: str, chunks: list[str]) -> None:
-        from .memory.embedder import embed
+        from .memory.embedder import embed_document
 
         doc = self.get_document(doc_id)
         if doc is None:
@@ -197,7 +197,7 @@ class DocumentMixin:
                     (chunk_id, doc_id, doc.workspace_id, doc.session_id, i, text, now_iso()),
                 )
                 conn.execute("INSERT INTO document_fts (id, content) VALUES (?, ?)", (chunk_id, text))
-                vector = embed(text)
+                vector = embed_document(text)
                 vec_bytes = struct.pack(f"{len(vector)}f", *vector)
                 conn.execute("INSERT INTO document_vec (chunk_id, embedding) VALUES (?, ?)", (chunk_id, vec_bytes))
 
@@ -206,9 +206,9 @@ class DocumentMixin:
     def search_documents(
         self, workspace_id: str, query: str, top_k: int = 3, session_id: str | None = None
     ) -> list[DocumentChunk]:
-        from .memory.embedder import embed
+        from .memory.embedder import embed_query
 
-        query_vec = embed(query)
+        query_vec = embed_query(query)
         rrf_k = 60
         scores: dict[str, float] = {}
 

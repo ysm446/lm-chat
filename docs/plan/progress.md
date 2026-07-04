@@ -32,6 +32,12 @@
 - 設定ウインドウを開いたときに `listLocalModels()` で再スキャンし、最新の一覧をストアへ反映。
 - セクション開閉状態 `settings_model_open` を `settings_store.py` の `_DEFAULTS` に追加し永続化。
 
+## 完了（Ruri v3 プレフィックス対応 / 2026-07-04）
+
+- 埋め込みに Ruri v3 の非対称プレフィックスを導入。`embedder.py` を `embed_query()`（`検索クエリ: `）/ `embed_document()`（`検索文書: `）に分離。
+- 記憶・文書 RAG の保存側は `embed_document`、検索側は `embed_query` を使うように全呼び出し箇所を更新。
+- 既存 DB の `memory_vec`（454 件）・`document_vec`（127 件）を文書プレフィックス付きで再埋め込み済み（マイグレーションは一回限りのスクリプトで実施、DB 削除は不要だった）。
+
 ## 確認済み
 
 - `npm run build` は成功。

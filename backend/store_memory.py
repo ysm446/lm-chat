@@ -15,7 +15,7 @@ class MemoryMixin:
         return 0 if row is None else int(row["count"])
 
     def save_memory(self, session_id: str, messages: list[MessageCreate]) -> list[MemoryChunk] | None:
-        from .memory.embedder import embed
+        from .memory.embedder import embed_document
 
         session = self.get_session(session_id)  # type: ignore[attr-defined]
         if session is None:
@@ -34,7 +34,7 @@ class MemoryMixin:
                     (chunk.id, chunk.workspace_id, chunk.session_id, chunk.chunk_type, chunk.content, chunk.created_at),
                 )
                 conn.execute("INSERT INTO memory_fts (id, content) VALUES (?, ?)", (chunk.id, chunk.content))
-                vector = embed(chunk.content)
+                vector = embed_document(chunk.content)
                 vec_bytes = struct.pack(f"{len(vector)}f", *vector)
                 conn.execute("INSERT INTO memory_vec (chunk_id, embedding) VALUES (?, ?)", (chunk.id, vec_bytes))
                 chunks.append(chunk)
@@ -49,10 +49,10 @@ class MemoryMixin:
         session_scope: str = "workspace",
         half_life_days: int = 30,
     ) -> list[MemoryChunk]:
-        from .memory.embedder import embed
+        from .memory.embedder import embed_query
 
         logger = logging.getLogger(__name__)
-        query_vec = embed(query)
+        query_vec = embed_query(query)
         rrf_k = 60
         half_life_days = max(0, int(half_life_days))
         scores: dict[str, float] = {}
