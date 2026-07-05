@@ -519,7 +519,11 @@ a { color: var(--accent); }
 .resize-handle::after {
   content: '';
   position: absolute;
-  inset: 0 -5px; /* 11px hit area */
+  /* Extend the hit area only to the right, into the pane that has no
+     scrollbar on this edge. A scrollbar always sits on the right edge of the
+     pane to the handle's left (chat / sidebar), so intruding leftward would
+     overlay it and steal the drag. */
+  inset: 0 -9px 0 0; /* 10px hit area, biased right */
   z-index: 20;
 }
 .resize-handle:hover { background: var(--accent); }
@@ -1187,7 +1191,8 @@ a { color: var(--accent); }
 .chat-view {
   overflow-y: auto;
   padding: 24px 24px 120px;
-  margin-right: 8px;
+  /* Scrollbar sits flush at the pane edge; the resize handle no longer
+     overlays it (see .resize-handle::after). */
 }
 
 .debug-clear-btn {
