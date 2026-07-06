@@ -54,9 +54,20 @@
 - 検証: 全バックエンド import、マージ GET / 分離 PATCH の往復、フロント `npm run build` すべて green。
 - 残った掃除（軽微・後追い）: `start.bat` の llama_paths.json 初期化に残る死んだ `n_gpu_layers=-1`。未読なので実害なし。start.bat に別の未コミット変更があるため巻き込み回避で保留。
 
+## 完了（ライブラリ切り替え / バックエンド本体 / 2026-07-07）
+
+- マシンレベルのライブラリレジストリ `~/.lmchat/libraries.json`（アクティブ + 最近開いた一覧）を新設（`backend/library_store.py`）。どのライブラリにも属さないポインタとして機能。
+- `paths.py`: レジストリからアクティブライブラリを起動時に遅延解決（`_resolve_active_library`）。未設定時は既定 `repo/data` へフォールバック。`machine_root()`/`library_registry_path()` 追加。
+- **Store 再初期化（in-place）**: 多数のルートが `from .deps import store` で import 時束縛しているためオブジェクトは作り直さず、`SQLiteStore.reinit()` で db_path/assets を張り替えて再 init。`_connect()` が毎操作で接続を開くので即反映、`memory_engine` も同一 store 参照で有効なまま。
+- import 時にパス定数をキャプチャしていた箇所を call-time 化（切り替え追従）: `deps.image_dir()/document_dir()`、`data.py` の `_data_dir()`、`documents.py`。
+- 画像配信を StaticFiles 固定マウントから **動的ルート** `GET /assets/images/{path}`（毎回 `image_dir()` 解決 + パストラバーサル防御）へ変更。切り替え後も正しいライブラリの画像を配信。
+- API: `GET /library`・`POST /library/switch`・`POST /library/create`（`routes/library.py`）。`deps.switch_library()` がレジストリ更新 → `paths.set_library_root()` → `store.reinit()` をオーケストレーション。
+- 検証: 一時ライブラリへ create+switch で新規 DB がシード生成・隔離、元へ戻して13ワークスペース完全復元、レジストリ整合を確認。実データ無傷。
+- 未了: **フロント UI**（サイドバー最上部のライブラリ切り替え行 + フォルダ選択ダイアログ + 切り替え時の全状態リロード）。Electron のフォルダピッカー連携が必要。
+
 ## 未了（次段）
 
-- ライブラリ切り替え本体: ポインタファイル（`~/.lmchat/active` 等）+ `paths.set_library_root()` による Store 再初期化 + 切り替え/作成 UI。
+- ライブラリ切り替えの **フロント UI**（上記）。
 - 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。
 - `user_version` 移行フレームの導入。
 - 設定 UI の「環境設定 / ライブラリ設定」ラベル分離、`ctx_size` コントロールの Runtime セクションへの移動。

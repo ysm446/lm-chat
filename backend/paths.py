@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -24,13 +25,49 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 # TODO(library-switch): 将来的に ~/.lmchat へ分離する。現状は後方互換のため repo/data。
 _APP_ROOT = _REPO_ROOT / "data"
 
-# アクティブなライブラリのルート。既定は repo/data。
-# ライブラリ切り替え実装時にポインタファイルから解決した値を set_library_root() で差し込む。
-_library_root: Path = _REPO_ROOT / "data"
+# 既定ライブラリ（ポインタ未設定時の後方互換の帰り先）。
+_DEFAULT_LIBRARY = _REPO_ROOT / "data"
+
+# マシンレベルのルート。どのライブラリにも属さない（アクティブライブラリのポインタを置く）。
+_MACHINE_ROOT = Path.home() / ".lmchat"
+
+# アクティブなライブラリのルート。初回 library_root() 呼び出し時にレジストリから遅延解決する。
+# set_library_root() で切り替え時に上書きする。
+_library_root: Path | None = None
 
 
 def repo_root() -> Path:
     return _REPO_ROOT
+
+
+# --- マシンレベル（ライブラリレジストリ） ---
+
+def machine_root() -> Path:
+    _MACHINE_ROOT.mkdir(parents=True, exist_ok=True)
+    return _MACHINE_ROOT
+
+
+def library_registry_path() -> Path:
+    """アクティブライブラリと最近開いた一覧を保持するレジストリ。マシンレベル。"""
+    return machine_root() / "libraries.json"
+
+
+def _resolve_active_library() -> Path:
+    """レジストリの active を読み、無効なら既定ライブラリへフォールバックする。"""
+    try:
+        reg = json.loads(library_registry_path().read_text("utf-8"))
+        active = reg.get("active")
+        if active:
+            candidate = Path(active)
+            if candidate.exists():
+                return candidate.resolve()
+    except Exception:
+        pass
+    return _DEFAULT_LIBRARY
+
+
+def default_library() -> Path:
+    return _DEFAULT_LIBRARY
 
 
 def set_library_root(path: str | Path) -> None:
@@ -62,6 +99,9 @@ def app_runtime_config_path() -> Path:
 # --- ライブラリ側（切り替え単位） ---
 
 def library_root() -> Path:
+    global _library_root
+    if _library_root is None:
+        _library_root = _resolve_active_library()
     _library_root.mkdir(parents=True, exist_ok=True)
     return _library_root
 

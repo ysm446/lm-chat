@@ -20,13 +20,34 @@ from ..utils.image_utils import save_data_url_image
 
 logger = logging.getLogger(__name__)
 
-_IMAGE_DIR = paths.library_images_dir()
-_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-_DOCUMENT_DIR = paths.library_documents_dir()
-_DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
+
+# ライブラリ切り替えに追従するため、資産ディレクトリは call-time で解決する
+# （import 時に定数キャプチャすると切り替え後に古いライブラリを指し続ける）。
+def image_dir() -> Path:
+    d = paths.library_images_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def document_dir() -> Path:
+    d = paths.library_documents_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 
 store = SQLiteStore()
 memory_engine = MemoryEngine(store)
+
+
+def switch_library(root: str) -> None:
+    """アクティブなライブラリを切り替える。
+
+    store は多数のルートが import 時に束縛しているためオブジェクトは作り直さず、
+    パスを張り替えて再初期化する（`_connect()` は毎操作で接続を開くので即反映される）。
+    memory_engine は同じ store を参照しているため有効なまま。
+    """
+    paths.set_library_root(root)
+    store.reinit()
 
 
 def start_background_task(target, *, name: str) -> None:
@@ -151,7 +172,7 @@ def _prepare_image_data(session_id: str, image_data: str | None) -> str | None:
     session = store.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    return save_data_url_image(_IMAGE_DIR, session.workspace_id, session.id, image_data)
+    return save_data_url_image(image_dir(), session.workspace_id, session.id, image_data)
 
 
 def prepare_image_fields(

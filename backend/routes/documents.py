@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from ..config_store import get as get_config_data
 from ..documents.chunker import chunk_document
 from ..models import Document, DocumentCreate, DocumentReorderRequest, DocumentUpdateRequest, DocumentUploadRequest
-from .deps import _DOCUMENT_DIR, start_background_task, store
+from .deps import document_dir, start_background_task, store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,7 +55,7 @@ def _start_document_indexing(doc_id: str, file_name: str, content: str, *, actio
 
 
 def _resolve_unique_document_path(workspace_id: str, file_name: str) -> Path:
-    workspace_dir = _DOCUMENT_DIR / workspace_id
+    workspace_dir = document_dir() / workspace_id
     workspace_dir.mkdir(parents=True, exist_ok=True)
     ext = Path(file_name).suffix.lower()
     stem = Path(file_name).stem
@@ -91,7 +91,7 @@ def reindex_workspace_documents() -> dict[str, int]:
     failed = 0
     chunking = _get_document_chunking_config()
     for doc in docs:
-        file_path = _DOCUMENT_DIR / doc.file_path
+        file_path = document_dir() / doc.file_path
         store.set_document_indexed_at(doc.id, None)
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -149,7 +149,7 @@ def get_document(doc_id: str) -> dict:
     doc = store.get_document(doc_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
-    file_path = _DOCUMENT_DIR / doc.file_path
+    file_path = document_dir() / doc.file_path
     try:
         content = file_path.read_text(encoding="utf-8")
     except OSError:
@@ -173,7 +173,7 @@ def update_document(doc_id: str, payload: DocumentUpdateRequest) -> Document:
     if payload.content is not None:
         content_bytes = payload.content.encode("utf-8")
         file_hash = hashlib.sha256(content_bytes).hexdigest()
-        file_path = _DOCUMENT_DIR / doc.file_path
+        file_path = document_dir() / doc.file_path
         try:
             file_path.write_text(payload.content, encoding="utf-8")
         except OSError as e:

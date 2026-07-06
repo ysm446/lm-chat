@@ -26,10 +26,19 @@ from .models import Workspace
 
 class SQLiteStoreBase:
     def __init__(self, db_path: str | Path | None = None) -> None:
+        self._fixed_db_path = Path(db_path) if db_path is not None else None
+        self.reinit()
+
+    def reinit(self) -> None:
+        """現在アクティブなライブラリのパスへ張り替えて DB を初期化する。
+
+        ライブラリ切り替え時に呼ぶ。`_connect()` は毎操作で接続を開くため、
+        属性を差し替えるだけで次操作から新ライブラリを参照する。
+        """
         from . import paths
 
         paths.library_root()  # ライブラリルートを確実に作成
-        self.db_path = Path(db_path) if db_path is not None else paths.library_db_path()
+        self.db_path = self._fixed_db_path if self._fixed_db_path is not None else paths.library_db_path()
         self.image_root = paths.library_images_dir()
         self.document_root = paths.library_documents_dir()
         self.document_root.mkdir(parents=True, exist_ok=True)

@@ -180,6 +180,22 @@ class DataArchivePathRequest(BaseModel):
     path: str
 
 
+class LibrarySwitchRequest(BaseModel):
+    path: str
+
+
+class LibraryEntry(BaseModel):
+    path: str
+    name: str
+    exists: bool
+    active: bool
+
+
+class LibraryStateResponse(BaseModel):
+    active: str
+    libraries: list[LibraryEntry]
+
+
 class MemoryChunk(BaseModel):
     id: str
     workspace_id: str

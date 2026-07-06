@@ -3,13 +3,13 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from .llama_manager import eject_model
-from .routes import chat, config, data, documents, history, llama, memory, models, system_prompts, util, workspaces
-from .routes.deps import _DOCUMENT_DIR, _IMAGE_DIR, start_background_task
+from .routes import chat, config, data, documents, history, library, llama, memory, models, system_prompts, util, workspaces
+from .routes.deps import image_dir, start_background_task
 
 logging.basicConfig(level=os.environ.get("LM_CHAT_LOG_LEVEL", "INFO").upper())
 logger = logging.getLogger(__name__)
@@ -29,7 +29,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/assets/images", StaticFiles(directory=_IMAGE_DIR), name="chat-images")
+@app.get("/assets/images/{file_path:path}")
+def serve_chat_image(file_path: str) -> FileResponse:
+    # ライブラリ切り替えに追従するため、画像ルートは毎回 image_dir() を解決する
+    # （StaticFiles の固定マウントだと切り替え後に旧ライブラリを指し続ける）。
+    root = image_dir().resolve()
+    target = (root / file_path).resolve()
+    if target != root and root not in target.parents:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(target)
+
 
 for _router in (
     util.router,
@@ -42,6 +53,7 @@ for _router in (
     documents.router,
     config.router,
     data.router,
+    library.router,
     llama.router,
 ):
     app.include_router(_router)

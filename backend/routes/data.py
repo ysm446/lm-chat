@@ -13,15 +13,18 @@ from fastapi import APIRouter, HTTPException
 
 from .. import paths
 from ..models import DataArchivePathRequest, now_iso
-from .deps import _DOCUMENT_DIR, _IMAGE_DIR, store
+from .deps import document_dir, image_dir, store
 
 router = APIRouter()
 
-# データアーカイブの基点。現状はライブラリ側・環境側が同一ディレクトリ（data/）のため
-# _EXPORT_ITEMS の env 側ファイル（settings.json・llama_paths.json）もここに揃う。
+
+# データアーカイブの基点。ライブラリ切り替えに追従するよう call-time で解決する。
+# 現状はライブラリ側・環境側が同一ディレクトリ（data/）のため _EXPORT_ITEMS の
+# env 側ファイル（settings.json・llama_paths.json）もここに揃う。
 # TODO(library-switch): ライブラリ側と環境側のルートが分岐したら、エクスポート対象を
 # ライブラリ側のみに絞り、env 側（特にマシン固有の llama_paths.json）は除外する。
-_DATA_DIR = paths.library_root()
+def _data_dir() -> Path:
+    return paths.library_root()
 
 _EXPORT_ITEMS = (
     Path("lm_chat.db"),
@@ -73,7 +76,7 @@ def _copy_workspace_assets(
     copied: list[str] = []
     image_source = import_root / "assets" / "images" / old_workspace_id
     if image_source.exists():
-        image_target = _IMAGE_DIR / new_workspace_id
+        image_target = image_dir() / new_workspace_id
         if image_target.exists():
             shutil.rmtree(image_target)
         image_target.mkdir(parents=True, exist_ok=True)
@@ -87,7 +90,7 @@ def _copy_workspace_assets(
 
     document_source = import_root / "assets" / "documents" / old_workspace_id
     if document_source.exists():
-        document_target = _DOCUMENT_DIR / new_workspace_id
+        document_target = document_dir() / new_workspace_id
         if document_target.exists():
             shutil.rmtree(document_target)
         shutil.copytree(document_source, document_target)
@@ -234,7 +237,7 @@ def _write_workspace_archive(workspace_id: str, target_path: Path) -> dict:
             ),
         )
         archive.writestr("workspace.json", json.dumps(payload, ensure_ascii=False, indent=2))
-        for asset_name, root in (("images", _IMAGE_DIR), ("documents", _DOCUMENT_DIR)):
+        for asset_name, root in (("images", image_dir()), ("documents", document_dir())):
             relative = Path("assets") / asset_name / workspace_id
             if _archive_directory(archive, root / workspace_id, relative):
                 exported_items.append(relative.as_posix())
@@ -285,7 +288,7 @@ def _write_data_archive(target_path: Path) -> dict:
             ),
         )
         for relative_path in _EXPORT_ITEMS:
-            source = _DATA_DIR / relative_path
+            source = _data_dir() / relative_path
             if not source.exists():
                 continue
             exported_items.append(relative_path.as_posix())
@@ -296,7 +299,7 @@ def _write_data_archive(target_path: Path) -> dict:
             for entry in source.rglob("*"):
                 if entry.is_dir():
                     continue
-                archive.write(entry, arcname=entry.relative_to(_DATA_DIR).as_posix())
+                archive.write(entry, arcname=entry.relative_to(_data_dir()).as_posix())
                 wrote_any = True
             if not wrote_any:
                 archive.writestr(f"{relative_path.as_posix().rstrip('/')}/", "")
@@ -310,14 +313,14 @@ def _write_data_archive(target_path: Path) -> dict:
 
 def _restore_from_backup(backup_dir: Path) -> None:
     for relative_path in _EXPORT_ITEMS:
-        current_path = _DATA_DIR / relative_path
+        current_path = _data_dir() / relative_path
         backup_path = backup_dir / relative_path
         if current_path.exists():
             _remove_path(current_path)
         if backup_path.exists():
             _copy_path(backup_path, current_path)
-    _IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-    _DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
+    image_dir().mkdir(parents=True, exist_ok=True)
+    document_dir().mkdir(parents=True, exist_ok=True)
 
 
 def _import_data_archive(source_path: Path) -> dict:
@@ -337,7 +340,7 @@ def _import_data_archive(source_path: Path) -> dict:
             raise HTTPException(status_code=400, detail="Archive does not contain lm_chat.db")
 
         for relative_path in _EXPORT_ITEMS:
-            current_path = _DATA_DIR / relative_path
+            current_path = _data_dir() / relative_path
             imported_path = import_root / relative_path
             backup_path = backup_dir / relative_path
             if current_path.exists() and imported_path.exists():
@@ -346,8 +349,8 @@ def _import_data_archive(source_path: Path) -> dict:
             if imported_path.exists():
                 _copy_path(imported_path, current_path)
 
-        _IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-        _DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
+        image_dir().mkdir(parents=True, exist_ok=True)
+        document_dir().mkdir(parents=True, exist_ok=True)
     except HTTPException:
         _restore_from_backup(backup_dir)
         raise
@@ -492,11 +495,11 @@ def _import_workspace_archive(source_path: Path) -> dict:
             conn.commit()
     except HTTPException:
         for relative in copied_assets:
-            _remove_path(_DATA_DIR / relative)
+            _remove_path(_data_dir() / relative)
         raise
     except Exception as exc:
         for relative in copied_assets:
-            _remove_path(_DATA_DIR / relative)
+            _remove_path(_data_dir() / relative)
         raise HTTPException(status_code=500, detail=f"Workspace import failed: {exc}") from exc
     finally:
         shutil.rmtree(extract_dir, ignore_errors=True)
