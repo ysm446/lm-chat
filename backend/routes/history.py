@@ -133,7 +133,7 @@ def append_session_message(session_id: str, payload: MessageCreate) -> Message:
 
 @router.get("/history/sessions/{session_id}/token_count")
 def get_session_token_count(session_id: str) -> dict[str, int]:
-    from ..config_store import get as get_config_data
+    from ..runtime_store import get as get_runtime_data
     session = store.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -141,8 +141,8 @@ def get_session_token_count(session_id: str) -> dict[str, int]:
     for msg in session.messages:
         text += f"{msg.role}: {msg.content}\n"
     count = count_tokens(text)
-    config = get_config_data()
-    return {"token_count": count, "ctx_size": config["ctx_size"]}
+    runtime = get_runtime_data()
+    return {"token_count": count, "ctx_size": runtime["ctx_size"]}
 
 
 @router.delete("/history/messages/{message_id}")

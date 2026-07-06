@@ -3,9 +3,9 @@ from __future__ import annotations
 from . import paths
 from .atomic_io import atomic_write_json, read_json
 
+# ライブラリ側（作品ごとの作風・RAG チューニング）。
+# ctx_size・n_gpu_layers はマシン固有のハード設定なので runtime_store（環境側）に分離した。
 _DEFAULTS: dict = {
-    "ctx_size": 32768,
-    "n_gpu_layers": -1,
     "temperature": 0.8,
     "completion_length": 80,
     "memory_scope": "workspace",

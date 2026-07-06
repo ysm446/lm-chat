@@ -54,6 +54,11 @@ def llama_paths_path() -> Path:
     return app_root() / "llama_paths.json"
 
 
+def app_runtime_config_path() -> Path:
+    """推論ランタイム設定（ctx_size・n_gpu_layers）。マシン固有なので環境側。"""
+    return app_root() / "runtime.json"
+
+
 # --- ライブラリ側（切り替え単位） ---
 
 def library_root() -> Path:

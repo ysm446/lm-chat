@@ -44,7 +44,24 @@
 - パスをライブラリ側（`library_*`: DB・assets・config.json・system_prompts.json）と環境側（`app_*`: settings.json・llama_paths.json）に分類する API を用意。切り替え時は `set_library_root()` でライブラリ側だけ差し替える設計。
 - ハードコードされていた `data/` 参照を全廃し `paths.py` 経由に置換: `store_base.py`・`config_store.py`（→ library）・`settings_store.py`（→ app）・`system_prompt_store.py`（→ library）・`llama_manager.py`（→ app、マシン固有）・`routes/deps.py`・`routes/data.py`。
 - **この段階ではファイル移動なし**。ライブラリ側・環境側とも従来どおり `<repo>/data` を指すため挙動ゼロ変更。全バックエンドモジュールの import と config/settings/prompts の実データ読み取りを確認済み。
-- 未了（次段）: `config.json` を作風・RAG（library）とハード設定 `ctx_size`/`n_gpu_layers`（env）に分割し `n_gpu_layers` の二重を解消。その後にライブラリ切り替え本体（ポインタファイル + Store 再初期化 + UI）と `user_version` 移行フレーム。
+## 完了（config.json 分割 / ハード設定の一本化 / 2026-07-07）
+
+- ハード設定 `ctx_size`・`n_gpu_layers` をライブラリ側 `config.json` から環境側 `runtime.json` へ分離（新設 `backend/runtime_store.py`）。マシン固有なのでライブラリ切り替えで不変。
+- `config.json`（`config_store`）は作風・RAG チューニング専用に。`_DEFAULTS` から `ctx_size`/`n_gpu_layers` を除去。
+- `/config` エンドポイントは **マージ façade** に変更。GET は runtime+config をマージして従来通りのビューを返し、PATCH はキーを振り分けて各ストアへ書く。→ フロント（MessageInput トークンリング・history token_count）は無改修で動作。
+- `n_gpu_layers` の二重を解消。実態は `llama_paths.json` 側が**未読の死んだ値**だった。正は `runtime_store` に一本化。`routes/llama.py`・`routes/history.py` の読み取りも runtime_store 経由に変更。
+- 一回限りの移行: `runtime.json` 未作成時に旧 `config.json` から `ctx_size`/`n_gpu_layers` を引き継いでシード。既存値（32768 / -1）保全済み。
+- 検証: 全バックエンド import、マージ GET / 分離 PATCH の往復、フロント `npm run build` すべて green。
+- 残った掃除（軽微・後追い）: `start.bat` の llama_paths.json 初期化に残る死んだ `n_gpu_layers=-1`。未読なので実害なし。start.bat に別の未コミット変更があるため巻き込み回避で保留。
+
+## 未了（次段）
+
+- ライブラリ切り替え本体: ポインタファイル（`~/.lmchat/active` 等）+ `paths.set_library_root()` による Store 再初期化 + 切り替え/作成 UI。
+- 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。
+- `user_version` 移行フレームの導入。
+- 設定 UI の「環境設定 / ライブラリ設定」ラベル分離、`ctx_size` コントロールの Runtime セクションへの移動。
+
+## 確認済み
 
 ## 確認済み
 

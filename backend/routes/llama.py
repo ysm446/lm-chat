@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from ..config_store import get as get_config_data
+from ..runtime_store import get as get_runtime_data
 from ..llama_manager import (
     eject_model,
     get_llama_paths,
@@ -67,13 +67,13 @@ def llama_switch_model(payload: dict) -> dict:
     model_path = payload.get("model_path", "")
     if not model_path:
         raise HTTPException(status_code=400, detail="model_path is required")
-    config = get_config_data()
+    runtime = get_runtime_data()
     logger.info("Switching model to: %s", model_path)
     try:
         switch_model(
             model_path,
-            ctx_size=config.get("ctx_size", 32768),
-            n_gpu_layers=config.get("n_gpu_layers", -1),
+            ctx_size=runtime.get("ctx_size", 32768),
+            n_gpu_layers=runtime.get("n_gpu_layers", -1),
         )
     except ValueError as exc:
         logger.error("Model switch failed: %s", exc)

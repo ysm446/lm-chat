@@ -43,8 +43,10 @@ start.bat
 | `backend/store.py` | SQLite CRUD。セッション・ワークスペース・記憶 |
 | `backend/llm_proxy.py` | llama-server への HTTP プロキシ。システムプロンプト適用・生成統計抽出 |
 | `backend/llama_manager.py` | モデル切り替え・イジェクト・llama-server プロセス管理 |
-| `backend/config_store.py` | `data/config.json` への設定永続化（`ctx_size`, `n_gpu_layers`, `temperature`, `completion_length`） |
-| `backend/settings_store.py` | `data/settings.json` への UI 設定永続化（`show_left`, `show_right`） |
+| `backend/paths.py` | 全データパス解決の単一窓口。ライブラリ側（`library_*`）と環境側（`app_*`）を分類。ライブラリ切り替えは `set_library_root()` |
+| `backend/config_store.py` | ライブラリ側 `config.json` への作風・RAG 設定永続化（`temperature`, `completion_length`, `memory_*`, `document_*`）。**ハード設定は持たない** |
+| `backend/runtime_store.py` | 環境側 `runtime.json` への推論ランタイム設定永続化（`ctx_size`, `n_gpu_layers`）。マシン固有 |
+| `backend/settings_store.py` | 環境側 `settings.json` への UI 設定永続化（`show_left`, `show_right`） |
 | `backend/system_prompt_store.py` | `data/system_prompts.json` への保存済みシステムプロンプト管理 |
 | `backend/memory/engine.py` | 記憶保存・検索のエントリポイント |
 | `backend/memory/embedder.py` | `ruri-v3-310m` による埋め込み生成（初回に自動 DL） |
@@ -69,14 +71,17 @@ start.bat
 
 | ファイル | 役割 |
 |---|---|
-| `data/lm_chat.db` | SQLite DB（自動生成） |
-| `data/config.json` | `ctx_size`・`n_gpu_layers`・`temperature`・`completion_length` のユーザー設定 |
-| `data/settings.json` | UI 設定（`show_left`・`show_right` サイドバー開閉状態） |
-| `data/system_prompts.json` | 保存済みシステムプロンプト一覧とアクティブテキスト |
-| `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新 |
+| `data/lm_chat.db` | SQLite DB（自動生成）。**ライブラリ側** |
+| `data/config.json` | 作風・RAG 設定（`temperature`・`completion_length`・`memory_*`・`document_*`）。**ライブラリ側** |
+| `data/system_prompts.json` | 保存済みシステムプロンプト一覧とアクティブテキスト。**ライブラリ側** |
+| `data/runtime.json` | 推論ランタイム設定（`ctx_size`・`n_gpu_layers`）。マシン固有の**環境側** |
+| `data/settings.json` | UI 設定（`show_left`・`show_right` サイドバー開閉状態）。**環境側** |
+| `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新。マシン固有の**環境側** |
 | `start.bat` | 全プロセスの一括起動スクリプト |
 
-`data/*.json`（llama_paths.json, config.json, settings.json, system_prompts.json）はすべて `.gitignore` 対象。
+`data/*.json`（llama_paths.json, config.json, runtime.json, settings.json, system_prompts.json）はすべて `.gitignore` 対象。
+
+パス解決はすべて `backend/paths.py` 経由。ライブラリ側（DB・assets・config.json・system_prompts.json）と環境側（settings.json・runtime.json・llama_paths.json）を分類しており、ライブラリ切り替え時は `paths.set_library_root()` でライブラリ側だけを差し替える。現状はライブラリ側・環境側とも `data/` 同居。
 
 ## DB スキーマ（messages テーブル）
 
@@ -230,7 +235,7 @@ DELETE /memory/workspace/{id}
 GET  /memory/stats
 
 GET  /config
-PATCH /config                             ← ctx_size, n_gpu_layers, temperature, completion_length
+PATCH /config                             ← temperature, completion_length, memory_*, document_*（library）＋ ctx_size, n_gpu_layers（env/runtime.json へ振り分け）。GET はマージビュー
 
 GET  /settings
 PATCH /settings                           ← show_left, show_right
