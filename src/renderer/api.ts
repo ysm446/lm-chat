@@ -444,6 +444,27 @@ export function createLibrary(path: string) {
   });
 }
 
+export type MessageSearchHit = {
+  session_id: string;
+  session_title: string;
+  workspace_id: string;
+  message_id: string | null;
+  snippet: string;
+  score: number;
+  sources: string[];
+};
+
+export type MessageSearchResponse = {
+  query: string;
+  hits: MessageSearchHit[];
+};
+
+export function searchMessages(query: string, workspaceId?: string, topK = 30) {
+  const params = new URLSearchParams({ query, top_k: String(topK) });
+  if (workspaceId) params.set("workspace_id", workspaceId);
+  return request<MessageSearchResponse>(`/search/messages?${params.toString()}`);
+}
+
 export function getLlamaProps() {
   return request<{ n_ctx?: number; total_slots?: number }>("/llama/props");
 }

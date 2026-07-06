@@ -174,6 +174,13 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - 現在のマッチは `.search-highlight.current`（オレンジ系）、その他は `.search-highlight`（黄色系）
 - n/N キーまたはボタンで前後のマッチへ移動
 
+### 横断検索（サイドバー検索）
+- サイドバー検索は「セッションのタイトルフィルタ（即時）」＋「本文の横断ハイブリッド検索（2文字以上・debounce 300ms）」の2層
+- バックエンド `store_search.py` の `search_messages()` が **キーワード（`message_fts`）＋意味（`memory_vec` 流用＝新規ベクトル化なし）を RRF で統合**し、セッション単位に集約して返す
+- `message_fts` は `messages` へのトリガ（`messages_fts_ai/ad/au`）で自動同期する standalone FTS5（id UNINDEXED + content, trigram）。既存メッセージは `_init_db` でバックフィル
+- 意味検索は記憶ベクトル（会話 Q&A ペアの埋め込み）を流用するため粒度はセッション単位。原文メッセージ単位の正確なジャンプが要るなら将来 `message_vec` を新設する（保留）
+- フロントは `Sidebar.tsx` の本文検索結果ブロック（`.sidebar-content-search`）。ヒットクリックで該当ワークスペース＋セッションへジャンプ（`jumpToHit`）
+
 ### フロントエンドの状態管理
 - すべての状態は `chatStore.ts`（Zustand）に集約
 - `sendMessage` がストリーミング・記憶保存・セッション更新・タイトル自動生成を担う
@@ -265,6 +272,7 @@ POST /llama/switch-model
 POST /llama/eject                         ← llama-server を停止して VRAM 解放
 
 POST /search/web
+GET  /search/messages                     ← メッセージ本文の横断ハイブリッド検索（キーワード＋意味）
 
 GET  /documents?workspace_id=        ← ワークスペース資料一覧
 POST /documents                      ← 資料アップロード・インデックス（txt/md/json）

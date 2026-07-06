@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiDocument, exportWorkspaceArchive, getDocument, getSettings, importWorkspaceArchive, updateSettings } from "../api";
+import { ApiDocument, exportWorkspaceArchive, getDocument, getSettings, importWorkspaceArchive, MessageSearchHit, searchMessages, updateSettings } from "../api";
 import { useChatStore } from "../stores/chatStore";
 import { LibrarySwitcher } from "./LibrarySwitcher";
 
@@ -45,6 +45,8 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [showNewWs, setShowNewWs] = useState(false);
   const [newWsName, setNewWsName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [contentHits, setContentHits] = useState<MessageSearchHit[]>([]);
+  const [contentSearching, setContentSearching] = useState(false);
   const newWsInputRef = useRef<HTMLInputElement>(null);
 
   const [editingWsId, setEditingWsId] = useState<string | null>(null);
@@ -79,8 +81,33 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
   const [pendingDocWsId, setPendingDocWsId] = useState<string | null>(null);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const isSearching = normalizedSearchQuery.length > 0;
+  const showContentSearch = searchQuery.trim().length >= 2;
   const isRenaming = editingWsId !== null || editingSessionId !== null;
   const sidebarStateLoadedRef = useRef(false);
+
+  // 本文横断検索（キーワード＋意味）。2文字以上で debounce 実行。
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setContentHits([]);
+      setContentSearching(false);
+      return;
+    }
+    setContentSearching(true);
+    const handle = setTimeout(() => {
+      searchMessages(q)
+        .then((res) => setContentHits(res.hits))
+        .catch(() => setContentHits([]))
+        .finally(() => setContentSearching(false));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
+
+  const jumpToHit = (hit: MessageSearchHit) => {
+    useChatStore.setState({ currentWorkspaceId: hit.workspace_id });
+    setExpanded((prev) => new Set(prev).add(hit.workspace_id));
+    void selectSession(hit.session_id);
+  };
 
   // 現在のワークスペースが切り替わったら自動展開
   useEffect(() => {
@@ -459,12 +486,38 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
           <input
             className="sidebar-search-input"
             type="search"
-            placeholder="Search chats..."
+            placeholder="タイトル・本文を検索…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </label>
       </div>
+
+      {showContentSearch && (
+        <div className="sidebar-content-search">
+          <div className="sidebar-content-search-head">
+            本文検索{contentSearching ? " · 検索中…" : ` · ${contentHits.length}件`}
+          </div>
+          {contentHits.map((hit) => (
+            <button
+              key={`${hit.session_id}:${hit.message_id ?? "sem"}`}
+              className="content-hit"
+              onClick={() => jumpToHit(hit)}
+              title={hit.session_title}
+            >
+              <div className="content-hit-title">
+                <span className="content-hit-name">{hit.session_title || "(無題)"}</span>
+                {hit.sources.includes("keyword") && <span className="content-hit-badge kw" title="キーワード一致">語</span>}
+                {hit.sources.includes("semantic") && <span className="content-hit-badge sem" title="意味が近い">意</span>}
+              </div>
+              <div className="content-hit-snippet">{hit.snippet}</div>
+            </button>
+          ))}
+          {!contentSearching && contentHits.length === 0 && (
+            <div className="content-hit-empty">本文の一致はありません</div>
+          )}
+        </div>
+      )}
 
       <div className="sidebar-tree">
         {visibleWorkspaces.length === 0 ? (
