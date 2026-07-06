@@ -31,8 +31,13 @@ export function LibrarySwitcher() {
   // 切り替え後は全状態をフルリロードする（ワークスペース・セッション・
   // システムプロンプト・UI 設定はライブラリ側に属するため）。
   const applyState = async (next: LibraryState) => {
+    const store = useChatStore.getState();
+    // 進行中の生成は中断し、未保存の一時チャットは破棄してから切り替える
+    // （bootstrap は tempChatMode/tempMessages を触らないため明示的にリセットする）。
+    store.stopGeneration();
+    useChatStore.setState({ tempChatMode: false, tempMessages: [], streamingText: "" });
     setState(next);
-    await useChatStore.getState().bootstrap();
+    await store.bootstrap();
   };
 
   const handleSwitch = async (path: string) => {

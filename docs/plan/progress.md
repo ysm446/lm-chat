@@ -72,11 +72,21 @@
 - 検証: `npm run build`（tsc -b で Electron main/preload 含む + vite）green。TestClient で GET /library・switch の 404 バリデーション・動的画像配信・パストラバーサル遮断を確認。
 - 残る軽微課題: 切り替え中の生成ジョブ・未保存一時チャットの扱い（現状は素直に bootstrap で破棄）。切り替え時のモデル再ロードは不要（llama-server は環境側）。
 
+## 完了（設定 UI ラベル分離 / 切り替え堅牢化 / 2026-07-07）
+
+- 設定 UI の二面を明示ラベル化（決定どおり新規 UI は作らず既存二面を活用）:
+  - 設定ウインドウ（`SettingsModal`）左ナビに **「環境設定（このPC）／全ライブラリ共通」** グループ見出しを追加。
+  - 右サイドバー（`SettingsPanel view="sidebar"`）冒頭に **「ライブラリ設定／現在のライブラリに保存されます」** スコープ見出しを追加。
+- **`ctx_size`（Context Length）コントロールを右サイドバー Context セクションから設定ウインドウ Runtime セクションへ移動**（新設「推論パラメータ」グループ）。マシン固有・全ライブラリ共通である旨のヒントを表示。元の Context セクションは Temperature 中心になったので「Generation」へ改称、ツールチップも更新。
+- ライブラリ切り替えの堅牢化: `LibrarySwitcher` 切り替え時に `stopGeneration()` で進行中の生成を中断し、`tempChatMode`/`tempMessages`/`streamingText` を明示リセットしてから `bootstrap()`（bootstrap は一時チャット状態を触らないため）。
+- `start.bat` の llama_paths.json 初期化から死んだ `n_gpu_layers=-1` を除去。
+- 検証: `npm run build` green。
+- 既知の限界: 生成が真にストリーミング中の瞬間に切り替えると、バックエンド側の最終書き込みが切替後ライブラリへ向かう可能性（フロントは abort 済み）。完全解決はバックエンドで切替中の生成をブロック/キューする必要があり、今回のスコープ外。
+
 ## 未了（次段）
 
-- 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。
-- `user_version` 移行フレームの導入。
-- 設定 UI の「環境設定 / ライブラリ設定」ラベル分離、`ctx_size` コントロールの Runtime セクションへの移動。
+- **`user_version` 移行フレームの導入**（← 次はここ / B）。
+- 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。※保留中（予定据え置き）。
 
 ## 確認済み
 

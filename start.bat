@@ -110,7 +110,7 @@ if defined LLAMA_SERVER_EXE (
 )
 
 mkdir "%CD%\data" 2>nul
-powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';$data=[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';n_gpu_layers=-1;llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'};if(Test-Path -LiteralPath $p){try{$old=Get-Content -LiteralPath $p -Raw -Encoding UTF8|ConvertFrom-Json;foreach($prop in $old.PSObject.Properties){$data[$prop.Name]=$prop.Value}}catch{}};$data['llama_exe']='%LLAMA_SERVER_EXE%';$data['llama_server_pid']=$null;$data['llama_server_base_url']='%LLAMA_BASE_URL%';$data|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
+powershell -NoLogo -NoProfile -Command "$p='%CD%\data\llama_paths.json';$data=[ordered]@{llama_exe='%LLAMA_SERVER_EXE%';active_model_path='';mmproj_path='';llama_server_pid=$null;llama_server_base_url='%LLAMA_BASE_URL%'};if(Test-Path -LiteralPath $p){try{$old=Get-Content -LiteralPath $p -Raw -Encoding UTF8|ConvertFrom-Json;foreach($prop in $old.PSObject.Properties){$data[$prop.Name]=$prop.Value}}catch{}};$data['llama_exe']='%LLAMA_SERVER_EXE%';$data['llama_server_pid']=$null;$data['llama_server_base_url']='%LLAMA_BASE_URL%';$data|ConvertTo-Json|Out-File $p -Encoding utf8 -Force"
 
 echo Starting backend...
 start "%BACKEND_TITLE%" /min "%VENV_PYTHON%" -m uvicorn backend.server:app --reload --host 127.0.0.1 --port %BACKEND_PORT%

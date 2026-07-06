@@ -579,6 +579,10 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
     <>
     <div className={`settings-stack${navMode ? " nav-mode" : ""}`}>
       {showSidebar && (<>
+      <div className="settings-scope-label">
+        <span className="settings-scope-label-main">ライブラリ設定</span>
+        <span className="settings-scope-label-note">現在のライブラリに保存されます</span>
+      </div>
       {/* System Prompt */}
       <section className="settings-section">
         <button className="settings-section-header" onClick={() => toggleSettingsSection(setSystemPromptOpen, "settings_system_prompt_open")} onMouseEnter={onTipEnter("AIの振る舞いを定義するテキスト。会話の最初にシステムメッセージとして挿入されます。保存や呼び出しもできます。")} onMouseLeave={onTipLeave}>
@@ -868,7 +872,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
 
       {/* Context */}
       <section className="settings-section">
-        <button className="settings-section-header" onClick={() => toggleSettingsSection(setContextOpen, "settings_context_open")} onMouseEnter={onTipEnter("Temperature や Context Length などの生成設定です。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setContextOpen, "settings_context_open")} onMouseEnter={onTipEnter("Temperature など、この作品（ライブラリ）ごとの生成設定です。Context Length は環境設定の Runtime にあります。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"/>
@@ -876,7 +880,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/>
             </svg>
           </span>
-          <span>Context</span>
+          <span>Generation</span>
           <svg className={`settings-chevron${contextOpen ? " open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
@@ -917,37 +921,6 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
                 value={temperature}
                 onChange={(e) => setTemperature(Number(e.target.value))}
                 onMouseUp={() => void handleSave({ temperature })}
-              />
-            </div>
-
-            <div className="settings-field">
-              <div className="settings-field-header">
-                <span className="settings-field-label" onMouseEnter={onTipEnter("一度に扱える最大トークン数です。大きいほど長い会話を保持できますが、メモリ使用量も増えます。")} onMouseLeave={onTipLeave}>Context Length</span>
-                <div className="settings-field-controls">
-                  {ctxSize !== DEFAULTS.ctx_size && (
-                    <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCtxSize(DEFAULTS.ctx_size); void handleSave({ ctx_size: DEFAULTS.ctx_size }); }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
-                    </button>
-                  )}
-                  <span className="settings-value-badge">{formatCtxSizeLabel(ctxSize)}</span>
-                </div>
-              </div>
-              {modelMaxCtx && (
-                <p className="settings-field-hint">
-                  Model supports up to <code>{modelMaxCtx.toLocaleString()}</code> tokens
-                </p>
-              )}
-              <input
-                className="settings-slider"
-                type="range"
-                min={0}
-                max={Math.max(effectiveCtxPresets.length - 1, 0)}
-                step={1}
-                value={currentCtxPresetIndex}
-                onChange={(e) => setCtxSize(effectiveCtxPresets[Number(e.target.value)] ?? ctxSize)}
-                onMouseUp={() => void handleSave({ ctx_size: ctxSize })}
               />
             </div>
 
@@ -1410,6 +1383,41 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
 
         {(navMode || advancedOpen) && (
           <div className="settings-section-body">
+            <div className="runtime-group">
+            <div className="runtime-group-title">推論パラメータ</div>
+            <div className="runtime-card">
+              <div className="settings-field">
+                <div className="settings-field-header">
+                  <span className="settings-field-label" onMouseEnter={onTipEnter("一度に扱える最大トークン数です。大きいほど長い会話を保持できますが、VRAM 使用量も増えます。GPU/VRAM に合わせた環境設定で、全ライブラリ共通です。")} onMouseLeave={onTipLeave}>Context Length</span>
+                  <div className="settings-field-controls">
+                    {ctxSize !== DEFAULTS.ctx_size && (
+                      <button className="settings-reset-btn" title="デフォルトに戻す" onClick={() => { setCtxSize(DEFAULTS.ctx_size); void handleSave({ ctx_size: DEFAULTS.ctx_size }); }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                        </svg>
+                      </button>
+                    )}
+                    <span className="settings-value-badge">{formatCtxSizeLabel(ctxSize)}</span>
+                  </div>
+                </div>
+                {modelMaxCtx && (
+                  <p className="settings-field-hint">
+                    Model supports up to <code>{modelMaxCtx.toLocaleString()}</code> tokens
+                  </p>
+                )}
+                <input
+                  className="settings-slider"
+                  type="range"
+                  min={0}
+                  max={Math.max(effectiveCtxPresets.length - 1, 0)}
+                  step={1}
+                  value={currentCtxPresetIndex}
+                  onChange={(e) => setCtxSize(effectiveCtxPresets[Number(e.target.value)] ?? ctxSize)}
+                  onMouseUp={() => void handleSave({ ctx_size: ctxSize })}
+                />
+              </div>
+            </div>
+            </div>
             <div className="runtime-group">
             <div className="runtime-group-title">推論エンジン（llama.cpp）</div>
             <div className="runtime-card">

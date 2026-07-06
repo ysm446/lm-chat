@@ -238,6 +238,40 @@ a { color: var(--accent); }
   color: var(--text-faint);
   padding: 4px 10px 10px;
 }
+.settings-modal-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 10px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.settings-modal-nav-group-note {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+/* ライブラリ設定（右サイドバー）のスコープ見出し */
+.settings-scope-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 2px 4px 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-scope-label-main {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+.settings-scope-label-note {
+  font-size: 10px;
+  color: var(--text-faint);
+}
 .settings-modal-nav-item {
   display: flex;
   align-items: center;

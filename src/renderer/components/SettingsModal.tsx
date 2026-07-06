@@ -75,6 +75,10 @@ export function SettingsModal({ onClose }: Props) {
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <nav className="settings-modal-nav">
           <div className="settings-modal-nav-title">設定</div>
+          <div className="settings-modal-nav-group">
+            環境設定（このPC）
+            <span className="settings-modal-nav-group-note">全ライブラリ共通</span>
+          </div>
           {CATEGORIES.map((c) => (
             <button
               key={c.key}
