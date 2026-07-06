@@ -740,9 +740,9 @@ a { color: var(--accent); }
 .library-switcher-menu {
   position: absolute;
   left: 8px;
-  right: 8px;
   top: 46px;
-  min-width: 0;
+  min-width: 200px;
+  max-width: calc(100% - 16px);
 }
 
 .context-menu-label {
