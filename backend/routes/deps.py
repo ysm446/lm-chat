@@ -45,9 +45,18 @@ def switch_library(root: str) -> None:
     store は多数のルートが import 時に束縛しているためオブジェクトは作り直さず、
     パスを張り替えて再初期化する（`_connect()` は毎操作で接続を開くので即反映される）。
     memory_engine は同じ store を参照しているため有効なまま。
+
+    reinit が失敗した場合（例: スキーマ版が新しすぎる）は元のライブラリへ戻し、
+    store を壊れた状態のままにしない。呼び出し側はレジストリ更新を成功後に行うこと。
     """
+    previous = str(paths.library_root())
     paths.set_library_root(root)
-    store.reinit()
+    try:
+        store.reinit()
+    except Exception:
+        paths.set_library_root(previous)
+        store.reinit()
+        raise
 
 
 def start_background_task(target, *, name: str) -> None:

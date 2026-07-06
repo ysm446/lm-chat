@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -22,6 +22,17 @@ from .models import (
     now_iso,
 )
 from .models import Workspace
+
+
+# ライブラリ DB のスキーマ版。データ変換を伴う移行だけがこの版を進める。
+# 単純な列/テーブル追加は _init_db の冪等 init が担うため版を消費しない。
+# v1 = 現行スキーマのベースライン（既存 DB は user_version=0 から v1 へスタンプされる）。
+# データ変換が必要になったら SCHEMA_VERSION を +1 し、その版の移行関数を _MIGRATIONS に登録する。
+SCHEMA_VERSION = 1
+
+# 版 N への移行関数（conn を受け取りデータ変換を行う）。
+# 例: Ruri v3 再埋め込みのような一回限りの変換をここに登録する。
+_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
 
 
 class SQLiteStoreBase:
@@ -234,6 +245,33 @@ class SQLiteStoreBase:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_document_chunks_workspace ON document_chunks(workspace_id)"
             )
+            conn.commit()
+
+            # スキーマ版に基づくデータ変換移行（冪等 init のあと）
+            self._run_migrations(conn)
+
+    def _run_migrations(self, conn: sqlite3.Connection) -> None:
+        """`PRAGMA user_version` に基づき、データ変換を伴う移行を昇順適用する。
+
+        単純な列/テーブル追加は上の冪等 init が担うため版を消費しない。
+        版が上がる移行だけを `_MIGRATIONS` に登録する（例: Ruri v3 再埋め込みの
+        ような一回限りのデータ変換）。ライブラリ切り替え時も DB を開いた瞬間に走るため、
+        久しぶりに開いた古いライブラリが自動で最新へ追いつく。
+        """
+        current = conn.execute("PRAGMA user_version").fetchone()[0]
+        if current > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"このライブラリ (schema v{current}) は、このアプリが対応する版 "
+                f"(v{SCHEMA_VERSION}) より新しいため開けません。アプリを更新してください。"
+            )
+        if current == SCHEMA_VERSION:
+            return
+        for target in range(current + 1, SCHEMA_VERSION + 1):
+            migrate = _MIGRATIONS.get(target)
+            if migrate is not None:
+                migrate(conn)
+            # PRAGMA はパラメータ化できないが target は範囲 int なので安全。
+            conn.execute(f"PRAGMA user_version = {target}")
             conn.commit()
 
     def _seed_if_empty(self) -> None:

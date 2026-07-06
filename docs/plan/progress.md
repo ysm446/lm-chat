@@ -83,10 +83,18 @@
 - 検証: `npm run build` green。
 - 既知の限界: 生成が真にストリーミング中の瞬間に切り替えると、バックエンド側の最終書き込みが切替後ライブラリへ向かう可能性（フロントは abort 済み）。完全解決はバックエンドで切替中の生成をブロック/キューする必要があり、今回のスコープ外。
 
+## 完了（user_version 移行フレーム / 2026-07-07）
+
+- `store_base` にスキーマ版に基づくデータ変換移行を導入。冪等 init（列/テーブル追加）は残しつつ、`_run_migrations()` が `PRAGMA user_version` を見て**データ変換を伴う移行だけ**を昇順適用する2層構造。
+- `SCHEMA_VERSION`（現行 = 1、現行スキーマのベースライン）と `_MIGRATIONS`（版→移行関数）を新設。データ変換が必要になったら版を +1 して関数を登録するだけ。
+- 新しすぎる DB（`user_version > SCHEMA_VERSION`）は `RuntimeError` で開くのを拒否。
+- ライブラリ切り替えの安全策: `deps.switch_library()` は reinit 失敗時に元ライブラリへ revert。ルートは **reinit 成功後にのみレジストリを更新**（`_switch_then_record`）し、壊れた/新しすぎるライブラリへポインタを残さない。switch/create は版エラーを 409 で返す。
+- 検証: fresh→v1・既存 v0→v1・dummy v2 移行の実行・too-new 拒否・切替エンドポイント経由の 409 と revert（アクティブ保持・store 継続利用）を全て確認。
+
 ## 未了（次段）
 
-- **`user_version` 移行フレームの導入**（← 次はここ / B）。
 - 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。※保留中（予定据え置き）。
+- 別構想: 検索強化（横断ベクトル/全文）、生成メッセージのバージョン管理、ストーリー制作支援。
 
 ## 確認済み
 

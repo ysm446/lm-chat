@@ -99,6 +99,11 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 
 新カラムは `_init_db()` 内の `ALTER TABLE` で既存 DB に自動マイグレーションされる。
 
+### スキーマ移行の2層構造
+
+- **冪等 init**（`_init_db`）: 列/テーブル/インデックスの追加を `CREATE IF NOT EXISTS` / `ALTER ADD COLUMN`（try/except）で毎回適用。前方追加専用。
+- **`user_version` 移行**（`_run_migrations`）: 冪等 init のあとに走る。**データ変換を伴う移行だけ**を扱う（列削除・値の作り替え・再埋め込み等）。`store_base.SCHEMA_VERSION` が期待版で、DB の `PRAGMA user_version` が古ければ版 N→N+1 の関数（`_MIGRATIONS`）を昇順適用して版を上げる。新しすぎる DB（`user_version > SCHEMA_VERSION`）は `RuntimeError` で開くのを拒否。ライブラリ切り替え時も DB を開いた瞬間に走るため、久しぶりに開いた古いライブラリが自動で追いつく。データ変換が必要になったら `SCHEMA_VERSION` を +1 しその版の移行関数を `_MIGRATIONS` に登録する。
+
 ## アーキテクチャ上の注意点
 
 ### システムプロンプト
