@@ -38,6 +38,14 @@
 - 記憶・文書 RAG の保存側は `embed_document`、検索側は `embed_query` を使うように全呼び出し箇所を更新。
 - 既存 DB の `memory_vec`（454 件）・`document_vec`（127 件）を文書プレフィックス付きで再埋め込み済み（マイグレーションは一回限りのスクリプトで実施、DB 削除は不要だった）。
 
+## 完了（ライブラリ切り替え / パス集約 / 2026-07-07）
+
+- ライブラリ切り替えの土台として、全データパスの解決を単一モジュール `backend/paths.py` に集約。
+- パスをライブラリ側（`library_*`: DB・assets・config.json・system_prompts.json）と環境側（`app_*`: settings.json・llama_paths.json）に分類する API を用意。切り替え時は `set_library_root()` でライブラリ側だけ差し替える設計。
+- ハードコードされていた `data/` 参照を全廃し `paths.py` 経由に置換: `store_base.py`・`config_store.py`（→ library）・`settings_store.py`（→ app）・`system_prompt_store.py`（→ library）・`llama_manager.py`（→ app、マシン固有）・`routes/deps.py`・`routes/data.py`。
+- **この段階ではファイル移動なし**。ライブラリ側・環境側とも従来どおり `<repo>/data` を指すため挙動ゼロ変更。全バックエンドモジュールの import と config/settings/prompts の実データ読み取りを確認済み。
+- 未了（次段）: `config.json` を作風・RAG（library）とハード設定 `ctx_size`/`n_gpu_layers`（env）に分割し `n_gpu_layers` の二重を解消。その後にライブラリ切り替え本体（ポインタファイル + Store 再初期化 + UI）と `user_version` 移行フレーム。
+
 ## 確認済み
 
 - `npm run build` は成功。

@@ -11,10 +11,17 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 
+from .. import paths
 from ..models import DataArchivePathRequest, now_iso
-from .deps import _DATA_DIR, _DOCUMENT_DIR, _IMAGE_DIR, store
+from .deps import _DOCUMENT_DIR, _IMAGE_DIR, store
 
 router = APIRouter()
+
+# データアーカイブの基点。現状はライブラリ側・環境側が同一ディレクトリ（data/）のため
+# _EXPORT_ITEMS の env 側ファイル（settings.json・llama_paths.json）もここに揃う。
+# TODO(library-switch): ライブラリ側と環境側のルートが分岐したら、エクスポート対象を
+# ライブラリ側のみに絞り、env 側（特にマシン固有の llama_paths.json）は除外する。
+_DATA_DIR = paths.library_root()
 
 _EXPORT_ITEMS = (
     Path("lm_chat.db"),

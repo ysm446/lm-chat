@@ -14,9 +14,12 @@ from urllib import request as urllib_request
 from urllib.error import URLError
 import zipfile
 
+from .paths import llama_paths_path
+
 logger = logging.getLogger(__name__)
 
-_PATHS_FILE = Path(__file__).resolve().parent.parent / "data" / "llama_paths.json"
+# llama_paths.json は環境側（マシン固有: 絶対 exe/model パス・PID）。ライブラリ切り替えでは不変。
+_PATHS_FILE = llama_paths_path()
 _INSTALL_ROOT = Path(__file__).resolve().parent.parent / "runtime" / "llama_cpp" / "versions"
 _GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
 LLAMA_SERVER_BASE_URL = os.environ.get("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080")

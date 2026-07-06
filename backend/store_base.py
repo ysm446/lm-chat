@@ -26,11 +26,12 @@ from .models import Workspace
 
 class SQLiteStoreBase:
     def __init__(self, db_path: str | Path | None = None) -> None:
-        base_dir = Path(__file__).resolve().parent.parent / "data"
-        base_dir.mkdir(parents=True, exist_ok=True)
-        self.db_path = Path(db_path) if db_path is not None else base_dir / "lm_chat.db"
-        self.image_root = base_dir / "assets" / "images"
-        self.document_root = base_dir / "assets" / "documents"
+        from . import paths
+
+        paths.library_root()  # ライブラリルートを確実に作成
+        self.db_path = Path(db_path) if db_path is not None else paths.library_db_path()
+        self.image_root = paths.library_images_dir()
+        self.document_root = paths.library_documents_dir()
         self.document_root.mkdir(parents=True, exist_ok=True)
         self._init_db()
         self._seed_if_empty()

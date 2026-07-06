@@ -8,6 +8,7 @@ from typing import Iterator
 
 from fastapi import HTTPException
 
+from .. import paths
 from ..config_store import get as get_config_data
 from ..llama_manager import get_llama_paths, is_ready
 from ..llm_proxy import build_chat_messages, stream_chat_completion, summarize_image
@@ -19,10 +20,9 @@ from ..utils.image_utils import save_data_url_image
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-_IMAGE_DIR = _DATA_DIR / "assets" / "images"
+_IMAGE_DIR = paths.library_images_dir()
 _IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-_DOCUMENT_DIR = _DATA_DIR / "assets" / "documents"
+_DOCUMENT_DIR = paths.library_documents_dir()
 _DOCUMENT_DIR.mkdir(parents=True, exist_ok=True)
 
 store = SQLiteStore()

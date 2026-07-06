@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-
+from . import paths
 from .atomic_io import atomic_write_json, read_json
 
-_PATH = Path(__file__).resolve().parent.parent / "data" / "settings.json"
 _DEFAULTS: dict = {
     "show_left": True,
     "show_right": True,
@@ -34,7 +32,7 @@ _DEFAULTS: dict = {
 
 
 def get() -> dict:
-    saved = read_json(_PATH, None)
+    saved = read_json(paths.app_settings_path(), None)
     if isinstance(saved, dict):
         return {**_DEFAULTS, **{k: v for k, v in saved.items() if k in _DEFAULTS}}
     return dict(_DEFAULTS)
@@ -45,5 +43,5 @@ def update(patch: dict) -> dict:
     for k, v in patch.items():
         if k in _DEFAULTS:
             current[k] = v
-    atomic_write_json(_PATH, current)
+    atomic_write_json(paths.app_settings_path(), current)
     return current

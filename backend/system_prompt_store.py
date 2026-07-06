@@ -1,22 +1,20 @@
 from __future__ import annotations
 
 import uuid
-from pathlib import Path
 
+from . import paths
 from .atomic_io import atomic_write_json, read_json
-
-_PATH = Path(__file__).resolve().parent.parent / "data" / "system_prompts.json"
 
 
 def _load() -> dict:
-    data = read_json(_PATH, None)
+    data = read_json(paths.library_system_prompts_path(), None)
     if isinstance(data, dict):
         return data
     return {"prompts": [], "active_text": "", "active_id": ""}
 
 
 def _save(data: dict) -> None:
-    atomic_write_json(_PATH, data)
+    atomic_write_json(paths.library_system_prompts_path(), data)
 
 
 def get_all() -> dict:
