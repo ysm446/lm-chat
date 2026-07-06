@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiDocument, exportWorkspaceArchive, getDocument, getSettings, importWorkspaceArchive, updateSettings } from "../api";
 import { useChatStore } from "../stores/chatStore";
+import { LibrarySwitcher } from "./LibrarySwitcher";
 
 type WsMenu = { id: string; name: string; description: string; x: number; y: number };
 type SessionMenu = { id: string; title: string; x: number; y: number };
@@ -398,6 +399,8 @@ export function Sidebar({ onSelectDocument }: SidebarProps) {
         style={{ display: "none" }}
         onChange={(e) => void handleFileSelected(e)}
       />
+      <LibrarySwitcher />
+
       <div className="sidebar-header">
         {showNewWs ? (
           <div className="inline-edit-row" style={{ flex: 1 }}>

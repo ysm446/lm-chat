@@ -63,11 +63,17 @@
 - 画像配信を StaticFiles 固定マウントから **動的ルート** `GET /assets/images/{path}`（毎回 `image_dir()` 解決 + パストラバーサル防御）へ変更。切り替え後も正しいライブラリの画像を配信。
 - API: `GET /library`・`POST /library/switch`・`POST /library/create`（`routes/library.py`）。`deps.switch_library()` がレジストリ更新 → `paths.set_library_root()` → `store.reinit()` をオーケストレーション。
 - 検証: 一時ライブラリへ create+switch で新規 DB がシード生成・隔離、元へ戻して13ワークスペース完全復元、レジストリ整合を確認。実データ無傷。
-- 未了: **フロント UI**（サイドバー最上部のライブラリ切り替え行 + フォルダ選択ダイアログ + 切り替え時の全状態リロード）。Electron のフォルダピッカー連携が必要。
+## 完了（ライブラリ切り替え / フロント UI / 2026-07-07）
+
+- サイドバー最上部に **`LibrarySwitcher`** コンポーネントを新設（`src/renderer/components/LibrarySwitcher.tsx`）。`📚 現在のライブラリ名 ▾` ボタン + ドロップダウン（最近開いた一覧・フォルダを開く・新規作成）。「＋ワークスペース」ヘッダーはその下段へ。
+- Electron にディレクトリピッカー IPC `lm-chat:choose-library-folder`（open/create モード）を追加。`preload.ts`・`global.d.ts` に `chooseLibraryFolder` を配線。
+- `api.ts`: `getLibraryState`/`switchLibrary`/`createLibrary` と `LibraryState`/`LibraryEntry` 型を追加。
+- 切り替え/作成時は API 呼び出し後に `chatStore.bootstrap()` を再実行し、**全状態（ワークスペース・セッション・システムプロンプト・UI 設定）をフルリロード**。
+- 検証: `npm run build`（tsc -b で Electron main/preload 含む + vite）green。TestClient で GET /library・switch の 404 バリデーション・動的画像配信・パストラバーサル遮断を確認。
+- 残る軽微課題: 切り替え中の生成ジョブ・未保存一時チャットの扱い（現状は素直に bootstrap で破棄）。切り替え時のモデル再ロードは不要（llama-server は環境側）。
 
 ## 未了（次段）
 
-- ライブラリ切り替えの **フロント UI**（上記）。
 - 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。
 - `user_version` 移行フレームの導入。
 - 設定 UI の「環境設定 / ライブラリ設定」ラベル分離、`ctx_size` コントロールの Runtime セクションへの移動。

@@ -134,6 +134,20 @@ if (!gotSingleInstanceLock) {
       return result.canceled ? null : (result.filePaths[0] ?? null);
     });
 
+    ipcMain.handle("lm-chat:choose-library-folder", async (_event, mode?: "open" | "create") => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      const options = {
+        title: mode === "create" ? "新しいライブラリの場所を選択" : "ライブラリを開く",
+        buttonLabel: mode === "create" ? "ここに作成" : "開く",
+        properties: ["openDirectory", "createDirectory"] as Array<"openDirectory" | "createDirectory">,
+        defaultPath: app.getPath("documents")
+      };
+      const result = focusedWindow
+        ? await dialog.showOpenDialog(focusedWindow, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
     ipcMain.handle("lm-chat:show-item-in-folder", async (_event, targetPath: string) => {
       if (!targetPath) {
         return false;

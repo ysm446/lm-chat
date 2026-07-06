@@ -61,6 +61,7 @@ start.bat
 | `src/renderer/App.tsx` | ルートコンポーネント。グリッドレイアウト・サイドバー開閉状態 |
 | `src/renderer/components/ModelBar.tsx` | 上部モデルバー。モデル選択・イジェクト・サイドバートグル |
 | `src/renderer/components/ModelPickerModal.tsx` | モデル選択ダイアログ |
+| `src/renderer/components/LibrarySwitcher.tsx` | サイドバー最上部のライブラリ（データルート）切り替え。切り替え時は `bootstrap()` で全状態リロード |
 | `src/renderer/components/Sidebar.tsx` | 左サイドバー。ワークスペース＋セッションのツリー表示・ドラッグ並べ替え・ワークスペース間移動 |
 | `src/renderer/components/ChatView.tsx` | メッセージ一覧。生成統計・メッセージアクションボタン |
 | `src/renderer/components/MessageInput.tsx` | 入力エリア。画像添付・トークンリング・インライン補完・選択テキスト校正・送信 |
@@ -236,6 +237,10 @@ GET  /memory/stats
 
 GET  /config
 PATCH /config                             ← temperature, completion_length, memory_*, document_*（library）＋ ctx_size, n_gpu_layers（env/runtime.json へ振り分け）。GET はマージビュー
+
+GET  /library                             ← アクティブライブラリ + 最近開いた一覧
+POST /library/switch                      ← 既存ライブラリへ切り替え（Store を in-place reinit）
+POST /library/create                      ← 新規ライブラリを作成して切り替え
 
 GET  /settings
 PATCH /settings                           ← show_left, show_right

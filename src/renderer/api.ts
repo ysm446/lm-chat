@@ -414,6 +414,36 @@ export function importWorkspaceArchive(path: string) {
   });
 }
 
+export type LibraryEntry = {
+  path: string;
+  name: string;
+  exists: boolean;
+  active: boolean;
+};
+
+export type LibraryState = {
+  active: string;
+  libraries: LibraryEntry[];
+};
+
+export function getLibraryState() {
+  return request<LibraryState>("/library");
+}
+
+export function switchLibrary(path: string) {
+  return request<LibraryState>("/library/switch", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
+export function createLibrary(path: string) {
+  return request<LibraryState>("/library/create", {
+    method: "POST",
+    body: JSON.stringify({ path }),
+  });
+}
+
 export function getLlamaProps() {
   return request<{ n_ctx?: number; total_slots?: number }>("/llama/props");
 }
