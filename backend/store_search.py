@@ -8,6 +8,11 @@ from .models import MessageSearchHit
 _RRF_K = 60
 _SNIPPET_CHARS = 160
 
+# 意味検索の距離ゲート（cosine 距離）。ruri-v3 は距離が 0.15〜0.26 の狭い帯域に圧縮され、
+# 無関係な内容でも 0.2 前後に居るため、閾値なしだと緩く拾う。実データ計測では
+# 関連 ≲0.18 / 無関係 ≳0.20 で、境目は 0.19 付近。これより遠い意味ヒットは採用しない。
+_SEMANTIC_MAX_DISTANCE = 0.19
+
 
 def _snippet(content: str, query: str) -> str:
     """クエリ語の周辺を切り出したスニペット。見つからなければ先頭を返す。"""
@@ -104,6 +109,10 @@ class SearchMixin:
                 logger.warning("Message semantic search failed: %s", e)
                 vec_rows = []
             for rank, row in enumerate(vec_rows):
+                # 距離ゲート: 閾値より遠い意味ヒットは採用しない。
+                # ORDER BY distance ASC なので、超えたら以降も全て遠い。
+                if row["distance"] > _SEMANTIC_MAX_DISTANCE:
+                    break
                 sid = row["session_id"]
                 scores[sid] = scores.get(sid, 0.0) + 1.0 / (_RRF_K + rank + 1)
                 titles.setdefault(sid, row["session_title"])
