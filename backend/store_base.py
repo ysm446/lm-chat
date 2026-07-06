@@ -239,6 +239,33 @@ class SQLiteStoreBase:
                     "CREATE VIRTUAL TABLE document_vec USING vec0(chunk_id TEXT PRIMARY KEY, embedding FLOAT[768])"
                 )
                 conn.commit()
+
+            # メッセージ本文の全文検索インデックス（横断検索用）。
+            # memory_fts と同じ standalone FTS（id UNINDEXED + content）を、messages への
+            # トリガで自動同期する。TEXT id キーなので VACUUM で rowid が変わっても壊れない。
+            # 書き込み経路が多数（append/update/replace/delete/branch/duplicate）あるため、
+            # 各メソッドを手で触らずトリガに一元化する。
+            if "message_fts" not in tables:
+                conn.execute(
+                    "CREATE VIRTUAL TABLE message_fts USING fts5(id UNINDEXED, content, tokenize='trigram')"
+                )
+                # 既存メッセージのバックフィル。
+                conn.execute("INSERT INTO message_fts (id, content) SELECT id, content FROM messages")
+                conn.commit()
+            conn.executescript(
+                """
+                CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+                    INSERT INTO message_fts (id, content) VALUES (new.id, new.content);
+                END;
+                CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+                    DELETE FROM message_fts WHERE id = old.id;
+                END;
+                CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE OF content ON messages BEGIN
+                    UPDATE message_fts SET content = new.content WHERE id = old.id;
+                END;
+                """
+            )
+            conn.commit()
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_document_chunks_document ON document_chunks(document_id)"
             )

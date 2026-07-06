@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from .llama_manager import eject_model
-from .routes import chat, config, data, documents, history, library, llama, memory, models, system_prompts, util, workspaces
+from .routes import chat, config, data, documents, history, library, llama, memory, models, search, system_prompts, util, workspaces
 from .routes.deps import image_dir, start_background_task
 
 logging.basicConfig(level=os.environ.get("LM_CHAT_LOG_LEVEL", "INFO").upper())
@@ -54,6 +54,7 @@ for _router in (
     config.router,
     data.router,
     library.router,
+    search.router,
     llama.router,
 ):
     app.include_router(_router)

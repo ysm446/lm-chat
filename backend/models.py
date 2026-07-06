@@ -221,6 +221,21 @@ class WebSearchRequest(BaseModel):
     max_results: int = 5
 
 
+class MessageSearchHit(BaseModel):
+    session_id: str
+    session_title: str
+    workspace_id: str
+    message_id: str | None = None  # ジャンプ先（キーワードヒット時）。意味のみのヒットは None
+    snippet: str
+    score: float
+    sources: list[str]  # "keyword" / "semantic"
+
+
+class MessageSearchResponse(BaseModel):
+    query: str
+    hits: list[MessageSearchHit]
+
+
 class WebSearchResultItem(BaseModel):
     title: str
     url: str
