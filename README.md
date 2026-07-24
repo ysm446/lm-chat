@@ -87,9 +87,10 @@ start.bat
 - プロジェクト直下に Python venv（`.venv`）が作成され、`backend/requirements.txt` の依存関係がインストールされていること
 - GGUF モデルファイルを `models/` 配下に置くこと
 
-venv の作成（初回のみ）:
+初回セットアップ（clone 直後に一度だけ実行）:
 
 ```batch
+npm install
 py -m venv .venv
 .venv\Scripts\python -m pip install -r backend\requirements.txt
 ```
