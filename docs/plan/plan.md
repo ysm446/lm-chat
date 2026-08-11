@@ -126,6 +126,6 @@ Obsidian の vault に近い形で、アプリが開く「ライブラリ（デ�
 - RAG と記憶検索: `docs/design/rag/`
 - メッセージ横断検索: `docs/design/message-search.md`
 - ランタイムとコンテキスト長: `docs/design/runtime/`
-- Electron 設計ルール: `docs/design/rules/`
+- UI スタイルガイド: `docs/design/style-guide.md`
 - 旧計画メモ: `docs/design/plans/`
 - 更新履歴: `docs/changelog.md`
