@@ -7,12 +7,12 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
+from .. import paths
 from ..llm_proxy import list_models
+from ..runtime_store import get as get_runtime_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-_MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 
 _QUANTIZATION_PATTERN = re.compile(
     r"(?i)(?:^|[-_.])((?:IQ|Q|TQ)\d+(?:[_-][A-Z0-9]+){0,3}|BF16|FP16|F16|BF8|FP8)(?:[-_.]|$)"
@@ -154,12 +154,27 @@ def get_models() -> dict[str, list[dict[str, str]]]:
     return list_models()
 
 
+@router.get("/models/dir")
+def get_models_dir() -> dict:
+    """GGUF の探索先（実効パス）と、設定値・既定値・存在有無を返す。"""
+    effective = paths.models_dir()
+    configured = str(get_runtime_data().get("models_dir", "") or "").strip()
+    return {
+        "path": str(effective),
+        "configured": configured,
+        "default_path": str(paths.default_models_dir()),
+        "is_default": not configured,
+        "exists": effective.is_dir(),
+    }
+
+
 @router.get("/models/local")
 def list_local_models() -> list[dict]:
-    if not _MODELS_DIR.exists():
+    models_dir = paths.models_dir()
+    if not models_dir.is_dir():
         return []
     return [
         _get_local_model_display_info(p)
-        for p in sorted(_MODELS_DIR.rglob("*.gguf"))
+        for p in sorted(models_dir.rglob("*.gguf"))
         if "mmproj" not in p.stem.lower()
     ]

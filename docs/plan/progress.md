@@ -101,6 +101,16 @@
 - **距離ゲート追加**: 意味検索が緩く拾う問題に対処。ruri-v3 は cosine 距離が 0.15〜0.26 の狭帯域に圧縮され無関係でも 0.2 前後に居るため、閾値なしだと「近い順 N 件」に無関係が混ざる。実データ計測（関連≲0.18 / 無関係≳0.20）から `_SEMANTIC_MAX_DISTANCE = 0.19` を導入し、超える意味ヒットは break で不採用。キーワードヒットは常に表示。検証: 無関係クエリのヒットが約10→0、関連クエリは維持。将来は設定スライダーで可変化する余地あり。
 - **フェーズ3（保留）**: `message_vec` 新設による原文メッセージ単位の正確なジャンプ。セッション集約で粒度が足りないと分かってから着手。
 
+## 完了（モデルフォルダ指定 / 2026-08-23）
+
+- GGUF の探索先を設定できるようにした。環境側 `runtime.json` の `models_dir`（マシン固有・全ライブラリ共通）。未指定なら従来どおり `<repo>/models`。
+- `paths.py` に `models_dir()` / `default_models_dir()` を追加し、`routes/models.py` のハードコード `_MODELS_DIR` を廃止。毎リクエスト解決するので設定変更が即反映される。
+- `PATCH /config` に `models_dir` を追加（存在しないフォルダは 400、空文字で既定へ戻す、保存時に絶対パスへ正規化）。実効パスの参照用に `GET /models/dir` を新設。
+- 設定ウインドウ Model セクション先頭に「モデルフォルダ」カードを追加（現在のパス表示・変更・既定に戻す・エクスプローラーで表示）。変更後は `/models/dir` と `/models/local` を再取得して一覧を更新。
+- Electron に IPC `lm-chat:choose-models-folder` を追加（`chooseModelsFolder`）。ダイアログの初期位置は現在のモデルフォルダ。
+- 埋め込みモデルのキャッシュ（`models/embeddings`）は対象外。常に `<repo>/models/embeddings` のまま。
+- 検証: TestClient で `/models/dir`・`/models/local`・PATCH の 400 / 設定 / 既定戻しを確認。`npm run build` green。
+
 ## 未了（次段）
 
 - 環境側ファイル（`settings.json`・`llama_paths.json`・`runtime.json`）の `~/.lmchat` 等への物理分離（現状は `data/` 同居）。※保留中（予定据え置き）。

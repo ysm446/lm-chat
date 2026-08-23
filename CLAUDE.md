@@ -56,7 +56,7 @@ start.bat
 | `backend/llama_manager.py` | モデル切り替え・イジェクト・llama-server プロセス管理 |
 | `backend/paths.py` | 全データパス解決の単一窓口。ライブラリ側（`library_*`）と環境側（`app_*`）を分類。ライブラリ切り替えは `set_library_root()` |
 | `backend/config_store.py` | ライブラリ側 `config.json` への作風・RAG 設定永続化（`temperature`, `completion_length`, `memory_*`, `document_*`）。**ハード設定は持たない** |
-| `backend/runtime_store.py` | 環境側 `runtime.json` への推論ランタイム設定永続化（`ctx_size`, `n_gpu_layers`）。マシン固有 |
+| `backend/runtime_store.py` | 環境側 `runtime.json` への推論ランタイム設定永続化（`ctx_size`, `n_gpu_layers`, `models_dir`）。マシン固有 |
 | `backend/settings_store.py` | 環境側 `settings.json` への UI 設定永続化（`show_left`, `show_right`） |
 | `backend/system_prompt_store.py` | `data/system_prompts.json` への保存済みシステムプロンプト管理 |
 | `backend/memory/engine.py` | 記憶保存・検索のエントリポイント |
@@ -86,7 +86,7 @@ start.bat
 | `data/lm_chat.db` | SQLite DB（自動生成）。**ライブラリ側** |
 | `data/config.json` | 作風・RAG 設定（`temperature`・`completion_length`・`memory_*`・`document_*`）。**ライブラリ側** |
 | `data/system_prompts.json` | 保存済みシステムプロンプト一覧とアクティブテキスト。**ライブラリ側** |
-| `data/runtime.json` | 推論ランタイム設定（`ctx_size`・`n_gpu_layers`）。マシン固有の**環境側** |
+| `data/runtime.json` | 推論ランタイム設定（`ctx_size`・`n_gpu_layers`・`models_dir`）。マシン固有の**環境側** |
 | `data/settings.json` | UI 設定（`show_left`・`show_right` サイドバー開閉状態）。**環境側** |
 | `data/llama_paths.json` | llama-server の実行ファイルパス（start.bat が書き込み）。モデルパスはアプリからの切り替え時に更新。マシン固有の**環境側** |
 | `start.bat` | 全プロセスの一括起動スクリプト |
@@ -141,6 +141,15 @@ finish_reason TEXT         -- 停止理由（"stop", "length", "user_stopped" �
 - 内部の `_embed()` に `@lru_cache(maxsize=512)` が適用されており、同じテキストの再推論をスキップする。戻り値は `tuple[float, ...]`
 - サーバー起動時にバックグラウンドスレッドで `warmup_embedder()` を呼び出し、初回リクエストの遅延を解消する
 - DB スキーマ変更時は `data/lm_chat.db` を削除して再作成が必要
+
+### モデルフォルダ（GGUF の探索先）
+
+- GGUF の探索先は環境側 `runtime.json` の `models_dir`。空文字なら既定の `<repo>/models`（マシン固有なのでライブラリ切り替えでは不変）
+- 解決は `paths.models_dir()` / `paths.default_models_dir()` に集約。`routes/models.py` は毎リクエスト解決するので設定変更が即反映される
+- 設定は `PATCH /config` の `models_dir` で保存。存在しないフォルダは 400、空文字を渡すと既定へ戻す。保存時に絶対パスへ正規化する
+- UI は設定ウインドウの **Model** セクション。フォルダ変更後は `/models/dir` と `/models/local` を再取得して `availableModels` を更新する
+- ロード済みモデルのパス（`llama_paths.json` の `active_model_path`）は絶対パスなので、フォルダを変えても実行中のモデルには影響しない
+- 埋め込みモデルのキャッシュ（`models/embeddings`）はこの設定とは無関係で、常に `<repo>/models/embeddings`
 
 ### llama-server との通信
 - `llm_proxy.py` で `chat_template_kwargs: {"enable_thinking": bool}` と `thinking: {"type": "disabled"}` を制御
@@ -225,7 +234,8 @@ data: {"type": "error", "detail": "..."}  ← エラー
 ```
 GET  /health
 GET  /v1/models
-GET  /models/local               ← models/ 内の GGUF 一覧
+GET  /models/local               ← モデルフォルダ内の GGUF 一覧（再帰）
+GET  /models/dir                 ← GGUF 探索先の実効パス・設定値・既定値・存在有無
 
 GET  /workspaces
 POST /workspaces
@@ -259,7 +269,7 @@ DELETE /memory/workspace/{id}
 GET  /memory/stats
 
 GET  /config
-PATCH /config                             ← temperature, completion_length, memory_*, document_*（library）＋ ctx_size, n_gpu_layers（env/runtime.json へ振り分け）。GET はマージビュー
+PATCH /config                             ← temperature, completion_length, memory_*, document_*（library）＋ ctx_size, n_gpu_layers, models_dir（env/runtime.json へ振り分け）。GET はマージビュー
 
 GET  /library                             ← アクティブライブラリ + 最近開いた一覧
 POST /library/switch                      ← 既存ライブラリへ切り替え（Store を in-place reinit）

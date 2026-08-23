@@ -163,6 +163,8 @@ class ChatSendResponse(BaseModel):
 class ConfigUpdate(BaseModel):
     ctx_size: int | None = None
     n_gpu_layers: int | None = None
+    # GGUF の探索先。空文字で既定（<repo>/models）に戻す。
+    models_dir: str | None = None
     temperature: float | None = None
     completion_length: int | None = None
     memory_scope: Literal["workspace", "above_current", "below_current"] | None = None

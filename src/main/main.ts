@@ -148,6 +148,20 @@ if (!gotSingleInstanceLock) {
       return result.canceled ? null : (result.filePaths[0] ?? null);
     });
 
+    ipcMain.handle("lm-chat:choose-models-folder", async (_event, currentPath?: string) => {
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      const options = {
+        title: "モデルフォルダを選択",
+        buttonLabel: "選択",
+        properties: ["openDirectory"] as Array<"openDirectory">,
+        defaultPath: currentPath || app.getPath("documents")
+      };
+      const result = focusedWindow
+        ? await dialog.showOpenDialog(focusedWindow, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    });
+
     ipcMain.handle("lm-chat:show-item-in-folder", async (_event, targetPath: string) => {
       if (!targetPath) {
         return false;

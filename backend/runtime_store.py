@@ -1,6 +1,7 @@
 """推論ランタイム設定（環境側）の永続化。
 
-`ctx_size`・`n_gpu_layers` は GPU/VRAM に依存するマシン固有のハード設定であり、
+`ctx_size`・`n_gpu_layers`・`models_dir` は GPU/VRAM やディスク構成に依存する
+マシン固有のハード設定であり、
 ライブラリ（作品）を切り替えても不変であるべきなので、ライブラリ側の
 `config.json`（作風・RAG チューニング）から分離して環境側 `runtime.json` に持つ。
 
@@ -17,10 +18,13 @@ from .atomic_io import atomic_write_json, read_json
 _DEFAULTS: dict = {
     "ctx_size": 32768,
     "n_gpu_layers": -1,
+    # GGUF モデルの探索先。空文字なら既定（`<repo>/models`）。実体が大容量で
+    # ライブラリと一緒に持ち歩かないため、マシン固有の環境側設定として持つ。
+    "models_dir": "",
 }
 
-# 旧 config.json から移設するキー（初回シード用）。
-_MIGRATED_KEYS = tuple(_DEFAULTS.keys())
+# 旧 config.json から移設するキー（初回シード用）。models_dir は新規キーなので含めない。
+_MIGRATED_KEYS = ("ctx_size", "n_gpu_layers")
 
 
 def _ensure_seeded() -> None:

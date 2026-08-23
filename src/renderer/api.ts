@@ -138,6 +138,8 @@ export type LlamaRuntimeInstallResult = {
 export type AppConfig = {
   ctx_size: number;
   n_gpu_layers: number;
+  /** GGUF の探索先。空文字なら既定の models/ を使う */
+  models_dir: string;
   temperature: number;
   completion_length: number;
   memory_scope: "workspace" | "above_current" | "below_current";
@@ -318,6 +320,20 @@ export function listSessions(workspaceId: string, includeMessages = true) {
 
 export function listLocalModels() {
   return request<LocalModel[]>("/models/local");
+}
+
+export type ModelsDirInfo = {
+  /** 実際に探索するフォルダ（設定値、なければ既定） */
+  path: string;
+  /** 設定値。空文字なら未指定 */
+  configured: string;
+  default_path: string;
+  is_default: boolean;
+  exists: boolean;
+};
+
+export function getModelsDir() {
+  return request<ModelsDirInfo>("/models/dir");
 }
 
 export function fetchMemoryStats() {

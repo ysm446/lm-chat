@@ -136,6 +136,19 @@ else {
                 : await electron_1.dialog.showOpenDialog(options);
             return result.canceled ? null : (result.filePaths[0] ?? null);
         });
+        electron_1.ipcMain.handle("lm-chat:choose-models-folder", async (_event, currentPath) => {
+            const focusedWindow = electron_1.BrowserWindow.getFocusedWindow();
+            const options = {
+                title: "モデルフォルダを選択",
+                buttonLabel: "選択",
+                properties: ["openDirectory"],
+                defaultPath: currentPath || electron_1.app.getPath("documents")
+            };
+            const result = focusedWindow
+                ? await electron_1.dialog.showOpenDialog(focusedWindow, options)
+                : await electron_1.dialog.showOpenDialog(options);
+            return result.canceled ? null : (result.filePaths[0] ?? null);
+        });
         electron_1.ipcMain.handle("lm-chat:show-item-in-folder", async (_event, targetPath) => {
             if (!targetPath) {
                 return false;

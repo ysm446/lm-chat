@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("lmChat", {
   chooseExportArchivePath: (suggestedName?: string) => ipcRenderer.invoke("lm-chat:choose-export-archive-path", suggestedName) as Promise<string | null>,
   chooseImportArchivePath: () => ipcRenderer.invoke("lm-chat:choose-import-archive-path") as Promise<string | null>,
   chooseLibraryFolder: (mode?: "open" | "create") => ipcRenderer.invoke("lm-chat:choose-library-folder", mode) as Promise<string | null>,
+  chooseModelsFolder: (currentPath?: string) => ipcRenderer.invoke("lm-chat:choose-models-folder", currentPath) as Promise<string | null>,
   setWindowResolution: (resolution: string) => ipcRenderer.invoke("lm-chat:set-window-resolution", resolution) as Promise<boolean>,
   showItemInFolder: (targetPath: string) => ipcRenderer.invoke("lm-chat:show-item-in-folder", targetPath) as Promise<boolean>
 });

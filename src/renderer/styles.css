@@ -3044,6 +3044,60 @@ details.thinking-block[open] .thinking-chevron {
   color: var(--text);
 }
 
+.model-info-folder-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.model-info-folder-btn:disabled:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+/* 設定ウインドウ Model: GGUF の探索先フォルダ */
+.models-dir-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.035);
+}
+
+.models-dir-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.models-dir-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg-input);
+}
+
+.models-dir-path code {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.models-dir-warning {
+  color: var(--danger);
+}
+
 .model-info-active {
   flex-shrink: 0;
   font-size: 10px;

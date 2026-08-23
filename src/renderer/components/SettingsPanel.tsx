@@ -4,6 +4,7 @@ import {
   type AppConfigPatch,
   type AppSettings,
   type LlamaRuntimeInfo,
+  type ModelsDirInfo,
   type SettingsSectionKey,
   SavedSystemPrompt,
   cleanupDocuments,
@@ -15,6 +16,7 @@ import {
   getLlamaProps,
   getLlamaRuntimeInfo,
   getLlamaStatus,
+  getModelsDir,
   getSettings,
   importDataArchive,
   installLlamaRuntime,
@@ -114,6 +116,16 @@ function formatParamCount(value: number | null | undefined) {
   return value.toLocaleString();
 }
 
+function extractErrorDetail(error: unknown, fallback: string) {
+  const raw = error instanceof Error ? error.message : "";
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw) as { detail?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail) return parsed.detail;
+  } catch { /* JSON でないレスポンスはそのまま扱う */ }
+  return raw;
+}
+
 function getNearestCtxPresetIndex(value: number, presets: readonly number[]) {
   if (presets.length === 0) return 0;
   let nearestIndex = 0;
@@ -187,6 +199,9 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [modelsDir, setModelsDir] = useState<ModelsDirInfo | null>(null);
+  const [modelsDirBusy, setModelsDirBusy] = useState(false);
+  const [modelsDirError, setModelsDirError] = useState<string | null>(null);
   const [systemPromptOpen, setSystemPromptOpen] = useState(false);
   const [interfaceOpen, setInterfaceOpen] = useState(false);
   const [completionOpen, setCompletionOpen] = useState(false);
@@ -332,13 +347,17 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
     loadMemoryStats();
   }, [currentWorkspace?.id, loadMemoryStats]);
 
+  const reloadModels = useCallback(async () => {
+    const [dir, models] = await Promise.all([getModelsDir(), listLocalModels()]);
+    setModelsDir(dir);
+    useChatStore.setState({ availableModels: models });
+  }, []);
+
   useEffect(() => {
-    // 設定ウインドウを開いたタイミングで models フォルダを再スキャンし、最新の一覧を反映する
+    // 設定ウインドウを開いたタイミングでモデルフォルダを再スキャンし、最新の一覧を反映する
     if (view !== "app") return;
-    listLocalModels()
-      .then((models) => useChatStore.setState({ availableModels: models }))
-      .catch(() => {});
-  }, [view]);
+    reloadModels().catch(() => {});
+  }, [view, reloadModels]);
 
   useEffect(() => {
     if (advancedOpen && !runtimeInfo && !runtimeInfoBusy) {
@@ -388,6 +407,32 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
     } catch { /* ignore */ } finally {
       setSaving(false);
     }
+  };
+
+  // モデルフォルダ（環境側 runtime.json）。空文字を渡すと既定の models/ に戻る。
+  const applyModelsDir = async (nextPath: string) => {
+    setModelsDirBusy(true);
+    setModelsDirError(null);
+    try {
+      await updateConfig({ models_dir: nextPath });
+      await reloadModels();
+    } catch (error) {
+      setModelsDirError(extractErrorDetail(error, "モデルフォルダを変更できませんでした"));
+    } finally {
+      setModelsDirBusy(false);
+    }
+  };
+
+  const handleChooseModelsDir = async () => {
+    if (modelsDirBusy) return;
+    const bridge = window.lmChat;
+    if (!bridge?.chooseModelsFolder) {
+      setModelsDirError("フォルダ選択はデスクトップアプリでのみ利用できます");
+      return;
+    }
+    const picked = await bridge.chooseModelsFolder(modelsDir?.path);
+    if (!picked) return;
+    await applyModelsDir(picked);
   };
 
   const handleRuntimeInstall = async () => {
@@ -1305,7 +1350,7 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
       {/* System Info */}
       {/* Model */}
       <section className="settings-section" style={sectionStyle("model")}>
-        <button className="settings-section-header" onClick={() => toggleSettingsSection(setModelOpen, "settings_model_open")} onMouseEnter={onTipEnter("models フォルダにある GGUF モデルの一覧と特徴を表示します。")} onMouseLeave={onTipLeave}>
+        <button className="settings-section-header" onClick={() => toggleSettingsSection(setModelOpen, "settings_model_open")} onMouseEnter={onTipEnter("モデルフォルダにある GGUF モデルの一覧と特徴を表示します。探索先フォルダはここで変更できます。")} onMouseLeave={onTipLeave}>
           <span className="settings-section-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/>
@@ -1320,8 +1365,58 @@ export function SettingsPanel({ onEditSystemPrompt, view = "sidebar", appSection
 
         {(navMode || modelOpen) && (
           <div className="settings-section-body">
+            <div className="models-dir-card">
+              <div className="runtime-card-header">
+                <div>
+                  <span className="settings-field-label" onMouseEnter={onTipEnter("GGUF モデルを探すフォルダです。サブフォルダも再帰的に探索します。このPCの設定で、全ライブラリ共通です。")} onMouseLeave={onTipLeave}>モデルフォルダ</span>
+                  <span className="settings-field-hint">
+                    {modelsDir?.is_default === false ? "指定フォルダを使用中" : "未指定のため既定の models/ を使用中"}
+                  </span>
+                </div>
+                <div className="models-dir-actions">
+                  {modelsDir?.is_default === false && (
+                    <button
+                      type="button"
+                      className="runtime-secondary-btn"
+                      onClick={() => void applyModelsDir("")}
+                      disabled={modelsDirBusy}
+                    >
+                      既定に戻す
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="runtime-secondary-btn"
+                    onClick={() => void handleChooseModelsDir()}
+                    disabled={modelsDirBusy}
+                  >
+                    {modelsDirBusy ? "適用中..." : "変更"}
+                  </button>
+                </div>
+              </div>
+              <div className="models-dir-path">
+                <code title={modelsDir?.path ?? ""}>{modelsDir?.path ?? "読み込み中…"}</code>
+                <button
+                  type="button"
+                  className="model-info-folder-btn"
+                  title="エクスプローラーで表示"
+                  aria-label="モデルフォルダをエクスプローラーで表示"
+                  disabled={!modelsDir?.exists}
+                  onClick={() => { if (modelsDir?.path) void window.lmChat?.showItemInFolder(modelsDir.path); }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/>
+                  </svg>
+                </button>
+              </div>
+              {modelsDir && !modelsDir.exists && (
+                <p className="settings-field-hint models-dir-warning">フォルダが見つかりません。移動または削除された可能性があります。</p>
+              )}
+              {modelsDirError && <p className="settings-field-hint models-dir-warning">{modelsDirError}</p>}
+            </div>
+
             {availableModels.length === 0 ? (
-              <p className="settings-field-hint">models フォルダに GGUF モデルが見つかりません。</p>
+              <p className="settings-field-hint">このフォルダに GGUF モデルが見つかりません。</p>
             ) : (
               <div className="model-list">
                 {availableModels.map((m) => {

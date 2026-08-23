@@ -28,6 +28,9 @@ _APP_ROOT = _REPO_ROOT / "data"
 # 既定ライブラリ（ポインタ未設定時の後方互換の帰り先）。
 _DEFAULT_LIBRARY = _REPO_ROOT / "data"
 
+# 既定の GGUF モデル探索先（環境側設定が未指定のときの帰り先）。
+_DEFAULT_MODELS_DIR = _REPO_ROOT / "models"
+
 # マシンレベルのルート。どのライブラリにも属さない（アクティブライブラリのポインタを置く）。
 _MACHINE_ROOT = Path.home() / ".lmchat"
 
@@ -94,6 +97,26 @@ def llama_paths_path() -> Path:
 def app_runtime_config_path() -> Path:
     """推論ランタイム設定（ctx_size・n_gpu_layers）。マシン固有なので環境側。"""
     return app_root() / "runtime.json"
+
+
+def default_models_dir() -> Path:
+    """GGUF モデルの既定探索先（`<repo>/models`）。"""
+    return _DEFAULT_MODELS_DIR
+
+
+def models_dir() -> Path:
+    """GGUF モデルの探索先。
+
+    環境側 `runtime.json` の `models_dir` が指定されていればそれを、
+    未指定なら既定の `<repo>/models` を返す。マシン固有（モデルの実体は
+    大容量でライブラリと一緒に持ち歩かない）なので環境側に置く。
+    存在しないパスが設定されていてもそのまま返す（呼び出し側で存在確認する）。
+    """
+    # runtime_store が paths を import するため、循環回避で遅延 import する。
+    from .runtime_store import get as get_runtime
+
+    configured = str(get_runtime().get("models_dir", "") or "").strip()
+    return Path(configured).expanduser() if configured else _DEFAULT_MODELS_DIR
 
 
 # --- ライブラリ側（切り替え単位） ---
