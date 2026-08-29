@@ -4066,3 +4066,7 @@ details.thinking-block[open] .thinking-chevron {
 
 
 
+
+/* モデル選択: 一覧内に置く区切りラベル（Recent / Your Models）。従来の左位置 16px を維持 */
+.model-picker-list .model-picker-section-label { padding: 8px 8px 4px; }
+.model-picker-list .model-picker-section-label:not(:first-child) { margin-top: 4px; }

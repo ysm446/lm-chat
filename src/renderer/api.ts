@@ -65,6 +65,8 @@ export type LocalModel = {
   context_length?: number | null;
   parameter_count?: number | null;
   multimodal?: boolean;
+  /** 最近使った順位（0 が最新）。未使用なら null */
+  recent_rank?: number | null;
 };
 
 export type PromptLogContentPart =

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useChatStore } from "../stores/chatStore";
 
 function formatSize(bytes: number): string {
@@ -60,16 +60,21 @@ export function ModelPickerModal({ onClose }: Props) {
           <button className="model-picker-close" onClick={onClose}>✕</button>
         </div>
 
-        <div className="model-picker-section-label">Your Models</div>
-
         <div className="model-picker-list">
-          {filtered.map((m) => {
+          {filtered.map((m, i) => {
             const isActive = m.id === activeModel?.id;
+            const isRecent = m.recent_rank != null;
+            const prevRecent = i > 0 ? filtered[i - 1].recent_rank != null : null;
+            const sectionLabel =
+              i === 0 ? (isRecent ? "Recent" : "Your Models")
+              : prevRecent && !isRecent ? "Your Models"
+              : null;
             const paramsLabel = m.params_label ?? extractParams(m.id) ?? "";
             const quantLabel = m.quantization ?? "";
             return (
+              <Fragment key={m.id}>
+              {sectionLabel && <div className="model-picker-section-label">{sectionLabel}</div>}
               <button
-                key={m.id}
                 className={`model-picker-item${isActive ? " active" : ""}`}
                 onClick={() => void handleSelect(m.id)}
               >
@@ -81,6 +86,7 @@ export function ModelPickerModal({ onClose }: Props) {
                   <span className={`model-picker-badge${isActive ? "" : " is-empty"}`}>{isActive ? "読込中" : ""}</span>
                 </span>
               </button>
+              </Fragment>
             );
           })}
           {filtered.length === 0 && (

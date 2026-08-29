@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from .. import paths
+from ..llama_manager import get_recent_model_paths
 from ..llm_proxy import list_models
 from ..runtime_store import get as get_runtime_data
 
@@ -170,11 +171,23 @@ def get_models_dir() -> dict:
 
 @router.get("/models/local")
 def list_local_models() -> list[dict]:
+    """モデルフォルダ内の GGUF 一覧。最近使ったモデル（新しい順）を先頭に、残りは名前順。"""
     models_dir = paths.models_dir()
     if not models_dir.is_dir():
         return []
-    return [
-        _get_local_model_display_info(p)
-        for p in sorted(models_dir.rglob("*.gguf"))
-        if "mmproj" not in p.stem.lower()
-    ]
+    recent_rank: dict[str, int] = {}
+    for i, rp in enumerate(get_recent_model_paths()):
+        try:
+            recent_rank.setdefault(str(Path(rp).resolve()), i)
+        except OSError:
+            continue
+    models = []
+    for p in sorted(models_dir.rglob("*.gguf")):
+        if "mmproj" in p.stem.lower():
+            continue
+        info = _get_local_model_display_info(p)
+        rank = recent_rank.get(str(p.resolve()))
+        info["recent_rank"] = rank
+        models.append(info)
+    models.sort(key=lambda m: (m["recent_rank"] is None, m["recent_rank"] or 0, m["id"].lower()))
+    return models

@@ -212,6 +212,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const status = await getLlamaStatus().catch(() => ({ ready: false, active_model_path: "" }));
         if (status.ready) {
           set({ isSwitchingModel: false, activeModelPath: status.active_model_path });
+          // 最近使った順を反映するため一覧を再取得
+          listLocalModels().then((models) => set({ availableModels: models })).catch(() => {});
           // 現在のセッションのモデル名を更新
           const sessionId = get().currentSessionId;
           const newModel = get().selectedModel;

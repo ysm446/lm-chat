@@ -64,6 +64,23 @@ def get_llama_paths() -> dict:
     return {}
 
 
+_RECENT_MODELS_MAX = 20
+
+
+def _push_recent(recent: object, model_path: str) -> list[str]:
+    """最近使ったモデルの履歴（新しい順・重複なし）に model_path を先頭追加する。"""
+    items = [str(x) for x in recent if isinstance(x, str) and x] if isinstance(recent, list) else []
+    key = str(Path(model_path).resolve())
+    items = [x for x in items if str(Path(x).resolve()) != key]
+    return [model_path, *items][:_RECENT_MODELS_MAX]
+
+
+def get_recent_model_paths() -> list[str]:
+    """最近使ったモデルの絶対パス一覧（新しい順）。"""
+    recent = get_llama_paths().get("recent_model_paths")
+    return [x for x in recent if isinstance(x, str) and x] if isinstance(recent, list) else []
+
+
 def _save_llama_paths(paths: dict) -> None:
     _PATHS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PATHS_FILE.write_text(json.dumps(paths, indent=2, ensure_ascii=False), "utf-8")
@@ -407,6 +424,7 @@ def switch_model(model_path: str, ctx_size: int = 32768, n_gpu_layers: int = -1)
         )
 
     paths["active_model_path"] = model_path
+    paths["recent_model_paths"] = _push_recent(paths.get("recent_model_paths"), model_path)
     paths["mmproj_path"] = effective_mmproj
     paths["llama_server_pid"] = proc.pid
     paths["llama_server_base_url"] = LLAMA_SERVER_BASE_URL
