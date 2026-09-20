@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SavedSystemPrompt, getSettings, listSystemPrompts, updateSettings } from "./api";
 import { ActivityBar, AppMode } from "./components/ActivityBar";
+import { BootstrapErrorState } from "./components/BootstrapErrorState";
 import { ChatView } from "./components/ChatView";
 import { DocumentEditor } from "./components/DocumentEditor";
 import { MessageInput } from "./components/MessageInput";
@@ -25,6 +26,7 @@ export function App() {
   const tempChatMode = useChatStore((state) => state.tempChatMode);
   const toggleTempChat = useChatStore((state) => state.toggleTempChat);
   const isBootstrapping = useChatStore((state) => state.isBootstrapping);
+  const bootstrapFailed = useChatStore((state) => state.bootstrapFailed);
   const isSubmitting = useChatStore((state) => state.isSubmitting);
   const error = useChatStore((state) => state.error);
   const [sidebarWidth, setSidebarWidth] = useState(264);
@@ -123,6 +125,10 @@ export function App() {
         </div>
       </div>
     );
+  }
+
+  if (bootstrapFailed) {
+    return <BootstrapErrorState />;
   }
 
   if (workspaces.length === 0 || !currentWorkspace) {
