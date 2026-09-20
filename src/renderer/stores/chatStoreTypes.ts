@@ -17,6 +17,7 @@ export type ChatState = {
   currentSessionId: string | null;
   currentDocumentId: string | null;
   isBootstrapping: boolean;
+  bootstrapFailed: boolean;
   isSubmitting: boolean;
   submissionMode: "send" | "continue" | "regenerate" | "insert" | "temp" | null;
   abortController: AbortController | null;

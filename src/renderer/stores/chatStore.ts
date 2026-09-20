@@ -104,6 +104,22 @@ async function persistStoppedMessage(
   });
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 起動直後の一時的な通信失敗を吸収する簡易リトライ。 */
+async function retry<T>(fn: () => Promise<T>, attempts = 3, delayMs = 600): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (i < attempts - 1) await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   workspaces: [],
   sessions: [],
@@ -112,6 +128,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentSessionId: null,
   currentDocumentId: null,
   isBootstrapping: false,
+  bootstrapFailed: false,
   isSubmitting: false,
   submissionMode: null,
   abortController: null,
@@ -132,9 +149,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   tempMessages: [],
 
   bootstrap: async () => {
-    set({ isBootstrapping: true, error: null });
+    set({ isBootstrapping: true, bootstrapFailed: false, error: null });
     try {
-      const workspaces = await listWorkspaces();
+      // 起動直後はバックエンドがまだ応答しないことがある。ここで失敗したまま
+      // 空一覧として扱うと、既存ライブラリがあるのに新規作成画面が出るため数回リトライする。
+      const workspaces = await retry(listWorkspaces);
       // 一覧表示にはメッセージ本文は不要なので軽量版を取得し、選択中セッションだけ全文を取る
       const sessionsArrays = await Promise.all(workspaces.map((w) => listSessions(w.id, false)));
       const allSessions = sessionsArrays.flat();
@@ -146,7 +165,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         sessions: allSessions,
         currentWorkspaceId: firstWorkspace?.id ?? null,
         currentSessionId: firstSessionId,
-        isBootstrapping: false
+        isBootstrapping: false,
+        bootstrapFailed: false
       });
       if (firstSessionId) {
         void get().selectSession(firstSessionId);
@@ -154,7 +174,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : "Failed to load data",
-        isBootstrapping: false
+        isBootstrapping: false,
+        // 取得失敗と「本当にデータが空」を区別する。混同すると既存ライブラリがあるのに
+        // 新規ワークスペース作成画面が出てしまう。
+        bootstrapFailed: true
       });
     }
     // モデル一覧とアクティブモデルはワークスペース読み込みと独立して取得
