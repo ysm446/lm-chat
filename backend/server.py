@@ -19,11 +19,11 @@ app = FastAPI(title="LM Chat Backend", version="0.1.0")
 # "null" は Electron 本番ビルド(file:// 読み込み)からのリクエスト用。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "null",
-    ],
+    # start.bat は 5173 が埋まっていると 5174, 5175... とポートをずらすため、
+    # 固定ポートだけ許可すると全 API が CORS で弾かれて "Failed to fetch" になる。
+    # ローカル完結のアプリなのでループバックの任意ポートを許可する。
+    allow_origins=["null"],
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
